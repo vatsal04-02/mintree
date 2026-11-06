@@ -18,4 +18,4 @@ class Forbidden(HTTPException):
 
 class Unprocessable(HTTPException):
     def __init__(self, detail: str):
-        super().__init__(status.HTTP_422_UNPROCESSABLE_ENTITY, detail)
+        super().__init__(422, detail)

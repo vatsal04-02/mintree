@@ -51,6 +51,7 @@ def test_delete_deactivates_and_never_removes(admin):
     assert admin.delete(f"/api/masters/brands/{r['id']}").status_code == 204
     assert admin.get("/api/masters/brands").json()["total"] == 0
     assert admin.get("/api/masters/brands", params={"is_active": "false"}).json()["total"] == 1
+    assert admin.get("/api/masters/brands", params={"include_inactive": "true"}).json()["total"] == 1
     assert admin.get(f"/api/masters/brands/{r['id']}").json()["is_active"] is False
     assert admin.patch(f"/api/masters/brands/{r['id']}", json={"is_active": True}).json()["is_active"] is True
     actions = [l["action"] for l in admin.get("/api/admin/audit-logs", params={"entity": "brand"}).json()["items"]]

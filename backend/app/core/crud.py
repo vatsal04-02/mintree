@@ -98,10 +98,13 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
         except IntegrityError as e:
             raise translate_integrity_error(e) from e
 
-    def base_query(q, is_active, filters: dict[str, str | None]):
+    def base_query(q, is_active, include_inactive, filters: dict[str, str | None]):
         stmt = select(Model)
-        if r.has_active_flag and is_active is not None:
-            stmt = stmt.where(Model.is_active == is_active)
+        if r.has_active_flag:
+            if is_active is not None:  # explicit filter wins
+                stmt = stmt.where(Model.is_active == is_active)
+            elif not include_inactive:
+                stmt = stmt.where(Model.is_active.is_(True))
         if q:
             like = f"%{q.strip()}%"
             stmt = stmt.where(or_(*[cast(getattr(Model, c), String).ilike(like) for c in r.search_cols]))
@@ -130,7 +133,8 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
     @router.get("", response_model=Page[Read])
     def list_(
         q: str | None = None,
-        is_active: bool | None = True,
+        is_active: bool | None = None,
+        include_inactive: bool = False,
         sort: str = r.default_sort,
         page: int = Query(1, ge=1),
         page_size: int = Query(50, ge=1, le=500),
@@ -138,7 +142,7 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
         db: Session = Depends(get_db),
         cu: CurrentUser = Depends(require(f"{r.perm}:read")),
     ):
-        stmt = base_query(q, is_active, filters)
+        stmt = base_query(q, is_active, include_inactive, filters)
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = db.scalars(sorted_stmt(stmt, sort).limit(page_size).offset((page - 1) * page_size)).unique().all()
         return {"items": [to_out(o, cu) for o in rows], "total": total, "page": page, "page_size": page_size}
@@ -147,12 +151,13 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
         @router.get("/export.csv")
         def export(
             q: str | None = None,
-            is_active: bool | None = True,
+            is_active: bool | None = None,
+            include_inactive: bool = False,
             filters: dict = Depends(filter_deps()),
             db: Session = Depends(get_db),
             cu: CurrentUser = Depends(require(f"{r.perm}:export")),
         ):
-            rows = db.scalars(sorted_stmt(base_query(q, is_active, filters), r.default_sort)).unique().all()
+            rows = db.scalars(sorted_stmt(base_query(q, is_active, include_inactive, filters), r.default_sort)).unique().all()
             data = [to_out(o, cu) for o in rows]
             buf = io.StringIO()
             if data:
