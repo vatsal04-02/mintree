@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-[1.1fr_1fr]">
-      <div className="hidden md:flex flex-col justify-between p-12 text-white" style={{ background: "var(--primary-dark)" }}>
+      <div className="hidden md:flex flex-col justify-between p-12 text-white" style={{ background: "var(--sidebar)" }}>
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-lg grid place-items-center font-semibold bg-white/12">M</div>
           <span className="font-semibold text-[15px]">Mintree</span>

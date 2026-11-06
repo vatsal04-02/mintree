@@ -3,43 +3,53 @@
 
 /* ---- Design tokens (Mintree palette). Semantics are fixed: success/warning/danger/info mean the same everywhere. ---- */
 :root {
-  --bg: #ffffff;
+  --bg: #f6f6f4;
   --surface: #ffffff;
-  --surface-2: #f4f5f4;
-  --fg: #202925;
-  --muted: #747e78;
-  --line: #e4e8e4;
-  --primary: #126b61;
-  --primary-dark: #0b4942;
+  --surface-2: #f0f0ee;
+  --fg: #171717;
+  --muted: #737373;
+  --line: #e5e5e2;
+  --line-strong: #d4d4d0;
+  --primary: #171717;
+  --primary-dark: #000000;
   --primary-fg: #ffffff;
-  --success: #287d56;
-  --warning: #b7791f;
-  --danger: #b54747;
-  --info: #426d9b;
-  --sidebar: #0a0a0b;
-  --sidebar-fg: #c9cccb;
-  --sidebar-active: rgb(255 255 255 / 0.14);
-  --focus: #126b61;
+  --success: #2f7d57;
+  --warning: #a8741a;
+  --danger: #b3403f;
+  --info: #3f6a99;
+  --sidebar: #111111;
+  --sidebar-fg: #c4c4c0;
+  --sidebar-active: #2b2b2b;
+  --focus: #171717;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.05);
+  --chart-fill: #2b2b2b;
+  --chart-track: #e5e5e2;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #121815;
-  --surface: #1a211e;
-  --surface-2: #222b27;
-  --fg: #e6ece8;
-  --muted: #8d9993;
-  --line: #2c3631;
-  --primary: #2f9f90;
-  --primary-dark: #0b4942;
-  --primary-fg: #06201c;
-  --success: #4fb286;
-  --warning: #d9a145;
-  --danger: #dd7878;
-  --info: #7aa3d1;
-  --sidebar: #050505;
-  --sidebar-fg: #aeb3b1;
-  --sidebar-active: rgb(255 255 255 / 0.08);
-  --focus: #4cc0b0;
+  --bg: #0e0e0e;
+  --surface: #171717;
+  --surface-2: #1f1f1f;
+  --fg: #ededeb;
+  --muted: #9a9a96;
+  --line: #2a2a2a;
+  --line-strong: #3a3a38;
+  --primary: #ededeb;
+  --primary-dark: #ffffff;
+  --primary-fg: #111111;
+  --success: #5bb98a;
+  --warning: #d9a645;
+  --danger: #e07b79;
+  --info: #7ea6d4;
+  --sidebar: #090909;
+  --sidebar-fg: #a8a8a4;
+  --sidebar-active: #2b2b2b;
+  --focus: #ededeb;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.35);
+  --chart-fill: #d4d4d0;
+  --chart-track: #2a2a2a;
   color-scheme: dark;
 }
 
@@ -51,6 +61,7 @@
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-primary: var(--primary);
   --color-primary-dark: var(--primary-dark);
   --color-success: var(--success);
@@ -99,7 +110,10 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
 .input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 .input[aria-invalid="true"] { border-color: var(--danger); }
 
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-sm); }
+.panel-link { transition: border-color 120ms, box-shadow 120ms; }
+.panel-link:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+.eyebrow { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 
 .badge {
   display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px;
@@ -118,7 +132,7 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
   border-bottom: 1px solid var(--line); white-space: nowrap; user-select: none;
 }
 .dt td { padding: 0 12px; height: 38px; border-bottom: 1px solid var(--line); white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
-.dt tbody tr:hover td { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+.dt tbody tr:hover td { background: color-mix(in srgb, var(--fg) 4%, transparent); }
 .dt tbody tr:last-child td { border-bottom: 0; }
 .dt .num { text-align: right; font-variant-numeric: tabular-nums; }
 

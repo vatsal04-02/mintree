@@ -26,7 +26,7 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
 
     sales = one("""SELECT COALESCE(sum(subtotal),0) revenue, count(*) invoices, COALESCE(sum(total - amount_paid - credited_amount),0) receivable
                      FROM sales_invoices WHERE invoice_date <= :d""")
-    credits = one("SELECT COALESCE(sum(subtotal),0) AS credited FROM credit_notes WHERE created_at::date <= :d")
+    credit_notes_total = one("SELECT COALESCE(sum(subtotal),0) AS credited FROM credit_notes WHERE created_at::date <= :d")
     inv = one("SELECT COALESCE(sum(value),0) value FROM item_valuation")
     inv_kind = rows("""SELECT i.kind, COALESCE(sum(v.value),0) AS value, COALESCE(sum(v.qty),0) AS qty FROM item_valuation v JOIN items i ON i.id = v.item_id GROUP BY i.kind ORDER BY i.kind""")
     payable = one("""SELECT COALESCE(sum(l.credit - l.debit),0) ap FROM journal_lines l JOIN accounts a ON a.id = l.account_id
@@ -36,7 +36,7 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
     cogs = one("""SELECT COALESCE(sum(l.debit - l.credit),0) cogs FROM journal_lines l JOIN accounts a ON a.id = l.account_id
                    JOIN journal_entries e ON e.id = l.entry_id WHERE a.code = '5000' AND e.entry_date <= :d""")
     orders = rows("SELECT status, count(*) AS n, COALESCE(sum(total),0) AS value FROM sales_orders GROUP BY status ORDER BY status")
-    prod = rows("SELECT status, count(*) AS n FROM production_orders GROUP BY status ORDER BY status")
+    prod_by_status = rows("SELECT status, count(*) AS n FROM production_orders GROUP BY status ORDER BY status")
     yield_ = one("SELECT round(avg(yield_pct),2) avg_yield FROM production_orders WHERE status = 'COMPLETED'")
     qc = one("""SELECT (SELECT count(*) FROM inspections WHERE status IN ('PENDING','IN_PROGRESS')) AS open_inspections,
                        (SELECT count(*) FROM inventory_batches WHERE qc_status = 'HOLD') AS batches_on_hold,
@@ -95,11 +95,11 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
     }
     return {
         "as_of": d,
-        "sales": {"revenue_ex_tax": sales["revenue"], "credit_notes_ex_tax": credits["credited"], "net_revenue_ex_tax": sales["revenue"] - credits["credited"], "invoices": sales["invoices"],
+        "sales": {"revenue_ex_tax": sales["revenue"], "credit_notes_ex_tax": credit_notes_total["credited"], "net_revenue_ex_tax": sales["revenue"] - credit_notes_total["credited"], "invoices": sales["invoices"],
                   "receivable_outstanding": sales["receivable"], "cogs": cogs["cogs"], "source": "sales_invoices, credit_notes, journal_lines(5000)"},
         "finance": {"payable_outstanding": payable["ap"], "cash_and_bank": cash["cash"], "inventory_value": inv["value"], "inventory_by_kind": inv_kind,
                     "source": "journal_lines(2000,1000,1100), item_valuation"},
-        "orders_by_status": orders, "production_by_status": prod, "average_yield_pct": yield_["avg_yield"],
+        "orders_by_status": orders, "production_by_status": prod_by_status, "average_yield_pct": yield_["avg_yield"],
         "quality": dict(qc), "low_stock": low, "purchase_orders_by_status": po, "shipments_by_status": ship,
         "equipment_by_status": equip, "marketplace_orders_by_status": ext, "open_complaints": cmp_["open_complaints"],
         **extended,

@@ -1,5 +1,17 @@
 import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, type LucideIcon } from "lucide-react";
-import { MODULES } from "./modules";
+import { MODULES, MODULE_BY_ID, type Module } from "./modules";
+
+/** Which sidebar group each module sits in; the admin tools module is appended to Administration below. */
+const MODULE_GROUPS: [string, string[]][] = [
+  ["Operations", ["procurement", "inventory", "production", "rnd", "quality", "dispatch", "maintenance"]],
+  ["CRM", ["sales"]],
+  ["Finance", ["accounts", "analytics"]],
+  ["Integrations", ["ecommerce", "branding"]],
+];
+const moduleItem = (m: Module): NavItem => ({
+  href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}`,
+  children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
+});
 
 export type NavChild = { href: string; label: string; perm?: string };
 export type NavItem = { href: string; label: string; icon: LucideIcon; perm?: string; anyPerm?: string[]; keywords?: string; hidden?: boolean; children?: NavChild[] };
@@ -11,13 +23,10 @@ export const NAV: NavGroup[] = [
     { href: "/approvals", label: "Approvals", icon: Inbox, keywords: "pending inbox approve" },
     { href: "/notifications", label: "Notifications", icon: Bell, keywords: "alerts unread" },
   ] },
-  {
-    label: "Operations",
-    items: MODULES.map((m) => ({
-      href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}`,
-      children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
-    })),
-  },
+  ...MODULE_GROUPS.map(([label, ids]) => ({
+    label,
+    items: ids.flatMap((id) => (MODULE_BY_ID[id] ? [moduleItem(MODULE_BY_ID[id])] : [])),
+  })),
   {
     label: "Master data",
     items: [
@@ -39,6 +48,7 @@ export const NAV: NavGroup[] = [
       { href: "/admin/roles", label: "Roles & permissions", icon: ShieldCheck, perm: "admin.role:read", keywords: "access matrix" },
       { href: "/admin/departments", label: "Departments", icon: Building2, perm: "admin.department:read" },
       { href: "/admin/audit", label: "Audit log", icon: ScrollText, perm: "admin.audit:read", keywords: "history changes" },
+      ...(MODULE_BY_ID.admin ? [moduleItem(MODULE_BY_ID.admin)] : []),
     ],
   },
 ];

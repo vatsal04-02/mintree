@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScanLine, Bell as BellIcon, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
+import { ScanLine, Bell as BellIcon, Menu, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ALL_NAV_ITEMS, NAV, visible } from "@/lib/nav";
 import { api, type Page } from "@/lib/api";
@@ -11,13 +11,16 @@ import { ScanDialog, useGlobalScan, useWedgeScanner } from "./Scanner";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [ready, setReady] = useState(false);   // the stored choice must be read before anything is written back, or the default overwrites it
   useEffect(() => {
     try { const t = localStorage.getItem("mintree-theme"); if (t === "dark" || t === "light") setTheme(t); else if (matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark"); } catch {}
+    setReady(true);
   }, []);
   useEffect(() => {
+    if (!ready) return;
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("mintree-theme", theme); } catch {}
-  }, [theme]);
+  }, [theme, ready]);
   return [theme, () => setTheme((t) => (t === "dark" ? "light" : "dark"))] as const;
 }
 
@@ -37,6 +40,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [closedGroups, setClosedGroups] = useState<Record<string, boolean>>({});
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
+  }, [mobileOpen]);
   const toggleGroup = (href: string, open: boolean) => setExpanded((e) => ({ ...e, [href]: !open }));
   const [theme, toggleTheme] = useTheme();
   useEffect(() => { try { setCollapsed(localStorage.getItem("mintree-nav") === "1"); } catch {} }, []);
@@ -47,16 +58,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className={`${collapsed ? "w-[60px]" : "w-[236px]"} shrink-0 flex flex-col transition-[width] duration-150`} style={{ background: "var(--sidebar)", color: "var(--sidebar-fg)" }}>
+      {mobileOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} aria-hidden />}
+      <aside id="primary-nav" className={`${collapsed ? "md:w-[60px]" : "md:w-[244px]"} w-[260px] shrink-0 flex flex-col transition-transform md:transition-[width] duration-150 fixed inset-y-0 left-0 z-40 md:static ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`} style={{ background: "var(--sidebar)", color: "var(--sidebar-fg)" }}>
         <div className="h-14 flex items-center gap-2.5 px-3.5 shrink-0">
           <div className="w-8 h-8 rounded-lg grid place-items-center font-semibold text-[15px] shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }} aria-hidden>M</div>
           {!collapsed && <div className="leading-tight"><div className="text-white font-semibold text-[14px]">Mintree</div><div className="text-[11px] opacity-70">Factory OS</div></div>}
         </div>
         <nav className="flex-1 overflow-y-auto px-2 pb-3 sidebar-scroll" aria-label="Main">
           {groups.map((g) => (
-            <div key={g.label} className="mt-3 first:mt-1">
-              {!collapsed && <div className="px-2.5 mb-1 text-[10.5px] uppercase tracking-[0.08em] opacity-55 font-medium">{g.label}</div>}
-              {g.items.map((i) => {
+            <div key={g.label} className="mt-4 first:mt-1">
+              {!collapsed
+                ? <button type="button" aria-expanded={!closedGroups[g.label]} onClick={() => setClosedGroups((c) => ({ ...c, [g.label]: !c[g.label] }))}
+                    className="flex items-center w-full px-2.5 mb-1 h-6 text-[11.5px] font-medium opacity-60 hover:opacity-100 transition-opacity">
+                    <span className="flex-1 text-left">{g.label}</span><ChevronDown size={12} className={`transition-transform ${closedGroups[g.label] ? "-rotate-90" : ""}`} />
+                  </button>
+                : <div className="mx-2.5 mb-1.5 border-t border-white/10" aria-hidden />}
+              {(collapsed || !closedGroups[g.label]) && g.items.map((i) => {
                 const active = i === current || (i.href === "/" ? pathname === "/" : pathname.startsWith(i.href));
                 const Icon = i.icon;
                 if (i.children) {
@@ -95,30 +112,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <div className="border-t border-white/10 p-2">
-          <button onClick={toggleNav} className="flex items-center gap-2.5 h-8 px-2.5 rounded-md w-full text-[12.5px] hover:bg-white/5" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            {collapsed ? <PanelLeftOpen size={16} /> : <><PanelLeftClose size={16} />Collapse</>}
-          </button>
-          <div className="flex items-center gap-2.5 px-2 py-2 mt-1">
-            <div className="w-7 h-7 rounded-full grid place-items-center text-[11px] font-semibold shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }}>
+        <div className="border-t border-white/10 p-2 shrink-0">
+          <div className="flex items-center gap-2.5 px-2 py-2">
+            <div className="w-8 h-8 rounded-full grid place-items-center text-[11px] font-semibold shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }} aria-hidden>
               {me?.full_name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
             </div>
-            {!collapsed && <div className="min-w-0 leading-tight"><div className="text-white text-[12.5px] truncate">{me?.full_name}</div><div className="text-[11px] opacity-65 truncate">{me?.roles[0] ?? "No role"}</div></div>}
+            {!collapsed && <div className="min-w-0 leading-tight flex-1"><div className="text-white text-[12.5px] truncate">{me?.full_name}</div><div className="text-[11px] opacity-65 truncate">{me?.roles[0] ?? "No role"} · Mintree</div></div>}
           </div>
+          <button onClick={toggleNav} className="hidden md:flex items-center gap-2.5 h-8 px-2.5 rounded-md w-full text-[12.5px] hover:bg-white/5" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            {collapsed ? <PanelLeftOpen size={16} /> : <><PanelLeftClose size={16} />Collapse</>}
+          </button>
         </div>
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} />
+        <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} />
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1320px] mx-auto px-7 py-6">{children}</div>
+          <div className="max-w-[1360px] mx-auto px-4 sm:px-7 py-6">{children}</div>
         </main>
       </div>
     </div>
   );
 }
 
-function Header({ current, theme, toggleTheme, logout }: { current?: string; theme: string; toggleTheme: () => void; logout: () => void }) {
+function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen }: { current?: string; theme: string; toggleTheme: () => void; logout: () => void; onMenu: () => void; menuOpen: boolean }) {
   const { me, can } = useAuth();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -143,9 +160,10 @@ function Header({ current, theme, toggleTheme, logout }: { current?: string; the
   ].filter((q) => can(q.perm));
 
   return (
-    <header className="h-14 shrink-0 border-b border-line bg-surface flex items-center gap-4 px-7">
+    <header className="h-14 shrink-0 border-b border-line bg-surface flex items-center gap-3 sm:gap-4 px-4 sm:px-7">
+      <button type="button" className="btn btn-ghost btn-sm !px-2 md:hidden" onClick={onMenu} aria-label="Open navigation" aria-controls="primary-nav" aria-expanded={menuOpen}><Menu size={17} /></button>
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[12.5px] text-muted min-w-0">
-        <span>Mintree</span><ChevronRight size={13} /><span className="text-fg font-medium truncate">{current ?? "Overview"}</span>
+        <span className="hidden sm:inline">Mintree</span><ChevronRight size={13} className="hidden sm:block" /><span className="text-fg font-medium truncate">{current ?? "Overview"}</span>
       </nav>
       <div className="flex-1" />
       <button onClick={() => setScan(true)} className="btn btn-sm" aria-label="Scan a barcode" title="Scan a barcode (Alt+S)"><ScanLine size={15} /><span className="hidden lg:inline">Scan</span></button>

@@ -117,7 +117,7 @@ function DetailDrawer({ doc, onClose, onChanged }: { doc: Doc | null; onClose: (
         <div className="space-y-6 text-[13px]">
           {doc.description && <p className="text-muted">{doc.description}</p>}
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2">Versions</h3>
+            <h3 className="text-[12px] font-semibold text-muted mb-2">Versions</h3>
             <ul className="panel divide-y divide-line">
               {[...doc.versions].reverse().map((v) => (
                 <li key={v.version_no} className="px-3 py-2.5 flex items-center gap-3">
@@ -143,7 +143,7 @@ function DetailDrawer({ doc, onClose, onChanged }: { doc: Doc | null; onClose: (
             )}
           </section>
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2">Linked records</h3>
+            <h3 className="text-[12px] font-semibold text-muted mb-2">Linked records</h3>
             {doc.links.length === 0 ? <p className="text-muted">Not linked to any record.</p> : (
               <ul className="flex flex-wrap gap-2">{doc.links.map((l) => (
                 <li key={l.id} className="badge tone-info !h-6 gap-1.5"><Link2 size={11} />{titleCase(l.entity_type)} {l.entity_id}

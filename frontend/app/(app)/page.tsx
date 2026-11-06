@@ -1,118 +1,201 @@
 "use client";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
-import { api, type Page } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { api, ApiError, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtDateTime, titleCase } from "@/lib/format";
-import { MODULE_BY_ID } from "@/lib/modules";
-import { Badge, PageHeader } from "@/components/ui";
+import { fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from "@/lib/format";
+import { MODULE_BY_ID, toneFor } from "@/lib/modules";
+import { PageHeader } from "@/components/ui";
+import { BarRows, InlineNotice, KpiCard, Pipeline, Section, SectionLink, SkeletonRows, StatusBar, Timeline, WorkQueue, type QueueItem, type Stage, type Tone } from "@/components/dash";
 
-type Counts = Record<string, number | null>;
+/* Shape of GET /analytics/management-summary. Every figure below is read from it; nothing on this page is computed from constants. */
+type Count = { status: string; n: number; value?: string | number };
+type Summary = {
+  as_of: string;
+  sales: { receivable_outstanding: string | number };
+  orders_by_status: Count[]; production_by_status: Count[]; purchase_orders_by_status: Count[]; shipments_by_status: Count[];
+  quality: { open_inspections: number; batches_on_hold: number; batches_quarantined: number; open_deviations: number; open_capa: number };
+  low_stock: { item_code: string; name: string; available: string | number; reorder_level: string | number }[];
+  production: { completed_30d: number; planned_qty_30d: string; actual_qty_30d: string; active_orders: number; delayed_work_orders: number; wastage_qty_30d: string; average_yield_pct: string | number | null };
+  inventory: { value_by_kind: { kind: string; value: string | number }[]; total_value: string | number; below_reorder_level: number; expiring_within_90_days: number; expired_with_stock: number };
+  procurement: { purchase_requests_awaiting_approval: number; purchase_orders_awaiting_approval: number; open_purchase_orders: number; late_deliveries: number; purchase_value_30d: string };
+  quality_extended: { rejected_inspections_30d: number; rejected_batches: number };
+  dispatch: { delayed_shipments: number; delivered: number; failed_or_rto: number; returns_open: number };
+  finance_extended: { open_sales_invoices: number; gross_margin_pct_30d: number | null; revenue_30d: string };
+};
+type Approval = { type: string; id: number; number: string; since: string };
 type Audit = { id: number; occurred_at: string; user_email: string | null; action: string; entity: string; entity_id: string | null };
 
-// Honest status per PRD module (see docs/PRD_COVERAGE.md). "Partial" means built and usable, with the stated limit.
-const MODULES: { n: string; id: string; name: string; status: "live" | "partial"; note?: string }[] = [
-  { n: "01", id: "production", name: "Production", status: "partial", note: "no capacity scheduling" },
-  { n: "02", id: "procurement", name: "Purchase", status: "live" },
-  { n: "03", id: "dispatch", name: "Dispatch", status: "partial", note: "whole-order shipments; courier is a stand-in" },
-  { n: "04", id: "rnd", name: "R&D", status: "live" },
-  { n: "05", id: "quality", name: "Quality", status: "partial", note: "no sampling plans" },
-  { n: "06", id: "maintenance", name: "Maintenance", status: "live" },
-  { n: "07", id: "accounts", name: "Accounts", status: "partial", note: "no GST filing / e-invoice" },
-  { n: "08", id: "ecommerce", name: "E-commerce", status: "partial", note: "file & webhook import; live marketplace APIs pending" },
-  { n: "09", id: "branding", name: "Meta & Branding", status: "partial", note: "publishing recorded manually" },
-];
+const SHIPMENT_FINAL = ["DELIVERED", "RTO", "FAILED_DELIVERY", "CANCELLED"];
+/** Audit entity -> list screen that opens the record via ?open=<id> (the same convention the approvals inbox uses). */
+const RECORD_SCREEN: Record<string, string> = {
+  purchase_order: "/m/procurement/orders", rfq: "/m/procurement/rfqs", production_order: "/m/production/orders", bom: "/m/production/boms", shipment: "/m/dispatch/shipments",
+  sales_return: "/m/dispatch/returns", inspection: "/m/quality/inspections", deviation: "/m/quality/deviations", formulation_version: "/m/rnd/formulations",
+  maintenance_work_order: "/m/maintenance/work-orders", content: "/m/branding/content",
+};
+const KIND: Record<string, string> = { RM: "Raw materials", PM: "Packaging materials", FG: "Finished goods", SFG: "Semi-finished goods" };
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const num = (v: unknown) => (v === null || v === undefined || v === "" ? 0 : Number(v));
+const sumStatus = (rows: Count[] | undefined, pick: (s: string) => boolean) => (rows ?? []).filter((r) => pick(r.status)).reduce((a, r) => a + r.n, 0);
+const statusItems = (rows: Count[] | undefined) => (rows ?? []).map((r) => ({ label: titleCase(r.status), value: r.n, tone: toneFor(r.status) as Tone }));
 
 export default function Overview() {
   const { me, can } = useAuth();
-  const [counts, setCounts] = useState<Counts>({});
+  const canSummary = can("analytics.dashboard:read");
+  const canAudit = can("admin.audit:read");
+  const [summary, setSummary] = useState<Summary | null | undefined>(undefined);   // undefined: loading, null: unavailable
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [approvals, setApprovals] = useState<Approval[] | null>(null);
   const [activity, setActivity] = useState<Audit[] | null>(null);
 
   useEffect(() => {
-    const jobs: [string, string, Record<string, string>?, string?][] = [
-      ["items", "/masters/items", {}, "masters.item:read"], ["suppliers", "/masters/suppliers", {}, "masters.supplier:read"],
-      ["pendingSuppliers", "/masters/suppliers", { approval_status: "PENDING" }, "masters.supplier:read"],
-      ["customers", "/masters/customers", {}, "masters.customer:read"], ["warehouses", "/masters/warehouses", {}, "masters.warehouse:read"],
-      ["documents", "/documents", {}, "documents.document:read"], ["users", "/admin/users", { is_active: "true" }, "admin.user:read"],
+    api<{ items: Approval[] }>("/approvals/pending").then((d) => setApprovals(d.items)).catch(() => setApprovals([]));
+    if (canSummary) api<Summary>("/analytics/management-summary").then(setSummary).catch((e) => { setSummary(null); setSummaryError(e instanceof ApiError ? e.message : "The summary could not be loaded."); });
+    else setSummary(null);
+    if (canAudit) api<Page<Audit>>("/admin/audit-logs", { params: { page_size: 8 } }).then((p) => setActivity(p.items)).catch(() => setActivity([]));
+  }, [canSummary, canAudit]);
+
+  /** Link to a module screen only when the user may open it (the backend enforces the same permission). */
+  const to = (moduleId: string, screenId: string) => {
+    const sc = MODULE_BY_ID[moduleId]?.screens.find((x) => x.id === screenId);
+    return sc && can(sc.perm) ? `/m/${moduleId}/${screenId}` : undefined;
+  };
+
+  const view = useMemo(() => {
+    const s = summary;
+    if (!s) return null;
+    const pendingShipments = sumStatus(s.shipments_by_status, (st) => !SHIPMENT_FINAL.includes(st));
+    const q = s.quality, inv = s.inventory, pr = s.procurement, d = s.dispatch, p = s.production;
+    const held = q.batches_on_hold + q.batches_quarantined;
+    const stages: Stage[] = [
+      { label: "Procurement", count: pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval, unit: "awaiting approval", href: to("procurement", "orders"), flags: [] },
+      { label: "Goods receipt", count: pr.open_purchase_orders, unit: "POs awaiting delivery", href: to("procurement", "receipts"), flags: [{ label: "late deliveries", n: pr.late_deliveries, tone: "danger" }] },
+      { label: "Inventory", count: inv.below_reorder_level, unit: "items below reorder", href: to("inventory", "reorder"),
+        flags: [{ label: "expired with stock", n: inv.expired_with_stock, tone: "danger" }, { label: "held or quarantined", n: held, tone: "warning" }, { label: "expiring in 90 days", n: inv.expiring_within_90_days, tone: "warning" }] },
+      { label: "Production", count: p.active_orders, unit: "in progress", href: to("production", "orders"), flags: [{ label: "past planned date", n: p.delayed_work_orders, tone: "danger" }] },
+      { label: "Quality", count: q.open_inspections, unit: "inspections open", href: to("quality", "inspections"),
+        flags: [{ label: "open deviations", n: q.open_deviations, tone: "warning" }, { label: "open CAPA", n: q.open_capa, tone: "warning" }] },
+      { label: "Dispatch", count: pendingShipments, unit: "shipments open", href: to("dispatch", "shipments"),
+        flags: [{ label: "older than 5 days", n: d.delayed_shipments, tone: "danger" }, { label: "failed or returned to origin", n: d.failed_or_rto, tone: "danger" }, { label: "returns awaiting action", n: d.returns_open, tone: "warning" }] },
     ];
-    jobs.filter(([, , , perm]) => perm && can(perm)).forEach(([k, path, params]) =>
-      api<Page<unknown>>(path, { params: { page_size: 1, ...params } }).then((p) => setCounts((c) => ({ ...c, [k]: p.total }))).catch(() => setCounts((c) => ({ ...c, [k]: null }))));
-    if (can("admin.audit:read")) api<Page<Audit>>("/admin/audit-logs", { params: { page_size: 8 } }).then((p) => setActivity(p.items)).catch(() => setActivity([]));
-  }, [can]);
+    const weight = stages.map((st) => st.flags.reduce((a, f) => a + f.n, 0));
+    const top = Math.max(...weight);
+    const busiest = top > 0 ? stages[weight.indexOf(top)].label : null;
 
-  const kpis = [
-    { key: "items", label: "Items", href: "/masters/items", perm: "masters.item:read" },
-    { key: "suppliers", label: "Suppliers", href: "/masters/suppliers", perm: "masters.supplier:read" },
-    { key: "customers", label: "Customers", href: "/masters/customers", perm: "masters.customer:read" },
-    { key: "warehouses", label: "Warehouses", href: "/masters/warehouses", perm: "masters.warehouse:read" },
-    { key: "documents", label: "Documents", href: "/documents", perm: "documents.document:read" },
-    { key: "users", label: "Active users", href: "/admin/users", perm: "admin.user:read" },
-  ].filter((k) => can(k.perm));
+    const queue: QueueItem[] = ([
+      { key: "expired", label: "Expired batches still holding stock", count: inv.expired_with_stock, tone: "danger", href: to("inventory", "expiring") },
+      { key: "late", label: "Purchase orders past expected delivery", count: pr.late_deliveries, tone: "danger", href: to("procurement", "delivery") },
+      { key: "delayed-wo", label: "Production orders past planned date", count: p.delayed_work_orders, tone: "danger", href: to("production", "orders") },
+      { key: "ship-late", label: "Shipments open longer than 5 days", count: d.delayed_shipments, tone: "danger", href: to("dispatch", "shipments") },
+      { key: "ship-fail", label: "Failed deliveries and returns to origin", count: d.failed_or_rto, tone: "danger", href: to("dispatch", "shipments") },
+      { key: "qc-hold", label: "Batches on QC hold or quarantine", count: held, tone: "warning", href: to("inventory", "batches") },
+      { key: "inspections", label: "Inspections awaiting a decision", count: q.open_inspections, tone: "warning", href: to("quality", "inspections") },
+      { key: "dev", label: "Open deviations", count: q.open_deviations, tone: "warning", href: to("quality", "deviations") },
+      { key: "pr", label: "Purchase requests awaiting approval", count: pr.purchase_requests_awaiting_approval, tone: "warning", href: to("procurement", "requests") },
+      { key: "po", label: "Purchase orders awaiting approval", count: pr.purchase_orders_awaiting_approval, tone: "warning", href: to("procurement", "orders") },
+      { key: "low", label: "Items below reorder level", count: inv.below_reorder_level, tone: "warning", href: to("inventory", "reorder"),
+        detail: s.low_stock.slice(0, 3).map((l) => `${l.name} (${fmtNum(l.available, 1)} of ${fmtNum(l.reorder_level, 1)})`).join(" · ") || undefined },
+      { key: "returns", label: "Customer returns awaiting action", count: d.returns_open, tone: "warning", href: to("dispatch", "returns") },
+    ] as QueueItem[]).filter((i) => (i.count ?? 0) > 0);
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    const planned = num(p.planned_qty_30d), actual = num(p.actual_qty_30d);
+    return { stages, busiest, queue, pendingShipments, held, planned, actual };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, can]);
+
+  const myApprovals = approvals?.length ?? 0;
+  const oldestApproval = approvals && approvals.length ? approvals[0].since : null;
+  const loading = canSummary && summary === undefined;
+  const s = summary ?? null;
 
   return (
     <>
-      <PageHeader title={`${greeting}, ${me?.full_name.split(" ")[0]}`} description="Foundation workspace. Operational dashboards appear here as each module goes live." />
+      <PageHeader title="Factory overview" description={s ? `Operational summary as of ${fmtDate(s.as_of)}. Figures are calculated from live records.` : `Signed in as ${me?.full_name}${me?.department_name ? `, ${me.department_name}` : ""}.`} />
 
-      {kpis.length > 0 && (
-        <section aria-label="Master data" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
-          {kpis.map((k) => (
-            <Link key={k.key} href={k.href} className="panel p-3.5 group hover:border-primary/50 transition-colors">
-              <div className="flex items-center justify-between text-muted text-[12px]">{k.label}<ArrowUpRight size={13} className="opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-              <div className="text-[26px] leading-9 font-semibold tnum mt-0.5">{counts[k.key] === undefined ? <span className="skeleton inline-block w-10 h-6 align-middle" /> : counts[k.key] ?? "—"}</div>
-            </Link>
-          ))}
+      {summaryError && <div className="mb-4"><InlineNotice tone="danger">{summaryError} Operational figures are unavailable until it loads; reload to try again.</InlineNotice></div>}
+      {!canSummary && <div className="mb-4"><InlineNotice>Your role does not include the management summary, so company-wide figures are not shown. Your approvals and the areas you can open are available from the sidebar.</InlineNotice></div>}
+
+      {/* KPI cards */}
+      <section aria-label="Key figures" className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
+        <KpiCard label="Awaiting your approval" value={approvals === null ? "—" : myApprovals} loading={approvals === null}
+          hint={myApprovals ? `Oldest since ${fmtDate(oldestApproval)}` : "Nothing waiting"} tone={myApprovals ? "warning" : "neutral"} href="/approvals" />
+        {canSummary && (
+          <>
+            <KpiCard label="Active production orders" loading={loading} value={s ? s.production.active_orders : "—"} href={to("production", "orders")}
+              hint={s ? (s.production.delayed_work_orders ? `${s.production.delayed_work_orders} past planned date` : "None past planned date") : undefined} tone={s?.production.delayed_work_orders ? "danger" : "neutral"} />
+            <KpiCard label="Purchase requests pending" loading={loading} value={s ? s.procurement.purchase_requests_awaiting_approval : "—"} href={to("procurement", "requests")}
+              hint={s ? `${plural(s.procurement.purchase_orders_awaiting_approval, "purchase order", "purchase orders")} awaiting approval` : undefined} tone={s?.procurement.purchase_requests_awaiting_approval ? "warning" : "neutral"} />
+            <KpiCard label="Inventory alerts" loading={loading} value={s ? s.inventory.below_reorder_level + s.inventory.expired_with_stock : "—"} href={to("inventory", "reorder")}
+              hint={s ? `${s.inventory.below_reorder_level} below reorder · ${s.inventory.expired_with_stock} expired with stock` : undefined} tone={s && s.inventory.expired_with_stock ? "danger" : s && s.inventory.below_reorder_level ? "warning" : "neutral"} />
+            <KpiCard label="QC inspections open" loading={loading} value={s ? s.quality.open_inspections : "—"} href={to("quality", "inspections")}
+              hint={s ? `${plural(view?.held ?? 0, "batch", "batches")} on hold or quarantine` : undefined} tone={view && view.held ? "warning" : "neutral"} />
+            <KpiCard label="Shipments open" loading={loading} value={view ? view.pendingShipments : "—"} href={to("dispatch", "shipments")}
+              hint={s ? (s.dispatch.delayed_shipments ? `${s.dispatch.delayed_shipments} older than 5 days` : "None older than 5 days") : undefined} tone={s?.dispatch.delayed_shipments ? "danger" : "neutral"} />
+          </>
+        )}
+      </section>
+
+      {canSummary && s && s.finance_extended && (
+        <section aria-label="Finance" className="grid sm:grid-cols-3 gap-3 mb-5">
+          <KpiCard label="Receivables outstanding" value={fmtMoney(s.sales.receivable_outstanding)} href={to("accounts", "ageing-r")} hint={`${plural(s.finance_extended.open_sales_invoices, "open sales invoice", "open sales invoices")}`} />
+          <KpiCard label="Revenue, last 30 days" value={fmtMoney(s.finance_extended.revenue_30d)} href={to("accounts", "pnl")}
+            hint={s.finance_extended.gross_margin_pct_30d === null ? "Gross margin needs posted revenue" : `Gross margin ${s.finance_extended.gross_margin_pct_30d}%`} />
+          <KpiCard label="Purchases, last 30 days" value={fmtMoney(s.procurement.purchase_value_30d)} href={to("procurement", "orders")} hint="Approved and received purchase orders" />
         </section>
       )}
 
-      <div className="grid lg:grid-cols-[1fr_380px] gap-5">
-        <div className="space-y-5">
-          {(counts.pendingSuppliers ?? 0) > 0 && (
-            <section className="panel">
-              <h2 className="px-4 py-3 text-[14px] font-semibold border-b border-line">Needs attention</h2>
-              <Link href="/masters/suppliers?approval_status=PENDING" className="flex items-center justify-between px-4 h-11 hover:bg-surface-2 rounded-b-lg">
-                <span className="text-[13px]">{counts.pendingSuppliers} supplier{counts.pendingSuppliers === 1 ? "" : "s"} awaiting approval</span>
-                <Badge tone="warning">Pending</Badge>
-              </Link>
-            </section>
-          )}
-          <section className="panel">
-            <div className="px-4 py-3 border-b border-line"><h2 className="text-[14px] font-semibold">Modules</h2><p className="text-muted text-[12px]">Every module is built; “Partial” names what is still missing (full detail in docs/PRD_COVERAGE.md).</p></div>
-            <ul className="divide-y divide-line">
-              <li className="flex items-center justify-between px-4 h-10 text-[13px]"><span><span className="text-muted tnum mr-2.5">00</span>Foundation — access, audit, master data, documents</span><Badge tone="success">Live</Badge></li>
-              {MODULES.map((m) => {
-                const mod = MODULE_BY_ID[m.id];
-                const allowed = mod?.screens.some((sc) => can(sc.perm));
-                const row = (
-                  <>
-                    <span><span className="text-muted tnum mr-2.5">{m.n}</span>{m.name}{m.note && <span className="text-muted text-[12px] ml-2">— {m.note}</span>}</span>
-                    <Badge tone={m.status === "live" ? "success" : "info"}>{m.status === "live" ? "Live" : "Partial"}</Badge>
-                  </>
-                );
-                return allowed
-                  ? <li key={m.n}><Link href={`/m/${m.id}`} className="flex items-center justify-between px-4 h-10 text-[13px] hover:bg-primary/5">{row}</Link></li>
-                  : <li key={m.n} className="flex items-center justify-between px-4 h-10 text-[13px] opacity-60">{row}</li>;
-              })}
-            </ul>
-          </section>
-        </div>
-
-        <section className="panel self-start">
-          <h2 className="px-4 py-3 text-[14px] font-semibold border-b border-line">Recent activity</h2>
-          {!can("admin.audit:read") ? <p className="px-4 py-6 text-muted text-[13px]">Activity feed is available to auditors and administrators.</p>
-            : activity === null ? <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-4" />)}</div>
-            : activity.length === 0 ? <p className="px-4 py-6 text-muted text-[13px]">No activity yet.</p>
-            : <ul className="divide-y divide-line">{activity.map((a) => (
-              <li key={a.id} className="px-4 py-2.5">
-                <div className="text-[13px]"><span className="font-medium">{titleCase(a.action)}</span> <span className="text-muted">{a.entity}{a.entity_id ? ` #${a.entity_id}` : ""}</span></div>
-                <div className="text-muted text-[11.5px] tnum">{a.user_email ?? "system"} · {fmtDateTime(a.occurred_at)}</div>
-              </li>))}</ul>}
-          {can("admin.audit:read") && <Link href="/admin/audit" className="block px-4 py-2.5 border-t border-line text-[12.5px] text-primary hover:bg-surface-2 rounded-b-lg">View full audit log</Link>}
-        </section>
+      {/* Prioritised work and activity */}
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-5 mb-5 items-start">
+        <Section title="Pending actions" description="Highest severity first. Counts come straight from the underlying records." flush
+          action={myApprovals > 0 ? <SectionLink href="/approvals">{myApprovals} for your approval</SectionLink> : undefined}>
+          {loading ? <SkeletonRows n={5} />
+            : !canSummary ? <p className="px-4 pb-4 text-[13px] text-muted">{myApprovals ? `${myApprovals} item${myApprovals === 1 ? "" : "s"} waiting for your decision in Approvals.` : "Nothing is waiting for your decision."}</p>
+            : <WorkQueue items={view?.queue ?? []} empty="No exceptions or pending approvals right now." />}
+        </Section>
+        <Section title="Recent activity" flush action={canAudit ? <SectionLink href="/admin/audit">Audit log</SectionLink> : undefined}>
+          {!canAudit ? <p className="px-4 pb-4 text-[13px] text-muted">The activity feed reads the audit log and is available to auditors and administrators.</p>
+            : activity === null ? <SkeletonRows n={5} />
+            : activity.length === 0 ? <p className="px-4 pb-4 text-[13px] text-muted">No audited actions have been recorded yet.</p>
+            : <div className="pt-1"><Timeline items={activity.map((a) => {
+                const screen = RECORD_SCREEN[a.entity];
+                return { id: a.id, action: titleCase(a.action), record: `${titleCase(a.entity)}${a.entity_id ? ` #${a.entity_id}` : ""}`, user: a.user_email ?? "system", at: fmtDateTime(a.occurred_at),
+                  href: screen && a.entity_id && /^\d+$/.test(a.entity_id) ? `${screen}?open=${a.entity_id}` : undefined };
+              })} /></div>}
+        </Section>
       </div>
+
+      {/* Workflow pipeline */}
+      {canSummary && (
+        <Section title="Order-to-dispatch pipeline" description="Open work at each stage. “Most exceptions” marks the stage carrying the largest number of flagged records." className="mb-5">
+          {loading || !view ? <div className="skeleton h-28" /> : <Pipeline stages={view.stages} bottleneck={view.busiest} />}
+        </Section>
+      )}
+
+      {/* Distributions and comparisons that the API can support today */}
+      {canSummary && (
+        <>
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <Section title="Production orders by status">{loading ? <SkeletonRows n={2} /> : <StatusBar items={statusItems(s?.production_by_status)} empty={{ text: "No production orders exist yet.", href: to("production", "orders"), cta: "Open production orders" }} />}</Section>
+            <Section title="Purchase orders by status">{loading ? <SkeletonRows n={2} /> : <StatusBar items={statusItems(s?.purchase_orders_by_status)} empty={{ text: "No purchase orders exist yet.", href: to("procurement", "orders"), cta: "Open purchase orders" }} />}</Section>
+            <Section title="Shipments by status">{loading ? <SkeletonRows n={2} /> : <StatusBar items={statusItems(s?.shipments_by_status)} empty={{ text: "No shipments have been created yet.", href: to("dispatch", "shipments"), cta: "Open shipments" }} />}</Section>
+            <Section title="Sales orders by status">{loading ? <SkeletonRows n={2} /> : <StatusBar items={statusItems(s?.orders_by_status)} empty={{ text: "No sales orders exist yet.", href: to("dispatch", "orders"), cta: "Open dispatch orders" }} />}</Section>
+            <Section title="Production output, last 30 days" description={s ? `${s.production.completed_30d} orders completed` : undefined}>
+              {loading ? <SkeletonRows n={2} /> : !view || (view.planned === 0 && view.actual === 0) ? <p className="text-muted text-[12.5px]">No production order was completed in the last 30 days.</p> : (
+                <>
+                  <BarRows rows={[{ label: "Planned quantity", value: view.planned, display: fmtNum(view.planned, 1) }, { label: "Actual quantity", value: view.actual, display: fmtNum(view.actual, 1), tone: view.actual >= view.planned ? "success" : "warning" }]} />
+                  <dl className="grid grid-cols-2 gap-3 mt-4 text-[12.5px]">
+                    <div><dt className="text-muted">Average yield</dt><dd className="tnum font-medium">{s?.production.average_yield_pct == null ? "—" : `${fmtNum(s.production.average_yield_pct, 1)}%`}</dd></div>
+                    <div><dt className="text-muted">Wastage</dt><dd className="tnum font-medium">{fmtNum(s?.production.wastage_qty_30d, 1)}</dd></div>
+                  </dl>
+                </>
+              )}
+            </Section>
+            <Section title="Inventory value by kind" description={s ? `Total ${fmtMoney(s.inventory.total_value)}` : undefined}>
+              {loading ? <SkeletonRows n={2} /> : <BarRows rows={(s?.inventory.value_by_kind ?? []).map((k) => ({ label: KIND[String(k.kind).toUpperCase()] ?? titleCase(k.kind), value: num(k.value), display: fmtMoney(k.value) }))} />}
+            </Section>
+          </div>
+          <p className="text-muted text-[12px] mt-4">Trend charts (inventory movement, QC rejection rate, dispatch performance over time) appear once the API returns dated series; none are drawn from estimates.</p>
+        </>
+      )}
     </>
   );
 }

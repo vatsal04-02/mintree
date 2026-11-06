@@ -297,7 +297,7 @@ export function ReportView({ data, depth = 0 }: { data: any; depth?: number }) {
       )}
       {nested.map(([k, v]) => (
         <section key={k}>
-          <h3 className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-muted mb-1.5">{titleCase(k)}</h3>
+          <h3 className="text-[12.5px] font-semibold text-muted mb-1.5">{titleCase(k)}</h3>
           <ReportView data={v} depth={depth + 1} />
         </section>
       ))}
@@ -420,7 +420,7 @@ function RecordCard({ r, def, onOpen, actions, onAction, compact }: { r: Row; de
         </div>
         <dl className={`mt-2 grid gap-x-3 gap-y-1.5 ${compact ? "grid-cols-1" : "grid-cols-2"}`}>
           {fields.map((c) => (
-            <div key={c.key} className="min-w-0"><dt className="text-[10.5px] uppercase tracking-[0.05em] text-muted">{c.label}</dt><dd className="text-[12.5px] truncate tabular-nums">{cell(c, r)}</dd></div>
+            <div key={c.key} className="min-w-0"><dt className="text-[11.5px] text-muted">{c.label}</dt><dd className="text-[12.5px] truncate tabular-nums">{cell(c, r)}</dd></div>
           ))}
         </dl>
       </button>
@@ -552,7 +552,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
         <div className="flex gap-3 overflow-x-auto pb-2 items-start">
           {boardColumns.map((col) => (
             <section key={col} className="w-[290px] shrink-0 rounded-lg bg-surface-2 p-2" aria-label={col}>
-              <h3 className="px-1.5 py-1 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-muted flex items-center justify-between">{titleCase(col)}<span className="tnum">{filtered.filter((r) => r.status === col).length}</span></h3>
+              <h3 className="px-1.5 py-1 text-[11.5px] font-semibold text-muted flex items-center justify-between">{titleCase(col)}<span className="tnum">{filtered.filter((r) => r.status === col).length}</span></h3>
               <div className="space-y-2 max-h-[calc(100vh-290px)] overflow-y-auto">
                 {filtered.filter((r) => r.status === col).map((r) => <RecordCard key={r.id} r={r} def={def} compact onOpen={openDetail} actions={visible(r)} onAction={trigger} />)}
               </div>

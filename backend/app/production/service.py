@@ -168,28 +168,28 @@ def issue_materials(db: Session, cu: CurrentUser, order_id: int) -> dict:
                                             source_id=o.id, source_line=m.line_no, actor_id=cu.id, reservation_ids=[r[0] for r in res], movement="PRODUCTION_ISSUE")
     vrows = acct.lock_valuations(db, list(legs_by_item))
     items = {i.id: i for i in db.scalars(select(Item).where(Item.id.in_(list(legs_by_item))))}
-    credits: dict[str, Decimal] = {}
+    credit_lines: dict[str, Decimal] = {}
     total = Decimal(0)
     for item_id in sorted(legs_by_item):
         for leg in legs_by_item[item_id]:
             cost = acct.val_consume(vrows, item_id, Decimal(leg["qty"]))
             db.add(ProductionConsumption(order_id=o.id, item_id=item_id, batch_id=leg["batch_id"], qty=Decimal(leg["qty"]), cost=cost))
             code = acct.INVENTORY_ACCOUNT[items[item_id].kind]
-            credits[code] = credits.get(code, Decimal(0)) + cost
+            credit_lines[code] = credit_lines.get(code, Decimal(0)) + cost
             total += cost
     for m in o.materials:
         m.issued_qty = m.required_qty
-    _post_wip(db, cu, o, "1310", credits, total, "issue")
+    _post_wip(db, cu, o, "1310", credit_lines, total, "issue")
     o.wip_cost, o.input_cost = o.wip_cost + total, o.input_cost + total
     o.status, o.started_at, o.version = "IN_PROGRESS", datetime.now(timezone.utc), o.version + 1
     audit.record(db, user=cu, action="issue_materials", entity="production_order", entity_id=o.id, after={"cost": str(total)})
     return order_dict(o)
 
 
-def _post_wip(db: Session, cu: CurrentUser, o: ProductionOrder, debit: str, credits: dict[str, Decimal], total: Decimal, event: str) -> None:
+def _post_wip(db: Session, cu: CurrentUser, o: ProductionOrder, debit: str, credit_lines: dict[str, Decimal], total: Decimal, event: str) -> None:
     """Debit `debit`, credit each account; same-account legs are netted so a journal never has a pointless Dr X / Cr X."""
     net: dict[str, Decimal] = {debit: total}
-    for c, v in credits.items():
+    for c, v in credit_lines.items():
         net[c] = net.get(c, Decimal(0)) - v
     lines = [(c, v, Decimal(0)) if v > 0 else (c, Decimal(0), -v) for c, v in sorted(net.items()) if v != 0]
     if total and len(lines) >= 2:
