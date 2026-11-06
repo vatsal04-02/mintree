@@ -51,6 +51,8 @@ RESOURCES: dict[str, list[str]] = {
     "accounts.sales_invoice": ["read"],
     # Production
     "production.bom": ["read", "create", "approve"],
+    "production.plan": ["read", "create", "confirm"],
+    "production.work_centre": CRUD,
     "production.order": ["read", "create", "release", "issue", "execute", "complete", "cancel"],
     # R&D & Quality
     "rnd.formula": ["read", "create", "update", "approve"],

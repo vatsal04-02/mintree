@@ -44,3 +44,5 @@ from app.crm.ext_models import CrmActivity, LeadSource, Opportunity, Opportunity
 from app.crm.models import Complaint, Lead  # noqa: E402,F401
 from app.dispatch.ext_models import DeliveryAttempt, ProofOfDelivery, ShipmentPackage  # noqa: E402,F401
 from app.quality.ext_models import CertificateOfAnalysis, SamplingPlan  # noqa: E402,F401
+from app.production.plan_models import ProductionPlan, ProductionPlanLine, WorkCentre  # noqa: E402,F401
+from app.notifications.models import NotificationPreference, UserNotification  # noqa: E402,F401

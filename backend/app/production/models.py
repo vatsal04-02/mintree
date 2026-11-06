@@ -91,6 +91,7 @@ class ProductionStage(Base):
     name: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(12), default="PENDING", server_default="PENDING")
     equipment_id: Mapped[int | None] = mapped_column(BigInteger)
+    work_centre_id: Mapped[int | None] = mapped_column(ForeignKey("work_centres.id"))
     operator_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

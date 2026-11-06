@@ -19,6 +19,9 @@ def notify(db: Session, *, kind: str, title: str, body: str | None = None, link:
     if permission:
         ids.update(users_with_permission(db, permission))
     ids.discard(exclude_user_id)
+    if ids and priority not in ("HIGH", "CRITICAL"):                  # urgent alerts cannot be muted
+        muted = db.execute(text("SELECT user_id FROM notification_preferences WHERE kind = :k AND channel = 'IN_APP' AND NOT enabled AND user_id = ANY(:u)"), {"k": kind, "u": sorted(ids)})
+        ids.difference_update(r[0] for r in muted)
     for uid in sorted(ids):
         db.add(UserNotification(user_id=uid, kind=kind, title=title, body=body, link=link, priority=priority))
     return len(ids)
