@@ -102,3 +102,19 @@ def anon():
 @pytest.fixture
 def admin(login):
     return login("system_admin")
+
+
+# ---- helpers for tests that need REAL commits / threads (the `db` fixture rolls everything back) ----
+import uuid as _uuid  # noqa: E402
+from app.core.db import SessionLocal  # noqa: E402
+
+
+@pytest.fixture
+def committed():
+    """Factory for independent, really-committing sessions. Tests must use unique keys (the DB is rebuilt per run)."""
+    return SessionLocal
+
+
+@pytest.fixture
+def uid():
+    return lambda prefix="t": f"{prefix}-{_uuid.uuid4().hex[:12]}"

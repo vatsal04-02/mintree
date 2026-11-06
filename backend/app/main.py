@@ -5,18 +5,23 @@ from contextlib import asynccontextmanager
 import anyio.to_thread
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 
 from app.administration.router import router as admin_router
+from app.administration.jobs import router as jobs_router
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
 from app.core.context import client_ip_var, request_id_var
-from app.core.db import SessionLocal
-from app.core.middleware import AdmissionControl, RequestContextMiddleware
+from app.core.db import SessionLocal, engine
+from app.core.middleware import AdmissionControl, MetricsMiddleware, RequestContextMiddleware
+from app.core.logging import configure_logging
+from app.core import observability as obs
 from app.documents.router import router as documents_router
 from app.masters.router import router as masters_router
 
+configure_logging()
+obs.instrument_engine(engine)
 log = logging.getLogger("mintree")
 
 @asynccontextmanager
@@ -36,6 +41,7 @@ app = FastAPI(title="Mintree Factory OS", version="0.1.0", docs_url="/api/docs",
 # Order: last added runs first. Request context must wrap admission control so shed requests still get an ID.
 app.add_middleware(AdmissionControl, slots=slots(), timeout_s=get_settings().admission_timeout_s,
                    exempt_prefixes=("/api/metrics",))
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestContextMiddleware)
 
 
@@ -45,6 +51,18 @@ async def unhandled(request: Request, exc: Exception):
     return JSONResponse({"detail": "Internal server error", "request_id": request_id_var.get()}, status_code=500)
 
 
+@app.get("/api/metrics", include_in_schema=False)
+def metrics(request: Request):
+    """Prometheus scrape endpoint. Exempt from admission control (see main.py); token-protected when configured."""
+    s = get_settings()
+    if s.metrics_token:
+        if request.headers.get("authorization") != f"Bearer {s.metrics_token}":
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    elif s.environment == "production":
+        return JSONResponse({"detail": "Metrics disabled: set MINTREE_METRICS_TOKEN"}, status_code=404)
+    return Response(obs.render_metrics(), media_type="text/plain; version=0.0.4")
+
+
 @app.get("/api/health")
 def health():
     with SessionLocal() as db:
@@ -52,5 +70,5 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
-for r in (auth_router, admin_router, masters_router, documents_router):
+for r in (auth_router, admin_router, jobs_router, masters_router, documents_router):
     app.include_router(r, prefix="/api")

@@ -14,6 +14,7 @@ RESOURCES: dict[str, list[str]] = {
     "admin.role": ["read", "create", "update"],
     "admin.department": CRUD,
     "admin.audit": ["read"],
+    "admin.jobs": ["read", "update"],  # outbox / background-job failure inspection and requeue
     "masters.item": CRUD + ["export"],
     "masters.category": CRUD,
     "masters.uom": CRUD,

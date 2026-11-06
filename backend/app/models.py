@@ -7,3 +7,6 @@ from app.documents.models import Document, DocumentLink, DocumentVersion  # noqa
 from app.masters.models import (  # noqa: F401
     Brand, Customer, Item, ItemCategory, StorageLocation, Supplier, UnitOfMeasure, Warehouse,
 )
+from app.core.platform_models import (  # noqa: E402,F401
+    IdempotencyKey, JobFailure, Notification, OutboxEvent, ProcessedEvent,
+)

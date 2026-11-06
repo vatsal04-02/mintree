@@ -21,6 +21,21 @@ class Settings(BaseSettings):
     admission_timeout_s: float = 5.0
     # Thread pool for sync handlers; must be >= in-flight slots (0 = slots + 4 headroom for non-DB sync work).
     threadpool_size: int = 0
+    # Messaging (Redis = cache/coordination only; RabbitMQ = durable work queue; neither is a source of truth)
+    broker_url: str = "amqp://guest:guest@127.0.0.1:5672//"
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    rabbitmq_api_url: str = "http://guest:guest@127.0.0.1:15672/api"
+    outbox_batch: int = 100
+    outbox_lease_s: int = 60            # a 'publishing' row older than this is considered abandoned (publisher crash)
+    outbox_max_attempts: int = 8        # then status='dead' for operator inspection
+    outbox_retention_days: int = 7
+
+    # Observability
+    metrics_token: str = ""            # if set, /api/metrics requires "Authorization: Bearer <token>"
+    slow_request_ms: int = 1000        # log requests slower than this with a DB breakdown
+    slow_tx_ms: int = 300              # log DB transactions slower than this with their slowest statements
+    log_json: bool = True
+
     # Server-side safety nets applied to every connection (milliseconds; 0 disables).
     db_statement_timeout_ms: int = 15000
     db_lock_timeout_ms: int = 5000

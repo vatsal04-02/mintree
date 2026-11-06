@@ -4,7 +4,13 @@ import json
 import time
 import uuid
 
-from app.core.context import client_ip_var, request_id_var
+import logging
+
+from app.core import observability as obs
+from app.core.config import get_settings
+from app.core.context import client_ip_var, request_id_var, stats_var, RequestStats
+
+log = logging.getLogger("mintree.perf")
 
 SECURITY_HEADERS = [
     (b"x-content-type-options", b"nosniff"),
@@ -65,25 +71,30 @@ class AdmissionControl:
         self.waiting = 0
         self.in_flight = 0
         self.shed = 0
-        self.on_wait = None  # optional callback(seconds, admitted: bool) used by metrics
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["path"].startswith(self.exempt):
             return await self.app(scope, receive, send)
         t0 = time.perf_counter()
         self.waiting += 1
+        obs.ADMISSION_WAITING.set(self.waiting)
         try:
             await asyncio.wait_for(self.sem.acquire(), self.timeout_s)
         except asyncio.TimeoutError:
             self.shed += 1
-            if self.on_wait:
-                self.on_wait(time.perf_counter() - t0, False)
+            obs.ADMISSION_SHED.inc()
+            obs.ADMISSION_WAIT.observe(time.perf_counter() - t0)
             return await self._reject(send, scope)
         finally:
             self.waiting -= 1
-        if self.on_wait:
-            self.on_wait(time.perf_counter() - t0, True)
+            obs.ADMISSION_WAITING.set(self.waiting)
+        waited = time.perf_counter() - t0
+        obs.ADMISSION_WAIT.observe(waited)
+        st = stats_var.get()
+        if st is not None:
+            st.admission_wait_s = waited
         self.in_flight += 1
+        obs.HTTP_IN_FLIGHT.inc()
         released = False
 
         def release():
@@ -91,6 +102,7 @@ class AdmissionControl:
             if not released:
                 released = True
                 self.in_flight -= 1
+                obs.HTTP_IN_FLIGHT.dec()
                 self.sem.release()
 
         async def send_wrapper(message):
@@ -112,3 +124,50 @@ class AdmissionControl:
                     "headers": [(b"content-type", b"application/json"), (b"retry-after", b"1"),
                                 (b"content-length", str(len(body)).encode())]})
         await send({"type": "http.response.body", "body": body})
+
+
+_NUM = __import__("re").compile(r"/\d+(?=/|$)")
+
+
+def _normalize(path: str) -> str:
+    return _NUM.sub("/{id}", path)
+
+
+class MetricsMiddleware:
+    """Per-request metrics + slow-request log with a DB breakdown. Sits outside AdmissionControl so the latency it
+    records is what the client experiences (including time queued for a slot)."""
+
+    def __init__(self, app):
+        self.app = app
+        self.slow_s = get_settings().slow_request_ms / 1000
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["path"].startswith("/api/metrics"):
+            return await self.app(scope, receive, send)
+        st = RequestStats(route=_normalize(scope["path"]))
+        stats_var.set(st)
+        t0 = time.perf_counter()
+        status = {"code": 500}
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status["code"] = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            dt = time.perf_counter() - t0
+            # Only matched routes get their own label (bounded cardinality); numeric IDs collapse to {id}.
+            route = _normalize(scope["path"]) if scope.get("route") is not None else (
+                "admission" if status["code"] == 503 else "unmatched")
+            st.route = route
+            code = status["code"]
+            obs.HTTP_REQUESTS.labels(scope["method"], route, str(code)).inc()
+            obs.HTTP_LATENCY.labels(scope["method"], route, f"{code // 100}xx").observe(dt)
+            if dt >= self.slow_s or code >= 500:
+                log.warning("slow request" if code < 500 else "server error", extra={"fields": {
+                    "method": scope["method"], "route": route, "status": code, "total_ms": round(dt * 1000, 1),
+                    "admission_wait_ms": round(st.admission_wait_s * 1000, 1), "pool_wait_ms": round(st.pool_wait_s * 1000, 1),
+                    "db_ms": round(st.db_time_s * 1000, 1), "queries": st.n_queries,
+                    "slowest_queries": [(round(x * 1000, 1), q) for x, q in st.slowest]}})
