@@ -3,7 +3,10 @@
 Manufacturing ERP + CRM + omnichannel commerce management for Mintree (cosmetics & skincare).
 Modular monolith: **FastAPI + PostgreSQL** backend, **Next.js + TypeScript + Tailwind** frontend.
 
-> Status: **Phase 0 — Foundation** is implemented. See *Roadmap* for what follows.
+> Status: **Phase 0 — Foundation** and the **Inventory + Procurement** vertical slice (on a scalable transactional
+> backend: idempotent postings, append-only stock ledger, transactional outbox, workers) are implemented.
+> **The 1,000-concurrent-operation target is NOT yet demonstrated** — see `docs/PERFORMANCE_BASELINE.md` for what has
+> and has not been measured, and `docs/BACKEND_ARCHITECTURE.md` for the assessment that drove the changes.
 
 ## Phase 0 scope (this repository)
 
@@ -39,10 +42,36 @@ cd frontend && npm install && npm run dev
 Sign in at http://localhost:3000 with the bootstrap admin (`MINTREE_BOOTSTRAP_ADMIN_EMAIL`, default `admin@example.com`).
 You'll be asked to set a new password. API docs: http://localhost:8000/api/docs.
 
+## Backend scalability work (see `docs/`)
+
+| Doc | What it covers |
+|---|---|
+| `BACKEND_ARCHITECTURE.md` | Phase 0 audit: defects found by measurement, target architecture |
+| `SCALABILITY_STRATEGY.md` | connection budget maths, admission control, scaling levers |
+| `TRANSACTION_INTEGRITY.md` | unit of work, lock ordering, idempotency, outbox, invariants |
+| `LOAD_TEST_PLAN.md` / `PERFORMANCE_BASELINE.md` / `TEST_EXECUTION_REGISTER.md` | scenarios A–H, measured results, every run recorded |
+
+Extra services (local dev): RabbitMQ 3.12 (`amqp://guest:guest@127.0.0.1:5672//`, management on :15672) and Redis 7.
+Background processes:
+
+```bash
+cd backend
+.venv/bin/python -m app.workers.outbox_publisher                                   # transactional outbox -> RabbitMQ
+.venv/bin/python -m celery -A app.workers.celery_app worker -Q default,notifications -c 4 -l warning
+```
+
+Load testing (isolated `*_perf` / `*_staging` database only — the tools refuse anything else; needs k6):
+
+```bash
+MINTREE_DATABASE_URL=postgresql+psycopg://…/mintree_perf python -m scripts.perf_dataset --stock-items 300
+backend/.venv/bin/python tests/load/harness.py --scenario A_smoke.js --label my-run --workers 3 --env VUS=100 --env DURATION=10m --integrity
+backend/.venv/bin/python backend/scripts/check_integrity.py   # (python -m scripts.check_integrity) re-derives every invariant from the tables
+```
+
 ## Tests
 
 ```bash
-cd backend && .venv/bin/pytest            # 51 tests, real Postgres (mintree_test), schema built from Alembic migrations
+cd backend && .venv/bin/pytest            # 95 tests, real Postgres + RabbitMQ + a live 2-process server for concurrency tests
 cd frontend && npm run lint && ./e2e/run.sh   # 16 browser tests (Playwright) against a hermetic DB + API + production build
 ```
 

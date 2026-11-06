@@ -12,8 +12,11 @@ Rows marked *manual* were back-filled from observations earlier in the same work
 | 2026-11-06 08:20 | browser E2E (Playwright) | `46c82cc9fd` | 16 | 0 | **PASS** | historical | baseline before this work; Chromium, hermetic DB + API + production build, 4 vCPU sandbox — recorded manually from the session log (16/16) |
 | 2026-11-06 08:52 | backend (pytest) | `7147100+dirty` | 72 | 0 | **PASS** | historical | PostgreSQL 16.15, Python 3.13, RabbitMQ local, 4 vCPU sandbox — observed after milestone B/C code, before its commit; recorded manually (72 passed = 51 + 21 new) |
 | 2026-11-06 09:12 | backend (pytest) | `f7d2c30` | 89 | 0 | **PASS** | historical | PostgreSQL 16.15, Python 3.13, RabbitMQ local, 4 vCPU sandbox — recorded manually from the session log (89 passed = 51 Phase 0 + 38 new, incl. live 2-process concurrency tests) |
-| 2026-11-06 09:14 | browser E2E (Playwright) | `f7d2c30` | 16 | 0 | **PASS** | current | Chromium, hermetic DB + API + production build, 4 vCPU sandbox — recorded manually from the session log (16/16 after middleware/commit-semantics/permission changes) |
-| 2026-11-06 09:57 | backend (pytest) | `f7d2c30cbe+dirty` | 95 | 0 | **PASS** | current | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 09:14 | browser E2E (Playwright) | `f7d2c30` | 16 | 0 | **PASS** | historical | Chromium, hermetic DB + API + production build, 4 vCPU sandbox — recorded manually from the session log (16/16 after middleware/commit-semantics/permission changes) |
+| 2026-11-06 09:57 | backend (pytest) | `f7d2c30cbe+dirty` | 95 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 10:21 | backend (pytest) | `8c6b7f467e+dirty` | 95 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 11:09 | backend (pytest) | `ea5e2041e3+dirty` | 95 | 0 | **PASS** | current | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 11:10 | browser E2E (Playwright) | `ea5e2041e3+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 
 ## 2. Load / resilience test runs
 
@@ -21,16 +24,35 @@ All load runs below were executed on a **shared 4-vCPU sandbox** (k6, API worker
 
 | Date (UTC) | Run | Commit | Workers | Clients / params | req/s | read p95 ms | write p95 ms | posting p95 ms | system-fail % | 5xx note | business conflicts | integrity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-11-06 08:44 | p0-obs-check-1w-60vu | `296b418747+dirty` | 2 | VUS=60 DURATION=20s POOL_USERS=60 | 219 | 362 | 352 | — | 0.00 | k6 exit 0 | 0 | n/a | current |
+| 2026-11-06 08:44 | p0-obs-check-1w-60vu | `296b418747+dirty` | 2 | VUS=60 DURATION=20s POOL_USERS=60 | 219 | 362 | 352 | — | 0.00 | k6 exit 0 | 0 | n/a | historical |
 | 2026-11-06 09:15 | validate-smoke-50vu | `f7d2c30cbe+dirty` | 3 | VUS=50 DURATION=60s POOL_USERS=100 | 43 | 43 | 33 | 51 | 0.00 | k6 exit 0 | 46 | PASS | historical |
 | 2026-11-06 09:17 | validate-smoke-async-50vu | `f7d2c30cbe+dirty` | 3 | VUS=50 DURATION=45s POOL_USERS=100 | 43 | 45 | 41 | 62 | 0.00 | k6 exit 0 | 26 | PASS | historical |
-| 2026-11-06 09:19 | A-smoke-100vu-10min-p1 | `f7d2c30cbe+dirty` | 3 | VUS=100 DURATION=10m POOL_USERS=200 | 84 | 261 | 318 | 432 | 0.00 | k6 exit 0 | 497 | PASS | current |
+| 2026-11-06 09:19 | A-smoke-100vu-10min-p1 | `f7d2c30cbe+dirty` | 3 | VUS=100 DURATION=10m POOL_USERS=200 | 84 | 261 | 318 | 432 | 0.00 | k6 exit 0 | 497 | PASS | historical |
 | 2026-11-06 09:29 | B-progressive-p1 | `f7d2c30cbe+dirty` | 3 | STAGE_S=60s RAMP_S=20s POOL_USERS=200 | 200 | 3,844 | 3,871 | 3,957 | 0.00 | k6 exit 99 | 709 | PASS | current |
-| 2026-11-06 09:35 | E-hot-stock-p1 | `f7d2c30cbe+dirty` | 3 | VUS=200 DURATION=60s POOL_USERS=200 HOT_ITEM_ID=20302 HOT_WAREHOUSE_ID=1 HOT_BATCH_ID=6604 HOT_BALANCE_ID=7775 | 353 | — | 1,235 | — | 0.00 | k6 exit 99 | 23270 | PASS | current |
-| 2026-11-06 09:36 | C-target-reduced-1000vu-p1 | `f7d2c30cbe+dirty` | 3 | RAMP_S=2m DURATION=3m POOL_USERS=200 | 241 | 3,263 | 3,292 | 3,378 | 0.00 | k6 exit 99 | 783 | PASS | current |
+| 2026-11-06 09:35 | E-hot-stock-p1 | `f7d2c30cbe+dirty` | 3 | VUS=200 DURATION=60s POOL_USERS=200 HOT_ITEM_ID=20302 HOT_WAREHOUSE_ID=1 HOT_BATCH_ID=6604 HOT_BALANCE_ID=7775 | 353 | — | 1,235 | — | 0.00 | k6 exit 99 | 23270 | PASS | historical |
+| 2026-11-06 09:36 | C-target-reduced-1000vu-p1 | `f7d2c30cbe+dirty` | 3 | RAMP_S=2m DURATION=3m POOL_USERS=200 | 241 | 3,263 | 3,292 | 3,378 | 0.00 | k6 exit 99 | 783 | PASS | historical |
 | 2026-11-06 09:42 | D-spike-reduced-p1 | `f7d2c30cbe+dirty` | 3 | BASE_S=60s HOLD=2m POOL_USERS=200 | 203 | 3,197 | 3,256 | 3,351 | 0.00 | k6 exit 99 | 400 | PASS | current |
 | 2026-11-06 09:46 | F-stress-reduced-p1 | `f7d2c30cbe+dirty` | 3 | STAGE_S=90s LEVELS=1000,1250,1500 POOL_USERS=200 | 255 | — | — | — | 0.20 | k6 exit 0 | 1052 | PASS | current |
-| 2026-11-06 09:54 | H-worker-recovery-p1 | `f7d2c30cbe` | — | 10000 jobs, 4 kills | — | — | — | — | — | lost=0 dup=0 | — | OK | current |
+| 2026-11-06 09:54 | H-worker-recovery-p1 | `f7d2c30cbe` | — | 10000 jobs, 4 kills | — | — | — | — | — | lost=0 dup=0 | — | OK | historical |
+| 2026-11-06 09:58 | AB-a1-before-250c | `aac58333f0` | 3 | TARGET=250 RAMP_S=30s DURATION=2m POOL_USERS=200 | 179 | 251 | 287 | 377 | 0.00 | k6 exit 0 | 178 | PASS | historical |
+| 2026-11-06 10:01 | AB-a1-after-250c | `8c6b7f467e+dirty` | 3 | TARGET=250 RAMP_S=30s DURATION=2m POOL_USERS=200 | 190 | 132 | 159 | 242 | 0.00 | k6 exit 0 | 177 | PASS | historical |
+| 2026-11-06 10:04 | AB-a1-before-1000c | `aac58333f0` | 3 | TARGET=1000 RAMP_S=1m DURATION=3m POOL_USERS=200 | 195 | 4,230 | 4,268 | 4,374 | 0.00 | k6 exit 99 | 301 | PASS | historical |
+| 2026-11-06 10:09 | AB-a1-after-1000c | `8c6b7f467e+dirty` | 3 | TARGET=1000 RAMP_S=1m DURATION=3m POOL_USERS=200 | 243 | 3,349 | 3,387 | 3,444 | 0.00 | k6 exit 99 | 412 | PASS | current |
+| 2026-11-06 10:15 | OPT-base | `8c6b7f467e+dirty` | 1 | VUS=30 DURATION=40s THINK_MIN=0 THINK_MAX=0 POOL_USERS=60 | 96 | 311 | 351 | 455 | 0.00 | k6 exit 0 | 26 | n/a | historical |
+| 2026-11-06 10:16 | OPT-prepNone | `8c6b7f467e+dirty` | 1 | VUS=30 DURATION=40s THINK_MIN=0 THINK_MAX=0 POOL_USERS=60 | 91 | 329 | 370 | 452 | 0.00 | k6 exit 0 | 19 | n/a | historical |
+| 2026-11-06 10:17 | OPT-noPing | `8c6b7f467e+dirty` | 1 | VUS=30 DURATION=40s THINK_MIN=0 THINK_MAX=0 POOL_USERS=60 | 97 | 306 | 349 | 457 | 0.00 | k6 exit 0 | 19 | n/a | historical |
+| 2026-11-06 10:17 | OPT-base2 | `8c6b7f467e+dirty` | 1 | VUS=30 DURATION=40s THINK_MIN=0 THINK_MAX=0 POOL_USERS=60 | 96 | 309 | 354 | 453 | 0.00 | k6 exit 0 | 13 | n/a | historical |
+| 2026-11-06 10:18 | OPT-prepNone2 | `8c6b7f467e+dirty` | 1 | VUS=30 DURATION=40s THINK_MIN=0 THINK_MAX=0 POOL_USERS=60 | 94 | 318 | 363 | 450 | 0.00 | k6 exit 0 | 22 | n/a | historical |
+| 2026-11-06 10:19 | OPT-noPing2 | `8c6b7f467e+dirty` | 1 | VUS=30 DURATION=40s THINK_MIN=0 THINK_MAX=0 POOL_USERS=60 | 101 | 296 | 334 | 427 | 0.00 | k6 exit 0 | 20 | n/a | current |
+| 2026-11-06 10:22 | G-soak-reduced-400c-15min | `ea5e2041e3+dirty` | 3 | DURATION=15m TARGET=400 POOL_USERS=200 | 254 | 757 | 784 | 871 | 0.00 | k6 exit 99 | 2191 | PASS | historical |
+| 2026-11-06 10:41 | H-worker-recovery-p2 | `ea5e2041e3` | — | 10000 jobs, 4 kills | — | — | — | — | — | lost=0 dup=0 | — | OK | current |
+| 2026-11-06 10:41 | E-hot-stock-p2 | `ea5e2041e3+dirty` | 3 | VUS=200 DURATION=60s POOL_USERS=200 HOT_ITEM_ID=20303 HOT_WAREHOUSE_ID=1 HOT_BATCH_ID=43099 HOT_BALANCE_ID=46888 | 396 | — | 1,009 | — | 0.00 | k6 exit 99 | 25828 | PASS | current |
+| 2026-11-06 10:56 | G-soak-reduced-300c-8min | `ea5e2041e3+dirty` | 3 | DURATION=8m TARGET=300 POOL_USERS=200 | 221 | 243 | 277 | 361 | 0.00 | k6 exit 0 | 774 | PASS | current |
+| 2026-11-06 08:30 | p0-ORIGINAL-46c82cc-1w-100vu | `46c82cc9fd` | 1 | VUS=100/400 closed loop (no think time) original Phase 0 code, 100 VUs closed loop, 45 s (pool/thread deadlock) | 5 | 60,001 | 59,997 | — | 53.51 | k6 exit 0 | 0 | n/a | historical |
+| 2026-11-06 08:30 | p0-FIXED-admission-1w-100vu | `296b418 (=c1c965d)` | 1 | VUS=100/400 closed loop (no think time) after admission control, same load | 97 | 978 | 994 | — | 0.00 | k6 exit 0 | 0 | n/a | historical |
+| 2026-11-06 08:30 | p0-FIXED-admission-4w-100vu | `296b418 (=c1c965d)` | 4 | VUS=100/400 closed loop (no think time) after admission control, 4 workers, 100 VUs, 30 s | 220 | 659 | 673 | — | 0.00 | k6 exit 0 | 0 | n/a | historical |
+| 2026-11-06 08:30 | p0-FIXED-admission-4w-400vu | `296b418 (=c1c965d)` | 4 | VUS=100/400 closed loop (no think time) after admission control, 4 workers, 400 VUs, 30 s | 230 | 1,768 | 1,804 | — | 0.00 | k6 exit 0 | 0 | n/a | historical |
+| 2026-11-06 08:31 | p0-FIXED-pool-1w-100vu | `working tree (thread cap only)` | 1 | VUS=100 closed loop FIRST FIX ATTEMPT: threads capped to pool size -- did NOT work | 4 | 60,001 | 60,000 | — | 91.74 | k6 exit 99 | 0 | n/a | current |
 
 ### Annotations (append-only; these qualify the rows above)
 
@@ -41,5 +63,9 @@ All load runs below were executed on a **shared 4-vCPU sandbox** (k6, API worker
 * **H-worker-recovery-p1** — Queue-depth check used a broken RabbitMQ API call (credentials in URL) -> queues_after was 'unavailable'; outbox/notification/duplicate checks were unaffected. Re-run as H-worker-recovery-p2.
 * **A-smoke-100vu-10min-p1** — Original Phase-0+slice code (f7d2c30) -- valid baseline.
 * **B-progressive-p1** — Original code (f7d2c30) -- valid baseline. Reduced durations (20 s ramps, 60 s holds).
+* **COMMIT-REFERENCES** — On 2026-11-06 the four unpushed commits of branch phase-0-foundation were rewritten to remove a 30 MB stray file accidentally committed (an unrelated PyPI wheel). Hashes recorded in earlier rows map as: 296b418 -> c1c965d, 7147100 -> 269394f, f7d2c30 -> aac5833, 5d34b56 -> f488b04. Code content is unchanged apart from the removed file. Run metadata in tests/load/results/*/meta.json keeps the original hashes.
+* **G-soak-reduced-400c-15min** — Memory/CPU-per-process columns in system.csv are invalid for this and all earlier runs (sampler bug: matched only the uvicorn supervisor; fixed for later runs). Latency/throughput/queue data are valid.
+* **G-soak-reduced-300c-8min** — First run with the corrected process-tree sampler. An earlier 12-minute attempt was interrupted by a sandbox worker restart and discarded (never recorded).
+* **p0-ORIGINAL-46c82cc-1w-100vu** — Manual back-fill from the saved k6 summary (the harness did not exist yet). Pre-harness runs have no integrity/metadata record; the k6 'integrity' was not applicable (Phase 0 had no inventory).
 
 Per-run artefacts (metadata: commit, machine, PostgreSQL settings, dataset sizes, workload; k6 summary; Prometheus snapshots; system CPU/RSS; integrity report; API/publisher/worker logs) are in `tests/load/results/<label>/`.

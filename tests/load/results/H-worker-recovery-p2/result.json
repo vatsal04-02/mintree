@@ -1,0 +1,52 @@
+{
+  "jobs": 10000,
+  "elapsed_s": 26.1,
+  "chaos_events": [
+    {
+      "t": 4.8,
+      "what": "celery worker 0",
+      "progress": 2482
+    },
+    {
+      "t": 6.9,
+      "what": "celery worker 1",
+      "progress": 3703
+    },
+    {
+      "t": 8.9,
+      "what": "celery worker 0",
+      "progress": 4661
+    },
+    {
+      "t": 10.4,
+      "what": "outbox publisher",
+      "progress": 4661
+    }
+  ],
+  "notifications_for_batch": 10000,
+  "distinct_events_with_notification": 10000,
+  "duplicate_notifications": 0,
+  "processed_markers": 10000,
+  "outbox_published": 10000,
+  "outbox_not_published": 0,
+  "outbox_max_attempts": 2,
+  "republished_after_crash": 100,
+  "new_job_failures": 0,
+  "queues_after": {
+    "default": {
+      "ready": 0,
+      "unacked": 0
+    },
+    "notifications": {
+      "ready": 0,
+      "unacked": 0
+    },
+    "dead_letter": {
+      "ready": 0,
+      "unacked": 0
+    }
+  },
+  "lost": 0,
+  "duplicated_effects": 0,
+  "ok": true
+}

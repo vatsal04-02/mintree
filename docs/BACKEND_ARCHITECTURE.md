@@ -105,3 +105,35 @@ See `TRANSACTION_INTEGRITY.md` and `SCALABILITY_STRATEGY.md`.
 No microservices, Kubernetes, Kafka, read replicas, partitioning or distributed search: no measurement shows the
 single-primary modular monolith is insufficient. Revisit when `PERFORMANCE_BASELINE.md` shows a ceiling that
 vertical/horizontal API scaling and query work cannot lift.
+
+## 7. Status against the requirements (honest gap analysis, updated after Milestones A–G)
+
+Legend: ✅ implemented and tested · 🟡 partial · ⬜ not started.
+
+| Requirement | Status | Notes |
+|---|---|---|
+| FastAPI + PostgreSQL 16, no microservices/K8s/Kafka | ✅ | Measurements show Python CPU, not the DB, is the limit; nothing justifies more infrastructure yet |
+| Stateless API, replicable | ✅ | Sessions in PostgreSQL; only derived caches in-process; Redis = invalidation coordination |
+| Layering route → validation → service → repository → tx | 🟡 | Inventory has a real repository; procurement's service uses the ORM directly (no separate repository); Phase 0 master data uses a generic CRUD factory |
+| Modules: identity, master data, audit | ✅ | Phase 0, kept intact (all 51 original tests + 16 browser tests still pass) |
+| Module: inventory & warehouse | ✅ | ledger, balances, reservations, FEFO, QC-aware batches, transfers, adjustments, reversals |
+| Module: procurement | 🟡 | PR → PO (approval limits, optimistic version) → goods receipt. **Not built:** RFQ, quotations & comparison, supplier invoices/payments, delivery tracking |
+| Modules: production, R&D, quality, dispatch, accounts, CRM, e-commerce, maintenance, reporting | ⬜ | Milestone H — "extend the same backend rules"; deliberately not stubbed. `production_issue`/`dispatch` in the load mix are *proxies* using inventory endpoints |
+| Notifications & approvals | 🟡 | Approval *policy* for POs + a notification consumer/table. No notification API/UI, no generic approval engine |
+| Short transactions, explicit boundaries, bounded retries | ✅ | `run_tx`; commit-before-response bug fixed |
+| Row locks, consistent ordering, optimistic version checks | ✅ | global order documented; two real lock-order bugs found and fixed |
+| No network call inside a DB transaction | ✅ | publisher publishes between two short transactions; handlers make no external calls |
+| Idempotency (receipts, stock movements) | ✅ | unique-index based, payload-conflict 409, concurrent-duplicate tested |
+| Idempotency (invoices, production postings, dispatch, payments, marketplace webhooks) | ⬜ | modules/endpoints do not exist |
+| Transactional outbox + idempotent consumers + failure inspection | ✅ | publisher, lease recovery, backoff, dead state, DLX, admin endpoints; 10,000-job kill/restart test: 0 lost, 0 duplicated |
+| RabbitMQ + Celery for imports/exports/reports/marketplace sync/doc processing/scheduled jobs | 🟡 | infrastructure + notification consumers only; none of the listed job types exist yet |
+| Redis for caching/coordination only | ✅ | permission-cache epoch; never authoritative; outage ⇒ bypass |
+| Reference-data caching | ⬜ | no measured need (reads are cheap; PostgreSQL ~idle) |
+| Bounded pools, connection-budget maths | ✅ | `SCALABILITY_STRATEGY.md §2`; admission control makes pool exhaustion unreachable |
+| PgBouncer | ⬜ | not evaluated: only 1–3 PG backends active under load; revisit if connections, not CPU, bind. Note psycopg prepare must be disabled first (switch exists) |
+| N+1 / pagination / cursor pagination | ✅ | auth path 4 → 1 queries; ledger uses cursor pagination; lists paginated |
+| Precomputed reporting tables / materialised views | ⬜ | no reports exist yet |
+| Observability (metrics, correlation ID, slow-tx logs) | ✅ | Prometheus + Grafana definition; correlation ID in audit, ledger, outbox, jobs, notifications. **Distributed tracing (OpenTelemetry) not added** |
+| k6 scenarios A–H | ✅ | all written and run — **at reduced duration/size in the sandbox** |
+| Acceptance criteria demonstrated at 1,000 concurrent clients on staging | ⬜ | **not demonstrated** — see `PERFORMANCE_BASELINE.md` |
+| "No unbalanced accounting postings" check | ⬜ | blocked on the Accounts module (checker reports it as skipped) |

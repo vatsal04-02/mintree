@@ -89,7 +89,7 @@ def main():
                "retries": int(total(cur, "mintree_tx_retries_total")), "deadlocks": int(total(cur, "mintree_pg_deadlocks_total")),
                "outbox": int(total(cur, "mintree_outbox_unpublished")), "pg_active": int(total(cur, "mintree_pg_connections_active"))}
         if i < len(sysrows):
-            row["cpu_pct"] = float(sysrows[i]["cpu_total_pct"]); row["api_rss_mb"] = float(sysrows[i]["api_rss_mb"])
+            row["cpu_pct"] = float(sysrows[i]["cpu_total_pct"]); row["api_rss_mb"] = float(sysrows[i]["api_rss_mb"]); row["worker_rss_mb"] = float(sysrows[i].get("worker_rss_mb", 0) or 0)
         rows.append(row)
         prev = cur
     cols = list(rows[0].keys())

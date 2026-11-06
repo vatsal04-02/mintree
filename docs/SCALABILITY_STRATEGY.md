@@ -46,5 +46,18 @@ primary-key order** (consistent lock order); keep the locked section to validate
 external services inside it; reservation + issue on the same balance serialise by design (see
 `TRANSACTION_INTEGRITY.md`). Hot-stock contention is a dedicated k6 scenario (E).
 
-## 7. Measured status
-See `PERFORMANCE_BASELINE.md`. Current state: **target not demonstrated.** Sandbox only.
+## 7. Measured status (details and caveats: `PERFORMANCE_BASELINE.md`)
+**Target not demonstrated.** On a shared 4-vCPU sandbox: ceiling ≈ 270 req/s for the default mix (≈ 96 req/s per busy Python
+worker, ≈ 10 ms CPU/request); 100 and 250 clients meet every latency criterion; 1,000 clients get 0 failures and intact data
+but p95 ≈ 3.3 s; overload degrades by queueing then bounded 503 shedding (≈ 1,500 clients), never by collapse. PostgreSQL is
+nearly idle (1–3 active backends), so the next capacity lever is **more API cores/replicas**, not database work, PgBouncer or
+read replicas. Planning model (unvalidated): ≈ 570 req/s ≈ 6 busy API cores for 1,000 clients at 1.5 s think time and
+≤ 0.25 s response; connection budget ≈ 100 → set `max_connections ≥ 200`.
+
+## 8. Rules that came out of the measurements (keep them)
+1. In-flight requests per process ≤ pool capacity, enforced before a thread/connection is used (admission control).
+2. Never log (or do any I/O that can block) while holding a transaction; logging is bounded and non-blocking.
+3. Lock order is global (documents → balances in FEFO/id order → leaf rows); get-or-create must not lock out of order; parent
+   rows use `FOR NO KEY UPDATE` unless a key changes (FK checks take `KEY SHARE`).
+4. Commit before building the response; a failed commit must be an error, never a 200.
+5. Measure before optimising: two plausible optimisations (disable psycopg prepare, disable pre-ping) were measured and rejected.

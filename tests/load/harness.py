@@ -151,18 +151,45 @@ def main():
     stop = threading.Event()
 
     def sampler():
+        """CPU/RSS per process TREE (uvicorn workers are spawned children; matching on the command line missed them)."""
         procs_csv = csv.writer(open(out / "system.csv", "w", newline=""))
-        procs_csv.writerow(["t", "cpu_total_pct", "mem_used_mb", "api_cpu_pct", "api_rss_mb", "postgres_cpu_pct", "k6_cpu_pct"])
+        procs_csv.writerow(["t", "cpu_total_pct", "mem_used_mb", "api_cpu_pct", "api_rss_mb", "worker_cpu_pct", "worker_rss_mb", "postgres_cpu_pct", "k6_cpu_pct"])
+        cache: dict[int, psutil.Process] = {}
+
+        def tree(root_pid):
+            cpu = rss = 0.0
+            try:
+                root = psutil.Process(root_pid)
+                members = [root] + root.children(recursive=True)
+            except psutil.Error:
+                return 0.0, 0.0
+            for m in members:
+                p = cache.setdefault(m.pid, m)       # keep Process objects so cpu_percent has a baseline
+                try:
+                    cpu += p.cpu_percent(None); rss += p.memory_info().rss
+                except psutil.Error:
+                    pass
+            return cpu, rss / 2**20
+
+        def by_name(name):
+            tot = 0.0
+            for p in psutil.process_iter(["name"]):
+                if p.info["name"] == name:
+                    q = cache.setdefault(p.pid, p)
+                    try: tot += q.cpu_percent(None)
+                    except psutil.Error: pass
+            return tot
+
         i = 0
         while not stop.wait(a.scrape_interval):
             i += 1
             scrape(f"t{i:04d}")
-            api_p = [p for p in psutil.process_iter(["cmdline", "cpu_percent", "memory_info"]) if "uvicorn" in " ".join(p.info["cmdline"] or [])]
-            pg_p = [p for p in psutil.process_iter(["name", "cpu_percent"]) if p.info["name"] == "postgres"]
-            k6_p = [p for p in psutil.process_iter(["name", "cpu_percent"]) if p.info["name"] == "k6"]
-            procs_csv.writerow([i * a.scrape_interval, psutil.cpu_percent(), psutil.virtual_memory().used // 2**20,
-                                sum(p.info.get("cpu_percent") or 0 for p in api_p), sum((p.info.get("memory_info").rss if p.info.get("memory_info") else 0) for p in api_p) // 2**20,
-                                sum(p.info.get("cpu_percent") or 0 for p in pg_p), sum(p.info.get("cpu_percent") or 0 for p in k6_p)])
+            ac, ar = tree(api.pid) if api else (0, 0)
+            wc = wr = 0.0
+            for pr in aux:
+                c, r = tree(pr.pid); wc += c; wr += r
+            procs_csv.writerow([i * a.scrape_interval, psutil.cpu_percent(), psutil.virtual_memory().used // 2**20, round(ac, 1), round(ar),
+                                round(wc, 1), round(wr), round(by_name("postgres"), 1), round(by_name("k6"), 1)])
 
     scrape("start")
     th = threading.Thread(target=sampler, daemon=True); th.start()
