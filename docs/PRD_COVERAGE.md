@@ -1,5 +1,8 @@
 # PRD coverage — module by module
 
+> **Superseded for current status.** This file records the PRD coverage as of the earlier milestone. Several items it lists as not built (RFQ, bank reconciliation, partial shipments) have since been built; `MODULE_COMPLETION_MATRIX.md` is the current, stricter statement.
+
+
 Legend: ✅ built and tested · 🟡 partly built (what is missing is stated) · ⬜ not built. "Tested" means automated backend tests (and, for screens, the browser suite); it does **not** mean load-tested — the 1,000-concurrent-operation target is still **not demonstrated** (`PERFORMANCE_BASELINE.md`).
 **Barcode and scanning (added after the UI review):** every printed label encodes `MT:<KIND>:<id>` as Code128 + QR (batches, items, locations, equipment, shipments/AWB, orders, job cards, work orders, goods-receipt batch labels, 90×55 mm PDFs). A scan resolver also reads the business codes already on paperwork (item code, **retail EAN/UPC on items**, batch number, supplier lot, PO/SO/invoice numbers, AWB, asset id, location code) and only returns records the scanner's user may read. Scanning works by **camera** (native BarcodeDetector, ZXing fallback — needs HTTPS or localhost; **the camera path could not be exercised in the headless test browser**), by **handheld/keyboard-wedge scanner** anywhere in the app, or typed. Used for: global jump-to-record (Alt+S), selecting a PO / equipment / batch in forms, **pick verification** (wrong batch or over-pick refused; packing can be made to require it via a company setting), **courier handover** against the manifest, and **stocktake counting**. Not built: GS1-128 application-identifier parsing, label printers' native languages (ZPL) — labels are PDFs.
 

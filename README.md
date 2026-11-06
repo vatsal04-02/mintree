@@ -3,14 +3,16 @@
 Manufacturing ERP + CRM + omnichannel commerce management for Mintree (cosmetics & skincare).
 Modular monolith: **FastAPI + PostgreSQL** backend, **Next.js + TypeScript + Tailwind** frontend.
 
-> Status: **Phase 0 — Foundation**, the **Inventory + Procurement** slice (on a scalable transactional backend: idempotent
-> postings, append-only stock ledger, transactional outbox, workers) and the **Milestone H backend modules** — accounts,
-> R&D, quality, production, dispatch/invoicing/returns, maintenance, e-commerce ingestion, CRM, branding and a management
-> summary — are implemented and tested, **with config-driven screens for every module** (60+ screens, approvals inbox, notification bell). See
-> `docs/PRD_COVERAGE.md` for the module-by-module statement of what is built, partial and not built. Not built: live marketplace/Meta/courier integrations (adapters and file/webhook
-> ingestion only), RFQ, bank reconciliation, partial shipments, report builder.
-> **The 1,000-concurrent-operation target is NOT yet demonstrated** — see `docs/PERFORMANCE_BASELINE.md` for what has
-> and has not been measured, and `docs/BACKEND_ARCHITECTURE.md` for the assessment that drove the changes.
+> Status: a connected manufacturing ERP + CRM backend with config-driven screens for every module. Implemented and tested: master data (with unit
+> conversions), inventory (append-only ledger, batches, reservations), procurement (RFQ, PO approval and **amendments**, receipts, **returns to
+> supplier**, three-way-matched invoices), R&D (immutable formulation versions), production (BOMs, **plans, work centres**, genealogy), quality
+> (**sampling plans, frozen Certificates of Analysis**), dispatch (**partial shipments**, invoices per shipment, **delivery attempts and proof of
+> delivery**), CRM (**opportunities, lead conversion**), accounts (double-entry, bank matching), marketplaces (DEMO accounts) and maintenance.
+> `docs/MODULE_COMPLETION_MATRIX.md` states, module by module, what is Complete / Partial / Planned (**none is Complete yet**) and what is missing.
+> **Not built:** live marketplace, courier or Meta integrations (a fake courier adapter, CSV/JSON/webhook ingestion and manual recording only),
+> GST filing / e-invoicing, cash-flow statement, spare-parts-to-inventory link, object storage, AI.
+> **The 1,000-concurrent-operation target is NOT yet demonstrated**: see `docs/BACKEND_SCALABILITY.md`, `docs/LOAD_TEST_RESULTS.md` and `docs/PERFORMANCE_BASELINE.md`.
+> A complete demonstration dataset can be generated through the real workflows: see **Demo environment** below.
 
 ## Phase 0 scope (this repository)
 
@@ -43,6 +45,19 @@ cp .env.example .env                      # adjust MINTREE_DATABASE_URL
 cd frontend && npm install && npm run dev
 ```
 
+### Database initialisation, migrations, development commands
+
+```bash
+createdb mintree && createdb mintree_test                      # PostgreSQL 16; the test suite builds its schema from the migrations itself
+cd backend
+.venv/bin/alembic upgrade head                                 # apply all migrations (0001..0023)
+.venv/bin/alembic revision --autogenerate -m "what changed"    # after a model change; REVIEW the file: autogenerate misses CHECKs, triggers, sequences, backfills
+.venv/bin/python -m scripts.check_integrity                    # re-derive every invariant from the tables (37 checks)
+.venv/bin/python -m scripts.gen_schema_docs                    # regenerate docs/DATABASE_SCHEMA_MAP.md, ENTITY_RELATIONSHIP_MAP.md, DATA_INTEGRITY.md
+```
+
+Time: instants are UTC `timestamptz`; business dates use `Asia/Kolkata` through `app.core.clock` and SQL `business_today()`. Never use `date.today()` or `current_date` (a test enforces it).
+
 Sign in at http://localhost:3000 with the bootstrap admin (`MINTREE_BOOTSTRAP_ADMIN_EMAIL`, default `admin@example.com`).
 You'll be asked to set a new password. API docs: http://localhost:8000/api/docs.
 
@@ -72,15 +87,44 @@ backend/.venv/bin/python tests/load/harness.py --scenario A_smoke.js --label my-
 backend/.venv/bin/python backend/scripts/check_integrity.py   # (python -m scripts.check_integrity) re-derives every invariant from the tables
 ```
 
+## Demo environment
+
+A full, connected story (procurement, QC, R&D versions, production, partial shipments, invoices, payments, CRM, marketplaces, maintenance, marketing, with realistic exceptions) created **through the real workflows**, not by inserting rows. Details: `docs/DEMO_ENVIRONMENT.md` (safety rules, users) and `docs/DEMO_SCENARIOS.md` (what to click).
+
+```bash
+cd backend
+export MINTREE_ENVIRONMENT=demo                                                            # must be exactly "demo"
+export MINTREE_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5433/mintree_demo     # the name must contain the word "demo"
+.venv/bin/python -m scripts.demo_data reset --confirm-reset-demo-database mintree_demo     # wipes a DEMO database only; refuses anything else
+.venv/bin/python -m scripts.demo_data init                                                  # ~40 s; running it again changes nothing
+.venv/bin/python -m scripts.demo_data verify                                                # 95 checks incl. dashboard-vs-table reconciliation and role enforcement
+.venv/bin/uvicorn app.main:app --port 8000                                                  # then start the frontend as above
+```
+
+Demo users (password `Mintree-Demo#2026`, demo databases only): `demo.admin`, `demo.buyer`, `demo.stores`, `demo.qa`, `demo.qa2`, `demo.qi`, `demo.pm`, `demo.pm2`, `demo.op`, `demo.rnd`, `demo.rnd2`, `demo.disp`, `demo.sales`, `demo.acct`, `demo.mkt`, `demo.maint`, `demo.mgmt`, `demo.biz` `@example.com`. Permissions are enforced exactly as in production.
+
+Marketplace accounts are **labelled DEMO with sample orders**; the only courier adapter is an in-process fake; marketing posts are recorded manually. Nothing contacts a live service.
+
 ## Tests
 
 ```bash
-cd backend && .venv/bin/pytest            # 187 tests, real Postgres + RabbitMQ + a live 2-process server for concurrency tests
-cd frontend && npm run lint && ./e2e/run.sh   # 50 browser tests (Playwright: Phase 0, every module screen, and real UI workflows incl. scanning) against a hermetic DB + API + production build
+cd backend && .venv/bin/pytest            # 316 passed + 1 skipped (needs RabbitMQ) at the last full run; real Postgres, a live 2-process server for concurrency tests, and the demo CLI end to end
+cd frontend && npm run lint && ./e2e/run.sh     # 50 browser tests (Phase 0, every module screen, real UI workflows incl. scanning), hermetic DB + API + production build
+cd frontend && ./e2e/run-demo.sh                  # 15 browser journeys against a demo-seeded database (seeded records visible per role, UI actions change real state)
 ```
 
 The backend suite includes permission-matrix, escalation, audit-immutability, document-integrity tests and a
 **model↔migration drift check** that fails if a model changes without a migration.
+
+### Load tests
+
+`tests/load/` holds the k6 scenarios, the harness and the result register (`tests/load/README`-style notes are in `docs/LOAD_TEST_PLAN.md`). Results so far come from a shared 4-vCPU sandbox and are **not capacity proof**; workloads for the newer modules are not written yet and no staging run exists (`docs/LOAD_TEST_RESULTS.md`).
+
+### Known integration limitations
+
+* No live marketplace (Amazon, Flipkart, Myntra, Nykaa), courier, Meta, GST-portal or e-invoicing integration; adapters/ingestion and manual recording only.
+* Notifications are in-app only. Documents are stored on local disk (metadata, versions and SHA-256 in PostgreSQL).
+* The newer tax-class, payment-method and courier masters are reference data not yet referenced by transactions.
 
 ## Design decisions & deviations from the PRD
 

@@ -1,71 +1,63 @@
 # Module Completion Matrix and Gap Register
 
-Audit baseline: commit `e122aac`, plus the business-timezone fix (`9bfc910`). Written 2026-11-06.
+State of the repository after the work on branch `claude/variable-shadowing-fix-4bd715`. Measured, not estimated; regenerate the counts with `backend/scripts/gen_schema_docs.py` and the test register.
 
-States, used honestly:
+States, used strictly:
 
-* **Complete** = implemented *and* proven end-to-end against the target spec (backend workflow test, DB-level verification, browser test).
-* **Partial** = real backend logic and tests exist, but required spec items are missing or unproven.
-* **Planned** = not implemented.
+* **Complete**: implemented *and* proven end-to-end against the whole target specification (backend workflow tests, database-level verification, demo data, browser test).
+* **Partial**: real backend logic and tests exist, but required specification items are missing or not proven.
+* **Planned**: not implemented.
 
-**No module is marked Complete yet.** The existing suite proves the *existing* behaviour, not the full 13-part target spec. A module only moves to Complete when its row in section 3 is closed.
+**No module is Complete.** Several are close; the exact remaining items are listed so nobody has to guess. A table, endpoint, page or seeded record does not make a module Complete.
 
-## 1. Measured facts about the current system
+## 1. Measured facts
 
-| Fact | Value | How measured |
+| Fact | Value | Source |
 |---|---|---|
-| Tables in the migrated schema | 118 (incl. `alembic_version`); excludes 4 scratch tables created by `tests/test_uow.py` | `information_schema.tables` after `alembic upgrade head` |
-| CHECK constraints / indexes | 154 / 275 | `pg_constraint`, `pg_indexes` |
-| Alembic revisions | 15 (`0001`..`0015`) | `migrations/versions` |
-| Backend tests | 237 passed, 1 skipped, 0 failed (TZ=Pacific/Kiritimati) | `docs/TEST_EXECUTION_REGISTER.md` |
-| Skipped test | `tests/test_outbox.py:186`, needs live RabbitMQ (not available in this container) | pytest `-rs` |
-| Money / quantity types | `NUMERIC` (money `MONEY`, qty `NUMERIC`), no floats in postings | models reviewed |
-| Timestamps | `TIMESTAMPTZ` throughout; sessions pinned to UTC | `app/core/db.py` |
-| Business dates | single zone `Asia/Kolkata` via `app/core/clock.py` + SQL `business_today()` | tests/test_business_clock.py |
+| Tables / CHECK / UNIQUE / FK / indexes | see header of `DATABASE_SCHEMA_MAP.md` (140 tables at revision 0023, 0 unassigned to a domain) | generated from the migrated database |
+| Alembic revisions | 23 (`0001`..`0023`) | `backend/migrations/versions` |
+| Database triggers (append-only ledgers, journal balance, frozen certificates) | 15 | `DATA_INTEGRITY.md` |
+| Integrity-suite checks | 37 (was 34) | `backend/scripts/check_integrity.py` |
+| Demo verification | 95 checks (37 integrity + 58 scenario / reconciliation / permission) | `python -m scripts.demo_data verify` |
+| Backend tests | 316 passed, 1 skipped (needs a live RabbitMQ), 0 failed | `TEST_EXECUTION_REGISTER.md` |
+| Browser tests | existing suites 16/16, 11/11, 23/23 on this code; new demo journeys 15/15 | `TEST_EXECUTION_REGISTER.md` |
 
-## 2. Module status against the target spec
+## 2. Module status
 
-| Module | Status | Evidence it exists | Missing / unproven against spec |
+| Module | State | Built and proven | Remaining before Complete |
 |---|---|---|---|
-| Identity, RBAC, audit | Partial | users, roles, permissions, role_permissions, sessions, audit_logs; auth + permission tests | login-history table (only session/lockout state), user-activity feed, per-user department assignment and approval authority limits to be confirmed |
-| Master data | Partial | items, units_of_measure, warehouses, storage_locations, departments, suppliers, customers, brands, product_categories | **unit conversions**, item-category hierarchy by type, employees, courier partner master, tax classification master, payment-method master |
-| Inventory | Partial | stock_ledger (movement-type CHECK incl. TRANSFER_IN/OUT, uniqueness on source), stock_balances, batches, reservations, stocktakes, opening stock, hot-stock concurrency tests | stock-transfer *document* and material-return workflow need verifying; ledger-to-balance reconciliation exists in `check_integrity` but not yet as a continuous DB assertion |
-| Procurement | Partial | PR, RFQ, quotations, PO, goods receipt, supplier invoices, 3-way match, tests | **PO amendments, purchase returns, delivery schedules, supplier performance history**; end-to-end PR→payment test is a single test |
-| R&D / formulation | Partial | development_projects, formulations, formulation_versions, ingredients, lab_trials, trial_observations | stability/product-testing breadth, formula cost calc and revision-history proof to be verified |
-| Production | Partial | BOMs, production_orders (reference formulation version), stages, materials, consumptions, wastage, concurrency test | **production plans/schedules, work centres, routing, labour/machine time**, material return to stock |
-| Quality | Partial | quality_specs, inspections, results, deviations, CAPA, QC status gating of availability | **sampling plans, inspection templates as separate entities, Certificate of Analysis, retest lineage proof** |
-| Dispatch | Partial | sales_orders, shipments, shipment_lines, courier_events, pick_scans, returns, credit notes | **shipment packages, delivery attempts, proof of delivery**, replacement shipments |
-| CRM / sales | Partial | leads, customer_contacts, followups, sales_quotations, complaints | **opportunities and pipeline stages, lead-source master, calls/activities as records**, customer-conversion trace |
-| Accounts | Partial | chart, journal_entries/lines, payments + allocations, debit/credit notes, bank reconciliation, periods, ageing, P&L/BS | cash-flow report and GST validation depth to be verified; no GST filing / e-invoicing exists and none is claimed |
-| E-commerce | Partial | marketplace_accounts, external_orders(+items), sku_mappings, webhook_events, settlements, returns | per-marketplace adapters (Amazon/Flipkart/Myntra/Nykaa) are not live; demo adapter only; fees as first-class rows to be verified |
-| Maintenance | Partial | equipment, schedules, work orders, downtime, spare_part_usage, calibration | breakdown-report and service-reminder notification end-to-end proof |
-| Branding / Meta | Partial | brands, brand_assets, campaigns, content_calendar, publishing_records, campaign_metrics, social_accounts | draft→approval workflow proof; no live Meta publishing exists and none is claimed |
-| Approvals, notifications, documents | Partial | approval_policies/records/delegations, notifications, documents + versions + links, outbox, idempotency, job_failures | **notification preferences**; document file-hash verification to be confirmed |
-| Management dashboard | Partial | `analytics` router computes from SQL | every figure not yet reconciled by an automated check |
-| AI layer | Planned (shelved) | none | out of scope until separately authorised |
+| Identity, RBAC, audit | Partial | users, roles, permissions, sessions, lockout, append-only audit log, approval limits and delegation, role matrix enforced (verified for the demo roles) | a login-history *table* (logins are audit rows today); employee master; per-user department assignment and approval-authority screens not verified |
+| Master data | Partial | units **and conversions** (exact Decimal), categories, items, suppliers, customers, brands, warehouses, locations; **tax classes, payment methods, courier partners** | those three new masters are standalone reference data: **transactions do not reference them yet** (payments store `method` text, shipments `courier` text, invoices a rate); item-category hierarchy; employees |
+| Inventory | Partial | batches, balances, append-only ledger, reservations (partial consumption for partial dispatch), valuation, stocktakes, opening stock, FEFO, QC-gated availability, concurrency tests | stock-transfer *document* (transfers are idempotent ledger postings with no header record); returning unused material from production to stock |
+| Procurement | Partial | PR approve/reject, RFQ, quotation comparison and award, PO approval limits and two-level approval, **PO amendments**, goods receipts with batches, **purchase returns**, supplier invoices (three-way match), debit notes, payments | per-line delivery schedules (one expected date per PO); supplier-performance *history* is a computed report |
+| R&D | Partial | projects, formulations (100% rule), immutable approved versions, revisions, trials, observations, four-eyes approval, BOM from an approved version, orders pinned to the version | formula-cost calculation; product-testing beyond trial observations; demo shows the formulation chain on a bulk intermediate only |
+| Production | Partial | BOMs, **plans with material and capacity checks**, **work centres**, orders, reservation/issue/stages/completion, wastage, yield, costing, genealogy, utilisation report | routing master (stages are per-order names); labour time; material returns; bulk-into-finished consumption |
+| Quality | Partial | specs (versioned), **sampling plans**, inspections, append-only results with retest, release segregation, deviations, CAPA, **frozen Certificates of Analysis**, QC gating of stock | separate inspection-template entity (specs serve as templates); the pre-existing "COA (PDF)" renders live data and is not yet generated from the frozen certificate |
+| Dispatch | Partial | order lifecycle, FEFO allocation, pick scans, **partial shipments with one invoice each**, **close-short**, **packages**, **delivery attempts**, **proof of delivery**, courier webhooks (signed, idempotent), returns scoped to a shipment, credit notes | replacement shipments; refund flow (refused with `refund_required`); real courier APIs (fake adapter only) |
+| CRM and sales | Partial | leads, sources, **lead conversion with customer matching**, **opportunities with history**, activities, follow-ups, quotations, order conversion; complaints; pipeline summary | customer acceptance is recorded by staff (no portal/e-signature); sales-performance reporting beyond the pipeline summary |
+| Accounts | Partial | chart, periods, balanced append-only journals (DB trigger), invoices, credit/debit notes, payments + allocation, bank import and matching, ageing, statements, P&L, balance sheet, GST working summary | **cash-flow statement is not implemented**; GST filing / e-invoicing are not implemented (and are not claimed) |
+| E-commerce | Partial | accounts, SKU maps, idempotent imports (JSON/CSV/webhook), exception queue, fulfilment, settlements with fees, posting to the books, returns, inventory-sync *preview* | **no live marketplace adapter** (DEMO accounts only); inventory sync is preview-only; fees are columns of the settlement, not separate rows |
+| Maintenance | Partial | equipment, preventive schedules, work orders (verify by a different user), breakdown + downtime, calibration, spare parts (cost now exact Decimal) | spare parts are free-text lines **not linked to inventory** (needs a spares item kind, procurement and accounting treatment) |
+| Branding / Meta | Partial | campaigns, content workflow with approval, assets, manual publishing records, metrics, analytics | live publishing does not exist (and is not claimed); asset-to-content attachment |
+| Approvals, notifications, documents | Partial | approval policies/records/delegation, in-app notifications with **per-user mute** (urgent alerts cannot be muted), documents with versions and SHA-256, outbox, idempotency, job failures | e-mail/SMS/push channels do not exist; object-storage backend (local disk only) |
+| Management dashboard | Partial | one endpoint aggregating from tables; 8 headline figures recomputed independently by `verify` | not every figure is reconciled by an automated check; heavy queries are not cached |
+| AI layer | Planned (shelved by decision) | none | out of scope until separately authorised |
 
-## 3. Gaps verified absent (zero code hits)
+## 3. What changed in the system during this work (for reviewers)
 
-Confirmed by searching `backend/app` (case-insensitive) with no match: `unit conversion`, `opportunity`, `work centre`, `package` (shipment packages), `purchase return`, `amendment`, `delivery attempt` / `proof of delivery`, `employee`, `notification preference`, `production plan`, `sampling`, `material return`.
+Timezone authority (migration 0015) · master completion (0016) · purchase returns and PO amendments (0017) · CRM pipeline (0018) · partial dispatch, packages, delivery attempts and proof of delivery (0019) · sampling plans and certificates (0020) · work centres and production plans (0021) · notification preferences (0022) · demo bookkeeping (0023). Each has its own tests; see `TEST_EXECUTION_REGISTER.md`.
 
-Not verified either way (keyword too ambiguous to trust): Certificate of Analysis, stock-transfer document, tax classification master.
+## 4. Defects found and fixed along the way
 
-## 4. Other findings
+* Ageing off by one day when the OS date and the database date differed (root cause: `date.today()` vs `current_date`).
+* `timestamptz::date` casts in reports and the management dashboard used the database session zone.
+* Lead could be marked WON without any customer; unknown `lead_source_id` and orphan activities returned HTTP 500.
+* Inspections were opened *before* stock arrived, so the lot size they recorded was 0.
+* `capacity_exceeded` error carried a raw date (HTTP 500).
+* Spare-part cost was typed as a float.
+* A fully received PO could not be re-received after a return (now it can: a return lowers `qty_received`).
+* Order status column was too short for `PARTIALLY_DISPATCHED`.
 
-1. The tables `dl_*`, `rb_*`, `fk_c7b4f588a668_p/_c` seen in a test database are scratch tables created by `tests/test_uow.py` (they are not in any migration) and are excluded from all schema counts.
-2. `backend/dump.rdb` (a Redis dump) is tracked in git even though an earlier commit says Redis dumps are no longer tracked. It should be removed from the index and ignored; not done here because it was not asked for.
-3. The reported failing ageing test is **timezone-dependent**. It passes under UTC and fails whenever the OS date and the DB date differ. It is now fixed at the root (section 1) and covered by boundary tests.
+## 5. Not done in this work (explicitly)
 
-## 5. Implementation order (dependency-driven)
-
-Each step closes specific gaps above and ends with targeted tests, a register entry and a commit.
-
-1. **Stabilise (done):** timezone authority, full baseline, register.
-2. **Schema gaps with downstream dependencies first:** unit conversions, tax/payment-method/courier masters, stock transfer and material return, PO amendments and purchase returns.
-3. **Production and quality depth:** work centres, routing, production plans, sampling plans, CoA, retest lineage.
-4. **Dispatch and commercial depth:** shipment packages, delivery attempts, POD; opportunities and pipeline; marketplace fee rows.
-5. **Demo generator extension** through the service layer, then the verification command (extends the existing 34 checks).
-6. **End-to-end and concurrency tests** for accounts, production, dispatch→invoice and marketplace.
-7. **Profiling and caching**, then staging load tests on dedicated hardware.
-
-Each of steps 2-7 is a multi-day engineering item. They are not done and this document does not claim them.
+Load tests for the new workloads and any staging-hardware run; query-plan analysis and dashboard caching; the full Docker stack run; browser tests that *create* partial shipments, opportunities or plans (the demo journeys read them and drive two actions); UI for PO amendments and for creating a purchase return; linking the new masters into transactions; cash-flow statement; live integrations of every kind.
