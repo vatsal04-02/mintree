@@ -1,0 +1,55 @@
+{
+  "label": "C-target-reduced-1000vu-p1",
+  "scenario": "C_target.js",
+  "started_at": "2026-11-06T09:36:57+00:00",
+  "commit": "f7d2c30cbe968dd767aa345d53f97e0adfa21e33",
+  "dirty": true,
+  "machine": {
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "logical_cpus": 4,
+    "mem_total_mb": 16086,
+    "kernel": "6.18.44-fc-v242",
+    "python": "3.13.18",
+    "k6": "k6 v0.54.0 (commit/baba871c8a, go1.23.1, linux/amd64)",
+    "note": "k6, API, PostgreSQL and the harness share this machine unless stated otherwise"
+  },
+  "postgres": {
+    "max_connections": "100",
+    "shared_buffers": "128MB",
+    "work_mem": "4MB",
+    "effective_cache_size": "4GB",
+    "synchronous_commit": "on",
+    "fsync": "on",
+    "wal_level": "replica",
+    "random_page_cost": "4",
+    "max_wal_size": "1GB",
+    "version": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "dataset_rows": {
+      "users": 201,
+      "sessions": 800,
+      "items": 20302,
+      "suppliers": 500,
+      "audit_logs": 35504,
+      "documents": 0,
+      "stock_ledger": 30157,
+      "stock_balances": 7145,
+      "stock_reservations": 15277,
+      "purchase_orders": 6302,
+      "goods_receipts": 6302,
+      "outbox_events": 18906,
+      "idempotency_keys": 50437
+    },
+    "db_size_mb": 103
+  },
+  "api": {
+    "workers": 3,
+    "env": [],
+    "code_dir": "/home/user/mintree/backend"
+  },
+  "k6_env": [
+    "RAMP_S=2m",
+    "DURATION=3m",
+    "POOL_USERS=200"
+  ],
+  "database": "mintree_perf"
+}

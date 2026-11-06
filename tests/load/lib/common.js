@@ -10,6 +10,7 @@ export const PASSWORD = __ENV.PERF_PASSWORD || "Perf-Load-Passw0rd!";
 // Business outcomes are measured separately from system failures (see LOAD_TEST_PLAN.md §Metrics).
 export const businessConflicts = new Counter("business_conflicts");   // 409/422 that the scenario *expects*
 export const systemFailures = new Rate("system_failures");           // 5xx, 429, 401, timeouts, unexpected status
+export const serverErrors = new Rate("server_errors");               // HTTP 5xx (incl. 503 load shedding) -- never "expected"
 export const dur = {
   read: new Trend("op_read_ms", true),
   write: new Trend("op_write_ms", true),
@@ -60,6 +61,7 @@ export function call(method, path, body, s, { kind = "read", name, expected = []
   const business = expected.includes(res.status);
   if (business) businessConflicts.add(1);
   systemFailures.add(!(ok2xx || business));
+  serverErrors.add(res.status >= 500);
   check(res, { "status is expected": () => ok2xx || business });
   return res;
 }

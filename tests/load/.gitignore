@@ -1,2 +1,4 @@
-results/*
-!results/.gitkeep
+# Bulky/raw artefacts stay local; summaries, metadata, start/end snapshots, timeline.csv, integrity and register ARE versioned.
+results/*/metrics-t*.prom
+results/*/*.log
+results/*/*.err

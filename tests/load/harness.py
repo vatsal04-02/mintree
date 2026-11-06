@@ -57,6 +57,24 @@ def pg_info(engine) -> dict:
     return s
 
 
+def _hist_p95(path, name):
+    """Upper bound (bucket edge) of the p95 of a Prometheus histogram summed over labels."""
+    try:
+        import re
+        b = {}
+        for line in open(path):
+            m = re.match(rf'{name}_bucket\{{[^}}]*le="([^"]+)"[^}}]*\}} ([0-9.e+]+)', line)
+            if m:
+                b[m.group(1)] = b.get(m.group(1), 0) + float(m.group(2))
+        if not b: return None
+        tot = b.get("+Inf", 0)
+        for le in sorted((k for k in b if k != "+Inf"), key=float):
+            if tot and b[le] / tot >= 0.95: return float(le)
+        return float("inf")
+    except Exception:
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenario", required=True)
@@ -70,6 +88,9 @@ def main():
     ap.add_argument("--scrape-interval", type=float, default=10)
     ap.add_argument("--integrity", action="store_true", help="run the DB integrity checker after the test")
     ap.add_argument("--no-api", action="store_true", help="API already running (staging); do not start one")
+    ap.add_argument("--no-async", action="store_true", help="do not start the outbox publisher / Celery worker")
+    ap.add_argument("--celery-concurrency", type=int, default=4)
+    ap.add_argument("--drain-timeout", type=float, default=180, help="seconds to wait for the outbox/queues to drain after k6")
     a = ap.parse_args()
 
     dbname = make_url(a.db_url).database or ""
@@ -103,6 +124,17 @@ def main():
                 time.sleep(1)
         else:
             os.killpg(api.pid, signal.SIGKILL); sys.exit("API did not start; see api.log")
+
+    aux = []
+    if api and not a.no_async:
+        wenv = dict(env, MINTREE_DB_POOL_SIZE="3", MINTREE_ENVIRONMENT="perf")
+        for name, cmd in (("publisher", [str(BACKEND / ".venv/bin/python"), "-m", "app.workers.outbox_publisher"]),
+                          ("celery", [str(BACKEND / ".venv/bin/python"), "-m", "celery", "-A", "app.workers.celery_app", "worker", "-Q",
+                                      "default,notifications", "-c", str(a.celery_concurrency), "-l", "warning", "--without-gossip",
+                                      "--without-mingle", "-n", "perf@%h"])):
+            aux.append(subprocess.Popen(cmd, cwd=a.code_dir, env=wenv, stdout=open(out / f"{name}.log", "w"), stderr=subprocess.STDOUT,
+                                        start_new_session=True))
+        time.sleep(4)
 
     meta = {"label": a.label, "scenario": a.scenario, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "commit": sh("git", "rev-parse", "HEAD", cwd=a.code_dir), "dirty": bool(sh("git", "status", "--porcelain", cwd=a.code_dir)),
@@ -143,6 +175,29 @@ def main():
     stop.set(); th.join(timeout=5)
     scrape("end")
 
+    drain = None
+    if aux:
+        t0d, backlog0 = time.time(), None
+        with engine.connect() as c:
+            backlog0 = c.execute(text("SELECT count(*) FROM outbox_events WHERE status IN ('pending','publishing')")).scalar()
+        while time.time() - t0d < a.drain_timeout:
+            with engine.connect() as c:
+                left = c.execute(text("SELECT count(*) FROM outbox_events WHERE status IN ('pending','publishing')")).scalar()
+            if left == 0:
+                try:
+                    import base64
+                    req = urllib.request.Request("http://127.0.0.1:15672/api/queues", headers={
+                        "Authorization": "Basic " + base64.b64encode(b"guest:guest").decode()})
+                    q = json.loads(urllib.request.urlopen(req, timeout=5).read())
+                    busy = sum(x.get("messages", 0) for x in q if x["name"] in ("default", "notifications"))
+                except Exception as e:
+                    busy = 1   # cannot prove the queues are empty -> keep waiting (never silently pass)
+                    (out / "drain-warning.txt").write_text(f"RabbitMQ API unreadable: {e}")
+                if busy == 0:
+                    break
+            time.sleep(1)
+        drain = {"outbox_backlog_at_k6_end": backlog0, "drain_seconds": round(time.time() - t0d, 1), "drained": left == 0}
+        scrape("end")
     integrity = None
     if a.integrity:
         r = subprocess.run([str(BACKEND / ".venv/bin/python"), "-m", "scripts.check_integrity", "--json"], cwd=BACKEND,
@@ -153,11 +208,20 @@ def main():
             integrity = {"ok": False, "error": (r.stdout + r.stderr)[-500:]}
         (out / "integrity.json").write_text(json.dumps(integrity, indent=2))
 
+    for pr in aux:
+        try: os.killpg(pr.pid, signal.SIGTERM)
+        except ProcessLookupError: pass
     if api:
         os.killpg(api.pid, signal.SIGTERM)
         try: api.wait(15)
         except subprocess.TimeoutExpired: os.killpg(api.pid, signal.SIGKILL)
 
+    try:   # compact per-interval timeline (versioned; the raw per-interval snapshots are not)
+        tl = subprocess.run([sys.executable, str(HERE / "analyze_run.py"), a.label, "--csv"], capture_output=True, text=True)
+        if tl.returncode == 0:
+            (out / "timeline.csv").write_text(tl.stdout)
+    except Exception:
+        pass
     summ = json.loads((out / "k6-summary.json").read_text())["metrics"] if (out / "k6-summary.json").exists() else {}
     g = lambda m, f: summ.get(m, {}).get(f)
     row = {"label": a.label, "date": meta["started_at"], "commit": meta["commit"][:10] + ("+dirty" if meta["dirty"] else ""),
@@ -167,6 +231,7 @@ def main():
            "write_p95_ms": g("http_req_duration{kind:write}", "p(95)"), "write_p99_ms": g("http_req_duration{kind:write}", "p(99)"),
            "posting_p95_ms": g("http_req_duration{kind:posting}", "p(95)"),
            "system_failure_rate": g("system_failures", "value"), "business_conflicts": g("business_conflicts", "count"),
+           "async": drain, "queue_wait_p95_s": _hist_p95(out / "metrics-end.prom", "mintree_worker_queue_wait_seconds"),
            "k6_exit": k.returncode, "integrity_ok": None if integrity is None else integrity.get("ok"),
            "machine": f'{meta["machine"]["logical_cpus"]} vCPU / {meta["machine"]["mem_total_mb"]} MB (shared)',
            "dataset": meta["postgres"]["dataset_rows"], "dir": f"tests/load/results/{a.label}"}

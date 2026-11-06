@@ -1,0 +1,48 @@
+{
+  "label": "p0-obs-check-1w-60vu",
+  "scenario": "baseline_phase0.js",
+  "started_at": "2026-11-06T08:44:04+00:00",
+  "commit": "296b418747ab59c6c51ab90004f04859d5ebae91",
+  "dirty": true,
+  "machine": {
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "logical_cpus": 4,
+    "mem_total_mb": 16086,
+    "kernel": "6.18.44-fc-v242",
+    "python": "3.13.18",
+    "k6": "k6 v0.54.0 (commit/baba871c8a, go1.23.1, linux/amd64)",
+    "note": "k6, API, PostgreSQL and the harness share this machine unless stated otherwise"
+  },
+  "postgres": {
+    "max_connections": "100",
+    "shared_buffers": "128MB",
+    "work_mem": "4MB",
+    "effective_cache_size": "4GB",
+    "synchronous_commit": "on",
+    "fsync": "on",
+    "wal_level": "replica",
+    "random_page_cost": "4",
+    "max_wal_size": "1GB",
+    "version": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "dataset_rows": {
+      "users": 201,
+      "sessions": 1581,
+      "items": 20000,
+      "suppliers": 500,
+      "audit_logs": 5653,
+      "documents": 0
+    },
+    "db_size_mb": 16
+  },
+  "api": {
+    "workers": 2,
+    "env": [],
+    "code_dir": "/home/user/mintree/backend"
+  },
+  "k6_env": [
+    "VUS=60",
+    "DURATION=20s",
+    "POOL_USERS=60"
+  ],
+  "database": "mintree_perf"
+}

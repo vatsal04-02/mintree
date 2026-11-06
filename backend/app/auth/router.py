@@ -19,13 +19,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _DUMMY_HASH = hash_password("not-a-real-password-0Aa")
 
 
-def _me(cu: CurrentUser) -> MeOut:
+def _me(cu: CurrentUser, role_names: list[str], department_name: str | None) -> MeOut:
     return MeOut(
         id=cu.user.id,
         email=cu.user.email,
         full_name=cu.user.full_name,
-        department_name=cu.user.department_name,
-        roles=sorted(r.name for r in cu.user.roles),
+        department_name=department_name,
+        roles=sorted(role_names),
         permissions=sorted(cu.permissions),
         must_change_password=cu.user.must_change_password,
         csrf_token=cu.session.csrf_token,
@@ -83,12 +83,16 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     db.flush()
     _set_cookie(response, token)
     perms = {p.code for role in user.roles for p in role.permissions}
-    return _me(CurrentUser(user=user, session=sess, permissions=perms))
+    return _me(CurrentUser(user=user, session=sess, permissions=perms), [r.name for r in user.roles], user.department_name)
 
 
 @router.get("/me", response_model=MeOut)
-def me(cu: CurrentUser = Depends(current_user_allow_pw_change)):
-    return _me(cu)
+def me(cu: CurrentUser = Depends(current_user_allow_pw_change), db: Session = Depends(get_db, scope="function")):
+    # Display fields are fetched here, not in the per-request auth path (which loads neither roles nor department).
+    from app.administration.models import Department, Role, user_roles
+    names = list(db.scalars(select(Role.name).join(user_roles, user_roles.c.role_id == Role.id).where(user_roles.c.user_id == cu.user.id)))
+    dept = db.scalar(select(Department.name).where(Department.id == cu.user.department_id)) if cu.user.department_id else None
+    return _me(cu, names, dept)
 
 
 @router.post("/logout", status_code=204)

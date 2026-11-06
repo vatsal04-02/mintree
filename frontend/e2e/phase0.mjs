@@ -243,5 +243,13 @@ await step("no unexpected browser console errors", async () => {
 
 await browser.close();
 const failed = results.filter(([, s]) => s === "FAIL");
+if (process.env.REGISTER_FILE) {
+  const { appendFileSync } = await import("node:fs"); const { execSync } = await import("node:child_process");
+  const sh = (c) => { try { return execSync(c, { encoding: "utf8" }).trim(); } catch { return ""; } };
+  appendFileSync(process.env.REGISTER_FILE, JSON.stringify({ kind: "browser E2E (Playwright)", date: new Date().toISOString().slice(0, 19) + "+00:00",
+    commit: sh("git rev-parse --short=10 HEAD"), dirty: !!sh("git status --porcelain"), result: failed.length ? "FAIL" : "PASS",
+    passed: results.length - failed.length, failed: failed.length, environment: "Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox",
+    failures: failed.map(([n]) => n) }) + "\n");
+}
 console.log(`\n${results.length - failed.length}/${results.length} passed. Screenshots: ${SHOTS}`);
 process.exit(failed.length ? 1 : 0);

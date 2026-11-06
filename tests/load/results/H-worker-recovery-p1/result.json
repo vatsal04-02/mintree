@@ -1,0 +1,39 @@
+{
+  "jobs": 10000,
+  "elapsed_s": 26.5,
+  "chaos_events": [
+    {
+      "t": 5.6,
+      "what": "celery worker 0",
+      "progress": 2421
+    },
+    {
+      "t": 7.7,
+      "what": "celery worker 1",
+      "progress": 3436
+    },
+    {
+      "t": 9.7,
+      "what": "celery worker 0",
+      "progress": 4452
+    },
+    {
+      "t": 11.2,
+      "what": "outbox publisher",
+      "progress": 4452
+    }
+  ],
+  "notifications_for_batch": 10000,
+  "distinct_events_with_notification": 10000,
+  "duplicate_notifications": 0,
+  "processed_markers": 10000,
+  "outbox_published": 10000,
+  "outbox_not_published": 0,
+  "outbox_max_attempts": 2,
+  "republished_after_crash": 100,
+  "new_job_failures": 0,
+  "queues_after": "unavailable: <urlopen error [Errno -2] Name or service not known>",
+  "lost": 0,
+  "duplicated_effects": 0,
+  "ok": true
+}

@@ -1,0 +1,195 @@
+# HELP mintree_admission_shed_total Requests rejected (503) because the wait exceeded the limit
+# TYPE mintree_admission_shed_total counter
+mintree_admission_shed_total 0.0
+# HELP mintree_db_pool_timeouts_total Pool checkout timeouts (pool exhaustion)
+# TYPE mintree_db_pool_timeouts_total counter
+mintree_db_pool_timeouts_total 0.0
+# HELP mintree_outbox_published_total Outbox events published to the broker
+# TYPE mintree_outbox_published_total counter
+mintree_outbox_published_total 0.0
+# HELP mintree_outbox_publish_failures_total Outbox publish attempts that failed
+# TYPE mintree_outbox_publish_failures_total counter
+mintree_outbox_publish_failures_total 0.0
+# HELP mintree_log_records_dropped_total Log records dropped because the log sink could not keep up
+# TYPE mintree_log_records_dropped_total counter
+mintree_log_records_dropped_total 0.0
+# HELP mintree_http_requests_total HTTP requests
+# TYPE mintree_http_requests_total counter
+mintree_http_requests_total{method="GET",route="/api/health",status="200"} 1.0
+# HELP mintree_admission_wait_seconds Time spent waiting for an admission slot
+# TYPE mintree_admission_wait_seconds histogram
+mintree_admission_wait_seconds_sum 7.578500026284019e-05
+mintree_admission_wait_seconds_bucket{le="0.005"} 1.0
+mintree_admission_wait_seconds_bucket{le="0.01"} 1.0
+mintree_admission_wait_seconds_bucket{le="0.025"} 1.0
+mintree_admission_wait_seconds_bucket{le="0.05"} 1.0
+mintree_admission_wait_seconds_bucket{le="0.1"} 1.0
+mintree_admission_wait_seconds_bucket{le="0.25"} 1.0
+mintree_admission_wait_seconds_bucket{le="0.5"} 1.0
+mintree_admission_wait_seconds_bucket{le="1.0"} 1.0
+mintree_admission_wait_seconds_bucket{le="2.0"} 1.0
+mintree_admission_wait_seconds_bucket{le="3.0"} 1.0
+mintree_admission_wait_seconds_bucket{le="5.0"} 1.0
+mintree_admission_wait_seconds_bucket{le="10.0"} 1.0
+mintree_admission_wait_seconds_bucket{le="30.0"} 1.0
+mintree_admission_wait_seconds_bucket{le="+Inf"} 1.0
+mintree_admission_wait_seconds_count 1.0
+# HELP mintree_db_pool_checkout_wait_seconds Time waiting for a pooled connection
+# TYPE mintree_db_pool_checkout_wait_seconds histogram
+mintree_db_pool_checkout_wait_seconds_sum 0.008667674999742303
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.005"} 0.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.01"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.025"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.05"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.1"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.25"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.5"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="1.0"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="2.0"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="3.0"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="5.0"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="10.0"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="30.0"} 1.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="+Inf"} 1.0
+mintree_db_pool_checkout_wait_seconds_count 1.0
+# HELP mintree_http_in_flight Requests admitted and running
+# TYPE mintree_http_in_flight gauge
+mintree_http_in_flight 0.0
+# HELP mintree_admission_waiting Requests queued for an admission slot
+# TYPE mintree_admission_waiting gauge
+mintree_admission_waiting 0.0
+# HELP mintree_db_pool_checked_out Connections currently checked out
+# TYPE mintree_db_pool_checked_out gauge
+mintree_db_pool_checked_out 0.0
+# HELP mintree_db_query_duration_seconds DB statement duration
+# TYPE mintree_db_query_duration_seconds histogram
+mintree_db_query_duration_seconds_sum{op="SELECT"} 0.00026271099977748236
+mintree_db_query_duration_seconds_bucket{le="0.005",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="0.01",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="0.025",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="0.05",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="0.1",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="0.25",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="0.5",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="1.0",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="2.0",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="3.0",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="5.0",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="10.0",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="30.0",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_bucket{le="+Inf",op="SELECT"} 1.0
+mintree_db_query_duration_seconds_count{op="SELECT"} 1.0
+# HELP mintree_db_transaction_duration_seconds Transaction duration (BEGIN..COMMIT/ROLLBACK)
+# TYPE mintree_db_transaction_duration_seconds histogram
+mintree_db_transaction_duration_seconds_sum{outcome="rollback"} 0.0008532000001650886
+mintree_db_transaction_duration_seconds_bucket{le="0.005",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="0.01",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="0.025",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="0.05",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="0.1",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="0.25",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="0.5",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="1.0",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="2.0",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="3.0",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="5.0",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="10.0",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="30.0",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_bucket{le="+Inf",outcome="rollback"} 1.0
+mintree_db_transaction_duration_seconds_count{outcome="rollback"} 1.0
+# HELP mintree_http_request_duration_seconds End-to-end latency incl. admission wait
+# TYPE mintree_http_request_duration_seconds histogram
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/health",status_class="2xx"} 0.01174774500032072
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/health",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/health",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/health",status_class="2xx"} 1.0
+# HELP mintree_pg_connections_active Backends executing a statement
+# TYPE mintree_pg_connections_active gauge
+mintree_pg_connections_active 1.0
+# HELP mintree_pg_connections_idle Idle backends
+# TYPE mintree_pg_connections_idle gauge
+mintree_pg_connections_idle 3.0
+# HELP mintree_pg_connections_idle_in_transaction Backends idle inside a transaction
+# TYPE mintree_pg_connections_idle_in_transaction gauge
+mintree_pg_connections_idle_in_transaction 0.0
+# HELP mintree_pg_lock_waiters Backends currently waiting on a lock
+# TYPE mintree_pg_lock_waiters gauge
+mintree_pg_lock_waiters 0.0
+# HELP mintree_pg_connections_total All backends on this database
+# TYPE mintree_pg_connections_total gauge
+mintree_pg_connections_total 4.0
+# HELP mintree_pg_max_connections max_connections
+# TYPE mintree_pg_max_connections gauge
+mintree_pg_max_connections 100.0
+# HELP mintree_pg_deadlocks_total Deadlocks detected (cumulative)
+# TYPE mintree_pg_deadlocks_total gauge
+mintree_pg_deadlocks_total 0.0
+# HELP mintree_pg_xact_commit_total Committed transactions (cumulative)
+# TYPE mintree_pg_xact_commit_total gauge
+mintree_pg_xact_commit_total 927703.0
+# HELP mintree_pg_xact_rollback_total Rolled back transactions (cumulative)
+# TYPE mintree_pg_xact_rollback_total gauge
+mintree_pg_xact_rollback_total 25986.0
+# HELP mintree_pg_temp_files_total Temp files created (cumulative)
+# TYPE mintree_pg_temp_files_total gauge
+mintree_pg_temp_files_total 2.0
+# HELP mintree_pg_blocks_read_total Disk blocks read (cumulative)
+# TYPE mintree_pg_blocks_read_total gauge
+mintree_pg_blocks_read_total 10695.0
+# HELP mintree_pg_blocks_hit_total Buffer cache hits (cumulative)
+# TYPE mintree_pg_blocks_hit_total gauge
+mintree_pg_blocks_hit_total 6.1512065e+07
+# HELP mintree_pg_database_size_bytes Database size
+# TYPE mintree_pg_database_size_bytes gauge
+mintree_pg_database_size_bytes 1.85326615e+08
+# HELP mintree_outbox_unpublished Outbox events waiting to be published
+# TYPE mintree_outbox_unpublished gauge
+mintree_outbox_unpublished 0.0
+# HELP mintree_outbox_oldest_unpublished_age_seconds Age of the oldest unpublished outbox event
+# TYPE mintree_outbox_oldest_unpublished_age_seconds gauge
+mintree_outbox_oldest_unpublished_age_seconds 0.0
+# HELP mintree_outbox_dead Outbox events that exhausted publish attempts (need investigation)
+# TYPE mintree_outbox_dead gauge
+mintree_outbox_dead 0.0
+# HELP mintree_job_failures_open Permanently failed background jobs not yet resolved
+# TYPE mintree_job_failures_open gauge
+mintree_job_failures_open 0.0
+# HELP mintree_rabbitmq_queue_messages_ready Messages ready for delivery
+# TYPE mintree_rabbitmq_queue_messages_ready gauge
+mintree_rabbitmq_queue_messages_ready{queue="dead_letter"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="default"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="documents"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="imports"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="integrations"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="notifications"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="reports"} 0.0
+# HELP mintree_rabbitmq_queue_messages_unacked Delivered, not yet acked
+# TYPE mintree_rabbitmq_queue_messages_unacked gauge
+mintree_rabbitmq_queue_messages_unacked{queue="dead_letter"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="default"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="documents"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="imports"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="integrations"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="notifications"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="reports"} 0.0
+# HELP mintree_rabbitmq_queue_consumers Consumers attached
+# TYPE mintree_rabbitmq_queue_consumers gauge
+mintree_rabbitmq_queue_consumers{queue="dead_letter"} 0.0
+mintree_rabbitmq_queue_consumers{queue="default"} 0.0
+mintree_rabbitmq_queue_consumers{queue="documents"} 0.0
+mintree_rabbitmq_queue_consumers{queue="imports"} 0.0
+mintree_rabbitmq_queue_consumers{queue="integrations"} 0.0
+mintree_rabbitmq_queue_consumers{queue="notifications"} 0.0
+mintree_rabbitmq_queue_consumers{queue="reports"} 0.0

@@ -212,3 +212,42 @@ def mk_master(prefix: str, *, shelf_life: int | None = 365, batch_tracked: bool 
         s.add_all([sup, item, w1, w2])
         s.commit()
         return {"supplier_id": sup.id, "item_id": item.id, "wh1": w1.id, "wh2": w2.id, "tag": tag}
+
+
+# ---- test execution register: every full pytest run appends a record (see docs/TEST_EXECUTION_REGISTER.md) ----
+_T0 = {"t": None}
+
+
+def pytest_sessionstart(session):
+    _T0["t"] = time.time()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    try:
+        _record_run(session, exitstatus)
+    except Exception as e:  # the register must never break or mask a test run
+        print(f"\n[test register] not recorded: {type(e).__name__}: {e}")
+
+
+def _record_run(session, exitstatus):
+    import json, subprocess as sp, datetime as dt
+    tr = session.config.pluginmanager.get_plugin("terminalreporter")
+    if tr is None or session.config.getoption("collectonly", False):
+        return
+    stats = {k: len(v) for k, v in tr.stats.items() if k in ("passed", "failed", "error", "skipped", "xfailed", "xpassed")}
+    total = sum(stats.values())
+    selected = [a for a in session.config.invocation_params.args if not str(a).startswith("-")]
+    ksel = any(str(a) in ("-k", "-m") or str(a).startswith(("-k", "-m")) for a in session.config.invocation_params.args)
+    if selected or ksel or total < 20:   # only whole-suite runs are registered; targeted runs are not
+        return
+    root = Path(__file__).resolve().parents[2]
+    git = lambda *a: sp.run(["git", *a], capture_output=True, text=True, cwd=root).stdout.strip()
+    try:
+        pg = sp.run(["psql", "-h", "/tmp", "-p", "5433", "-U", "postgres", "-tAc", "show server_version"], capture_output=True, text=True).stdout.strip()
+    except Exception:
+        pg = None
+    rec = {"kind": "backend (pytest)", "date": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "commit": git("rev-parse", "--short=10", "HEAD"),
+           "dirty": bool(git("status", "--porcelain")), "result": "PASS" if exitstatus == 0 else "FAIL", **stats,
+           "duration_s": round(time.time() - (_T0["t"] or time.time()), 1), "environment": f"PostgreSQL {pg}, Python {sys.version.split()[0]}, RabbitMQ local, 4 vCPU sandbox"}
+    with open(root / "docs" / "test-runs.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")

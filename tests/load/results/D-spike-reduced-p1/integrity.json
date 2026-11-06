@@ -1,0 +1,132 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "stock_physical_reconciles_with_ledger",
+      "description": "Every balance's physical qty equals the sum of its ledger qty_delta",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "stock_blocked_reconciles_with_ledger",
+      "description": "Every balance's blocked qty equals the sum of its ledger blocked_delta",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "stock_reserved_reconciles_with_active_reservations",
+      "description": "Every balance's reserved qty equals the sum of its ACTIVE reservations",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "no_negative_or_overreserved_stock",
+      "description": "No balance is negative, and reserved + blocked never exceeds physical (available >= 0)",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "reservations_only_on_released_unexpired_batches_or_were_valid_when_made",
+      "description": "No ACTIVE reservation sits on a REJECTED batch",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "ledger_has_no_duplicate_document_postings",
+      "description": "No (source, line, leg, movement) appears twice in the ledger",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "no_duplicate_goods_receipts",
+      "description": "No supplier delivery note is booked twice, and each goods receipt has exactly one idempotency key",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "every_idempotency_key_has_at_most_one_effect",
+      "description": "Each (scope,key) is unique and every completed receipt key points at an existing goods receipt",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "po_received_quantities_reconcile_with_receipts",
+      "description": "PO line qty_received equals the sum of goods-receipt line quantities and never exceeds qty_ordered",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "every_receipt_line_is_in_the_ledger_with_matching_quantity",
+      "description": "Each goods-receipt line has exactly one RECEIPT ledger row of equal quantity",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "batch_and_supplier_lot_traceability_intact",
+      "description": "Every received batch points back to its goods receipt, supplier and item; no ledger row references a missing batch",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "every_goods_receipt_and_po_approval_has_an_audit_entry",
+      "description": "Committed business documents have their audit rows",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "every_goods_receipt_has_an_outbox_event",
+      "description": "Each committed goods receipt produced its outbox event",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "outbox_events_are_published_or_flagged",
+      "description": "No outbox event is dead (needs investigation) and none is stuck unpublished for > 5 minutes",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "consumer_effects_are_not_duplicated",
+      "description": "At most one notification per (event, kind) and one dedupe marker per (consumer, event)",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    },
+    {
+      "name": "ledger_is_append_only_by_construction",
+      "description": "Ledger rows carry the reversal link only once (a movement is reversed at most once)",
+      "ok": true,
+      "violations": 0,
+      "sample": []
+    }
+  ],
+  "skipped": [
+    {
+      "name": "accounting_journals_balanced",
+      "reason": "Accounts module (double-entry ledger) is not implemented yet; check will be added with it"
+    }
+  ],
+  "row_counts": {
+    "stock_balances": 13483,
+    "stock_ledger": 59136,
+    "stock_reservations": 29277,
+    "goods_receipts": 12417,
+    "purchase_orders": 12417,
+    "idempotency_keys": 97877,
+    "outbox_events": 37251
+  }
+}

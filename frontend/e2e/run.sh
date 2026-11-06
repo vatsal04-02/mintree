@@ -19,4 +19,4 @@ BACKEND_URL=http://127.0.0.1:8100 NEXT_DIST_DIR=.next-e2e npm run build >/dev/nu
 NEXT_DIST_DIR=.next-e2e npx next start -p 3100 >"$WORK/web.log" 2>&1 & PIDS+=($!)
 for i in $(seq 1 40); do curl -sf localhost:3100/api/health >/dev/null && break; sleep 1; done
 
-BASE_URL=http://localhost:3100 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='Mintree#Dev2026' node e2e/phase0.mjs
+REGISTER_FILE="$ROOT/docs/test-runs.jsonl" BASE_URL=http://localhost:3100 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='Mintree#Dev2026' node e2e/phase0.mjs

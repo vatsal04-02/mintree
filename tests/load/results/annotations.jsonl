@@ -1,0 +1,7 @@
+{"label": "E-hot-stock-p1", "note": "Ran with the NEW (then-untested) auth/permission-cache code from an uncommitted working tree edited mid-suite. Valid as a correctness/contention result; NOT a pre-optimisation baseline."}
+{"label": "C-target-reduced-1000vu-p1", "note": "Same contamination as E-hot-stock-p1 (authz cache active). Superseded by the controlled A/B runs C-ab-*."}
+{"label": "D-spike-reduced-p1", "note": "Same contamination (authz cache active)."}
+{"label": "F-stress-reduced-p1", "note": "Same contamination (authz cache active)."}
+{"label": "H-worker-recovery-p1", "note": "Queue-depth check used a broken RabbitMQ API call (credentials in URL) -> queues_after was 'unavailable'; outbox/notification/duplicate checks were unaffected. Re-run as H-worker-recovery-p2."}
+{"label": "A-smoke-100vu-10min-p1", "note": "Original Phase-0+slice code (f7d2c30) -- valid baseline."}
+{"label": "B-progressive-p1", "note": "Original code (f7d2c30) -- valid baseline. Reduced durations (20 s ramps, 60 s holds)."}

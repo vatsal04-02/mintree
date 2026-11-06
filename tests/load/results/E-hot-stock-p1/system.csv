@@ -1,0 +1,5 @@
+t,cpu_total_pct,mem_used_mb,api_cpu_pct,api_rss_mb,postgres_cpu_pct,k6_cpu_pct
+15.0,0.0,1838,0,0,445.1,0
+30.0,53.0,1738,0,0,239.8,0
+45.0,82.6,1741,0,0,0,0
+60.0,83.1,1755,0,0,0,0
