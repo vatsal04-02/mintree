@@ -37,8 +37,9 @@ def _make_engine():
         max_overflow=s.db_max_overflow,
         pool_timeout=s.db_pool_timeout_s,
         pool_recycle=s.db_pool_recycle_s,
-        pool_pre_ping=True,
-        connect_args={"options": _connect_options(), "application_name": "mintree-api"},
+        pool_pre_ping=s.db_pre_ping,
+        connect_args={"options": _connect_options(), "application_name": "mintree-api",
+                      "prepare_threshold": None if s.db_prepare_threshold.lower() == "none" else int(s.db_prepare_threshold)},
     )
 
 

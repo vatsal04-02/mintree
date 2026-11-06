@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     db_max_overflow: int = 0
     db_pool_timeout_s: float = 10.0       # fail fast (HTTP 503) instead of queueing for 30 s
     db_pool_recycle_s: int = 1800
+    db_pre_ping: bool = True                 # SELECT 1 on every checkout: protects against stale connections, costs a round-trip
+    db_prepare_threshold: str = "5"          # psycopg server-side auto-prepare after N executions; "none" disables (needed for PgBouncer txn pooling)
     # Admission control: max requests in flight per process (0 = DB pool capacity). Requests beyond it wait without
     # holding a thread or connection and are rejected with 503 after admission_timeout_s.
     max_in_flight: int = 0

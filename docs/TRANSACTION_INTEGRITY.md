@@ -72,8 +72,10 @@ Defence in depth (all DB constraints, independent of the above): unique ledger s
 delivery_note_no)` (same physical delivery cannot be booked twice under a *different* key); `CHECK qty_received <=
 qty_ordered` (over-receipt); `UNIQUE(event_id, kind)` on notifications. Mutation-tested: dropping the idempotency
 unique constraint makes the replay and concurrency tests fail.
-Webhooks/payment events use the same primitive (`scope = source`, `key = external event id`) — table and helper exist; the
-marketplace/payment consumers arrive with their modules.
+**Scope of what is implemented:** idempotent posting exists for goods receipts, QC decisions, reservations/releases, issues,
+transfers, adjustments and reversals. **Not implemented yet** (their modules do not exist): invoices, production postings,
+dispatch records, payment events and marketplace webhooks. The same primitive applies to them (`scope` = source, `key` =
+external event id) but there is no webhook endpoint or payment flow to test it on, so it is *not* claimed for them.
 
 ## 6. Transactional outbox
 * `core/outbox.add()` inserts the event **in the business transaction** (rollback ⇒ no event; commit ⇒ event, test-proved).

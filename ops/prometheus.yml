@@ -1,0 +1,15 @@
+# Minimal Prometheus config for Mintree Factory OS.
+# API replicas expose /api/metrics (set MINTREE_METRICS_TOKEN in production and use the bearer token below).
+# Celery workers / outbox publisher expose :9101 (MINTREE_WORKER_METRICS_PORT). Add one target per replica.
+global: { scrape_interval: 15s }
+scrape_configs:
+  - job_name: mintree-api
+    metrics_path: /api/metrics
+    authorization: { type: Bearer, credentials_file: /etc/prometheus/mintree_metrics_token }
+    static_configs: [{ targets: ["api-1:8000", "api-2:8000"] }]
+  - job_name: mintree-workers
+    static_configs: [{ targets: ["worker-1:9101"] }]
+  - job_name: node
+    static_configs: [{ targets: ["api-1:9100", "db-1:9100"] }]          # node_exporter: CPU / memory / disk
+  - job_name: rabbitmq
+    static_configs: [{ targets: ["mq-1:15692"] }]                        # rabbitmq_prometheus plugin

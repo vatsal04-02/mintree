@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Header, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -70,6 +70,6 @@ def idempotent(db: Session, *, scope: str, key: str, actor_id: int | None, paylo
             raise HTTPException(409, "Original request with this Idempotency-Key has not completed; retry")
         return Posted(existing.response_status or 200, existing.response_body, replayed=True)
     status, body, rtype, rid = effect()
-    row = db.execute(select(IdempotencyKey).where(IdempotencyKey.id == inserted)).scalar_one()
-    row.response_status, row.response_body, row.resource_type, row.resource_id = status, body, rtype, rid
+    db.execute(update(IdempotencyKey).where(IdempotencyKey.id == inserted)
+               .values(response_status=status, response_body=body, resource_type=rtype, resource_id=rid))   # one statement
     return Posted(status, body)

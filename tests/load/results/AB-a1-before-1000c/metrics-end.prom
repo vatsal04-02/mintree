@@ -1,0 +1,647 @@
+# HELP mintree_admission_shed_total Requests rejected (503) because the wait exceeded the limit
+# TYPE mintree_admission_shed_total counter
+mintree_admission_shed_total 0.0
+# HELP mintree_db_pool_timeouts_total Pool checkout timeouts (pool exhaustion)
+# TYPE mintree_db_pool_timeouts_total counter
+mintree_db_pool_timeouts_total 0.0
+# HELP mintree_outbox_published_total Outbox events published to the broker
+# TYPE mintree_outbox_published_total counter
+mintree_outbox_published_total 7752.0
+# HELP mintree_outbox_publish_failures_total Outbox publish attempts that failed
+# TYPE mintree_outbox_publish_failures_total counter
+mintree_outbox_publish_failures_total 0.0
+# HELP mintree_log_records_dropped_total Log records dropped because the log sink could not keep up
+# TYPE mintree_log_records_dropped_total counter
+mintree_log_records_dropped_total 0.0
+# HELP mintree_worker_tasks_total Background task outcomes
+# TYPE mintree_worker_tasks_total counter
+mintree_worker_tasks_total{outcome="processed",task="notify.po_approved"} 2584.0
+mintree_worker_tasks_total{outcome="processed",task="notify.goods_receipt_posted"} 2584.0
+# HELP mintree_http_in_flight Requests admitted and running
+# TYPE mintree_http_in_flight gauge
+mintree_http_in_flight 0.0
+# HELP mintree_admission_waiting Requests queued for an admission slot
+# TYPE mintree_admission_waiting gauge
+mintree_admission_waiting 0.0
+# HELP mintree_db_pool_checked_out Connections currently checked out
+# TYPE mintree_db_pool_checked_out gauge
+mintree_db_pool_checked_out 0.0
+# HELP mintree_http_requests_total HTTP requests
+# TYPE mintree_http_requests_total counter
+mintree_http_requests_total{method="POST",route="/api/procurement/purchase-orders",status="201"} 2584.0
+mintree_http_requests_total{method="POST",route="/api/procurement/purchase-orders/{id}/submit",status="200"} 2584.0
+mintree_http_requests_total{method="POST",route="/api/procurement/purchase-orders/{id}/approve",status="200"} 2584.0
+mintree_http_requests_total{method="POST",route="/api/procurement/goods-receipts",status="201"} 2584.0
+mintree_http_requests_total{method="POST",route="/api/inventory/batches/{id}/qc-decision",status="200"} 2584.0
+mintree_http_requests_total{method="POST",route="/api/masters/brands",status="201"} 1252.0
+mintree_http_requests_total{method="GET",route="/api/inventory/balances",status="200"} 4226.0
+mintree_http_requests_total{method="GET",route="/api/masters/items",status="200"} 8351.0
+mintree_http_requests_total{method="GET",route="/api/procurement/purchase-orders",status="200"} 1739.0
+mintree_http_requests_total{method="POST",route="/api/inventory/issues",status="201"} 4273.0
+mintree_http_requests_total{method="POST",route="/api/inventory/reservations",status="201"} 5678.0
+mintree_http_requests_total{method="GET",route="/api/auth/me",status="200"} 1707.0
+mintree_http_requests_total{method="GET",route="/api/inventory/ledger",status="200"} 2168.0
+mintree_http_requests_total{method="POST",route="/api/inventory/reservations/release",status="200"} 3508.0
+mintree_http_requests_total{method="GET",route="/api/inventory/availability",status="200"} 3380.0
+mintree_http_requests_total{method="POST",route="/api/inventory/transfers",status="409"} 301.0
+mintree_http_requests_total{method="POST",route="/api/inventory/transfers",status="201"} 1481.0
+mintree_http_requests_total{method="POST",route="/api/auth/login",status="200"} 200.0
+mintree_http_requests_total{method="GET",route="/api/masters/warehouses",status="200"} 1.0
+mintree_http_requests_total{method="GET",route="/api/masters/suppliers",status="200"} 1.0
+mintree_http_requests_total{method="GET",route="/api/health",status="200"} 1.0
+# HELP mintree_stock_postings_total Stock ledger postings
+# TYPE mintree_stock_postings_total counter
+mintree_stock_postings_total{movement="RECEIPT"} 2584.0
+mintree_stock_postings_total{movement="QC_RELEASE"} 2584.0
+mintree_stock_postings_total{movement="ISSUE"} 4444.0
+mintree_stock_postings_total{movement="TRANSFER_OUT"} 1481.0
+mintree_stock_postings_total{movement="TRANSFER_IN"} 1481.0
+# HELP mintree_business_conflicts_total Expected business conflicts (HTTP 409)
+# TYPE mintree_business_conflicts_total counter
+mintree_business_conflicts_total{code="insufficient_stock"} 301.0
+# HELP mintree_admission_wait_seconds Time spent waiting for an admission slot
+# TYPE mintree_admission_wait_seconds histogram
+mintree_admission_wait_seconds_sum 153577.36073587177
+mintree_admission_wait_seconds_bucket{le="0.005"} 2001.0
+mintree_admission_wait_seconds_bucket{le="0.01"} 2039.0
+mintree_admission_wait_seconds_bucket{le="0.025"} 2139.0
+mintree_admission_wait_seconds_bucket{le="0.05"} 2301.0
+mintree_admission_wait_seconds_bucket{le="0.1"} 2565.0
+mintree_admission_wait_seconds_bucket{le="0.25"} 2990.0
+mintree_admission_wait_seconds_bucket{le="0.5"} 3782.0
+mintree_admission_wait_seconds_bucket{le="1.0"} 5259.0
+mintree_admission_wait_seconds_bucket{le="2.0"} 7995.0
+mintree_admission_wait_seconds_bucket{le="3.0"} 15248.0
+mintree_admission_wait_seconds_bucket{le="5.0"} 51187.0
+mintree_admission_wait_seconds_bucket{le="10.0"} 51187.0
+mintree_admission_wait_seconds_bucket{le="30.0"} 51187.0
+mintree_admission_wait_seconds_bucket{le="+Inf"} 51187.0
+mintree_admission_wait_seconds_count 51187.0
+# HELP mintree_db_pool_checkout_wait_seconds Time waiting for a pooled connection
+# TYPE mintree_db_pool_checkout_wait_seconds histogram
+mintree_db_pool_checkout_wait_seconds_sum 338.2471675569104
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.005"} 57415.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.01"} 71956.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.025"} 78697.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.05"} 79269.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.1"} 79306.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.25"} 79344.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="0.5"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="1.0"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="2.0"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="3.0"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="5.0"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="10.0"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="30.0"} 79348.0
+mintree_db_pool_checkout_wait_seconds_bucket{le="+Inf"} 79348.0
+mintree_db_pool_checkout_wait_seconds_count 79348.0
+# HELP mintree_worker_queue_wait_seconds Time from outbox publish to first execution
+# TYPE mintree_worker_queue_wait_seconds histogram
+mintree_worker_queue_wait_seconds_sum{queue="notifications"} 25.605016231536865
+mintree_worker_queue_wait_seconds_bucket{le="0.05",queue="notifications"} 5160.0
+mintree_worker_queue_wait_seconds_bucket{le="0.1",queue="notifications"} 5166.0
+mintree_worker_queue_wait_seconds_bucket{le="0.25",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="0.5",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="1.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="2.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="5.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="10.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="30.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="60.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="300.0",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_bucket{le="+Inf",queue="notifications"} 5168.0
+mintree_worker_queue_wait_seconds_count{queue="notifications"} 5168.0
+# HELP mintree_worker_task_duration_seconds Background task run time
+# TYPE mintree_worker_task_duration_seconds histogram
+mintree_worker_task_duration_seconds_sum{task="notify.goods_receipt_posted"} 19.1012024669717
+mintree_worker_task_duration_seconds_bucket{le="0.005",task="notify.goods_receipt_posted"} 1033.0
+mintree_worker_task_duration_seconds_bucket{le="0.01",task="notify.goods_receipt_posted"} 2073.0
+mintree_worker_task_duration_seconds_bucket{le="0.025",task="notify.goods_receipt_posted"} 2544.0
+mintree_worker_task_duration_seconds_bucket{le="0.05",task="notify.goods_receipt_posted"} 2577.0
+mintree_worker_task_duration_seconds_bucket{le="0.1",task="notify.goods_receipt_posted"} 2582.0
+mintree_worker_task_duration_seconds_bucket{le="0.25",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="0.5",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="1.0",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="2.0",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="3.0",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="5.0",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="10.0",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="30.0",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="+Inf",task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_count{task="notify.goods_receipt_posted"} 2584.0
+mintree_worker_task_duration_seconds_sum{task="notify.po_approved"} 18.65293535302044
+mintree_worker_task_duration_seconds_bucket{le="0.005",task="notify.po_approved"} 1076.0
+mintree_worker_task_duration_seconds_bucket{le="0.01",task="notify.po_approved"} 2113.0
+mintree_worker_task_duration_seconds_bucket{le="0.025",task="notify.po_approved"} 2540.0
+mintree_worker_task_duration_seconds_bucket{le="0.05",task="notify.po_approved"} 2577.0
+mintree_worker_task_duration_seconds_bucket{le="0.1",task="notify.po_approved"} 2583.0
+mintree_worker_task_duration_seconds_bucket{le="0.25",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="0.5",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="1.0",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="2.0",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="3.0",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="5.0",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="10.0",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="30.0",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_bucket{le="+Inf",task="notify.po_approved"} 2584.0
+mintree_worker_task_duration_seconds_count{task="notify.po_approved"} 2584.0
+# HELP mintree_db_query_duration_seconds DB statement duration
+# TYPE mintree_db_query_duration_seconds histogram
+mintree_db_query_duration_seconds_sum{op="SELECT"} 2246.0855251000976
+mintree_db_query_duration_seconds_bucket{le="0.005",op="SELECT"} 194982.0
+mintree_db_query_duration_seconds_bucket{le="0.01",op="SELECT"} 288096.0
+mintree_db_query_duration_seconds_bucket{le="0.025",op="SELECT"} 340084.0
+mintree_db_query_duration_seconds_bucket{le="0.05",op="SELECT"} 347336.0
+mintree_db_query_duration_seconds_bucket{le="0.1",op="SELECT"} 348028.0
+mintree_db_query_duration_seconds_bucket{le="0.25",op="SELECT"} 348343.0
+mintree_db_query_duration_seconds_bucket{le="0.5",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="1.0",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="2.0",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="3.0",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="5.0",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="10.0",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="30.0",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_bucket{le="+Inf",op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_count{op="SELECT"} 348356.0
+mintree_db_query_duration_seconds_sum{op="INSERT"} 518.4857882650849
+mintree_db_query_duration_seconds_bucket{le="0.005",op="INSERT"} 40527.0
+mintree_db_query_duration_seconds_bucket{le="0.01",op="INSERT"} 63580.0
+mintree_db_query_duration_seconds_bucket{le="0.025",op="INSERT"} 76701.0
+mintree_db_query_duration_seconds_bucket{le="0.05",op="INSERT"} 77951.0
+mintree_db_query_duration_seconds_bucket{le="0.1",op="INSERT"} 78006.0
+mintree_db_query_duration_seconds_bucket{le="0.25",op="INSERT"} 78064.0
+mintree_db_query_duration_seconds_bucket{le="0.5",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="1.0",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="2.0",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="3.0",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="5.0",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="10.0",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="30.0",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_bucket{le="+Inf",op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_count{op="INSERT"} 78075.0
+mintree_db_query_duration_seconds_sum{op="UPDATE"} 352.5550690109858
+mintree_db_query_duration_seconds_bucket{le="0.005",op="UPDATE"} 36300.0
+mintree_db_query_duration_seconds_bucket{le="0.01",op="UPDATE"} 53266.0
+mintree_db_query_duration_seconds_bucket{le="0.025",op="UPDATE"} 61297.0
+mintree_db_query_duration_seconds_bucket{le="0.05",op="UPDATE"} 61857.0
+mintree_db_query_duration_seconds_bucket{le="0.1",op="UPDATE"} 61881.0
+mintree_db_query_duration_seconds_bucket{le="0.25",op="UPDATE"} 61921.0
+mintree_db_query_duration_seconds_bucket{le="0.5",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="1.0",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="2.0",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="3.0",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="5.0",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="10.0",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="30.0",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_bucket{le="+Inf",op="UPDATE"} 61924.0
+mintree_db_query_duration_seconds_count{op="UPDATE"} 61924.0
+# HELP mintree_db_transaction_duration_seconds Transaction duration (BEGIN..COMMIT/ROLLBACK)
+# TYPE mintree_db_transaction_duration_seconds histogram
+mintree_db_transaction_duration_seconds_sum{outcome="commit"} 4717.704590367032
+mintree_db_transaction_duration_seconds_bucket{le="0.005",outcome="commit"} 250.0
+mintree_db_transaction_duration_seconds_bucket{le="0.01",outcome="commit"} 914.0
+mintree_db_transaction_duration_seconds_bucket{le="0.025",outcome="commit"} 7382.0
+mintree_db_transaction_duration_seconds_bucket{le="0.05",outcome="commit"} 37858.0
+mintree_db_transaction_duration_seconds_bucket{le="0.1",outcome="commit"} 70357.0
+mintree_db_transaction_duration_seconds_bucket{le="0.25",outcome="commit"} 78787.0
+mintree_db_transaction_duration_seconds_bucket{le="0.5",outcome="commit"} 79045.0
+mintree_db_transaction_duration_seconds_bucket{le="1.0",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_bucket{le="2.0",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_bucket{le="3.0",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_bucket{le="5.0",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_bucket{le="10.0",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_bucket{le="30.0",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_bucket{le="+Inf",outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_count{outcome="commit"} 79046.0
+mintree_db_transaction_duration_seconds_sum{outcome="rollback"} 8.259158045996628
+mintree_db_transaction_duration_seconds_bucket{le="0.005",outcome="rollback"} 5.0
+mintree_db_transaction_duration_seconds_bucket{le="0.01",outcome="rollback"} 19.0
+mintree_db_transaction_duration_seconds_bucket{le="0.025",outcome="rollback"} 151.0
+mintree_db_transaction_duration_seconds_bucket{le="0.05",outcome="rollback"} 278.0
+mintree_db_transaction_duration_seconds_bucket{le="0.1",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="0.25",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="0.5",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="1.0",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="2.0",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="3.0",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="5.0",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="10.0",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="30.0",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_bucket{le="+Inf",outcome="rollback"} 302.0
+mintree_db_transaction_duration_seconds_count{outcome="rollback"} 302.0
+# HELP mintree_http_request_duration_seconds End-to-end latency incl. admission wait
+# TYPE mintree_http_request_duration_seconds histogram
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 8209.96006533398
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 29.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 49.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 75.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 123.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 153.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 221.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 359.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 614.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/procurement/purchase-orders",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 8197.63551094601
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 37.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 52.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 81.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 114.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 148.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 209.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 348.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 624.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/procurement/purchase-orders/{id}/submit",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 8172.863319626016
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 27.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 47.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 71.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 116.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 143.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 226.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 366.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 629.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/procurement/purchase-orders/{id}/approve",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 8402.108882009012
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 2.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 24.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 48.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 90.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 125.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 246.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 376.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 590.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 2581.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/procurement/goods-receipts",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 8155.390960717954
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 19.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 38.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 60.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 121.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 172.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 279.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 394.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 631.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 2583.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/inventory/batches/{id}/qc-decision",status_class="2xx"} 2584.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/masters/brands",status_class="2xx"} 3842.1218133010025
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/masters/brands",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/masters/brands",status_class="2xx"} 3.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/masters/brands",status_class="2xx"} 23.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/masters/brands",status_class="2xx"} 35.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/masters/brands",status_class="2xx"} 58.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/masters/brands",status_class="2xx"} 79.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/masters/brands",status_class="2xx"} 104.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/masters/brands",status_class="2xx"} 137.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/masters/brands",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/masters/brands",status_class="2xx"} 329.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/masters/brands",status_class="2xx"} 1252.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/masters/brands",status_class="2xx"} 1252.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/masters/brands",status_class="2xx"} 1252.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/masters/brands",status_class="2xx"} 1252.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/masters/brands",status_class="2xx"} 1252.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/inventory/balances",status_class="2xx"} 13091.080832035037
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/inventory/balances",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/inventory/balances",status_class="2xx"} 11.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/inventory/balances",status_class="2xx"} 67.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/inventory/balances",status_class="2xx"} 102.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/inventory/balances",status_class="2xx"} 142.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/inventory/balances",status_class="2xx"} 209.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/inventory/balances",status_class="2xx"} 294.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/inventory/balances",status_class="2xx"} 422.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/inventory/balances",status_class="2xx"} 630.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/inventory/balances",status_class="2xx"} 1126.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/inventory/balances",status_class="2xx"} 4226.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/inventory/balances",status_class="2xx"} 4226.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/inventory/balances",status_class="2xx"} 4226.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/inventory/balances",status_class="2xx"} 4226.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/inventory/balances",status_class="2xx"} 4226.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/masters/items",status_class="2xx"} 26300.862042170967
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/masters/items",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/masters/items",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/masters/items",status_class="2xx"} 63.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/masters/items",status_class="2xx"} 138.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/masters/items",status_class="2xx"} 220.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/masters/items",status_class="2xx"} 380.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/masters/items",status_class="2xx"} 506.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/masters/items",status_class="2xx"} 743.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/masters/items",status_class="2xx"} 1160.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/masters/items",status_class="2xx"} 2098.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/masters/items",status_class="2xx"} 8350.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/masters/items",status_class="2xx"} 8351.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/masters/items",status_class="2xx"} 8351.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/masters/items",status_class="2xx"} 8351.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/masters/items",status_class="2xx"} 8351.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 5369.25257654202
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 35.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 50.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 62.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 85.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 109.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 176.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 266.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 467.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 1739.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 1739.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 1739.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 1739.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/procurement/purchase-orders",status_class="2xx"} 1739.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/inventory/issues",status_class="2xx"} 13531.995091661
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/inventory/issues",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/inventory/issues",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/inventory/issues",status_class="2xx"} 47.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/inventory/issues",status_class="2xx"} 89.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/inventory/issues",status_class="2xx"} 130.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/inventory/issues",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/inventory/issues",status_class="2xx"} 260.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/inventory/issues",status_class="2xx"} 366.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/inventory/issues",status_class="2xx"} 601.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/inventory/issues",status_class="2xx"} 1056.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/inventory/issues",status_class="2xx"} 4273.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/inventory/issues",status_class="2xx"} 4273.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/inventory/issues",status_class="2xx"} 4273.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/inventory/issues",status_class="2xx"} 4273.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/inventory/issues",status_class="2xx"} 4273.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/inventory/reservations",status_class="2xx"} 17942.582808658008
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/inventory/reservations",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/inventory/reservations",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/inventory/reservations",status_class="2xx"} 72.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/inventory/reservations",status_class="2xx"} 112.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/inventory/reservations",status_class="2xx"} 157.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/inventory/reservations",status_class="2xx"} 257.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/inventory/reservations",status_class="2xx"} 334.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/inventory/reservations",status_class="2xx"} 497.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/inventory/reservations",status_class="2xx"} 811.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/inventory/reservations",status_class="2xx"} 1396.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/inventory/reservations",status_class="2xx"} 5677.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/inventory/reservations",status_class="2xx"} 5678.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/inventory/reservations",status_class="2xx"} 5678.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/inventory/reservations",status_class="2xx"} 5678.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/inventory/reservations",status_class="2xx"} 5678.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/auth/me",status_class="2xx"} 5301.536685414991
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/auth/me",status_class="2xx"} 2.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/auth/me",status_class="2xx"} 12.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/auth/me",status_class="2xx"} 25.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/auth/me",status_class="2xx"} 38.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/auth/me",status_class="2xx"} 45.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/auth/me",status_class="2xx"} 67.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/auth/me",status_class="2xx"} 97.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/auth/me",status_class="2xx"} 154.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/auth/me",status_class="2xx"} 249.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/auth/me",status_class="2xx"} 465.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/auth/me",status_class="2xx"} 1707.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/auth/me",status_class="2xx"} 1707.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/auth/me",status_class="2xx"} 1707.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/auth/me",status_class="2xx"} 1707.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/auth/me",status_class="2xx"} 1707.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/inventory/ledger",status_class="2xx"} 6672.744142018986
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/inventory/ledger",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/inventory/ledger",status_class="2xx"} 4.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/inventory/ledger",status_class="2xx"} 47.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/inventory/ledger",status_class="2xx"} 70.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/inventory/ledger",status_class="2xx"} 83.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/inventory/ledger",status_class="2xx"} 118.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/inventory/ledger",status_class="2xx"} 159.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/inventory/ledger",status_class="2xx"} 225.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/inventory/ledger",status_class="2xx"} 332.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/inventory/ledger",status_class="2xx"} 596.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/inventory/ledger",status_class="2xx"} 2168.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/inventory/ledger",status_class="2xx"} 2168.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/inventory/ledger",status_class="2xx"} 2168.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/inventory/ledger",status_class="2xx"} 2168.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/inventory/ledger",status_class="2xx"} 2168.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 11144.075295091016
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 46.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 68.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 100.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 161.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 206.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 312.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 482.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 875.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 3508.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 3508.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 3508.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 3508.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/inventory/reservations/release",status_class="2xx"} 3508.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/inventory/availability",status_class="2xx"} 10539.304782316016
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/inventory/availability",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/inventory/availability",status_class="2xx"} 21.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/inventory/availability",status_class="2xx"} 53.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/inventory/availability",status_class="2xx"} 72.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/inventory/availability",status_class="2xx"} 106.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/inventory/availability",status_class="2xx"} 152.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/inventory/availability",status_class="2xx"} 190.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/inventory/availability",status_class="2xx"} 300.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/inventory/availability",status_class="2xx"} 475.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/inventory/availability",status_class="2xx"} 893.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/inventory/availability",status_class="2xx"} 3380.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/inventory/availability",status_class="2xx"} 3380.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/inventory/availability",status_class="2xx"} 3380.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/inventory/availability",status_class="2xx"} 3380.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/inventory/availability",status_class="2xx"} 3380.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/inventory/transfers",status_class="4xx"} 980.3472770389926
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/inventory/transfers",status_class="4xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/inventory/transfers",status_class="4xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/inventory/transfers",status_class="4xx"} 2.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/inventory/transfers",status_class="4xx"} 5.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/inventory/transfers",status_class="4xx"} 7.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/inventory/transfers",status_class="4xx"} 12.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/inventory/transfers",status_class="4xx"} 15.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/inventory/transfers",status_class="4xx"} 20.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/inventory/transfers",status_class="4xx"} 34.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/inventory/transfers",status_class="4xx"} 59.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/inventory/transfers",status_class="4xx"} 301.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/inventory/transfers",status_class="4xx"} 301.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/inventory/transfers",status_class="4xx"} 301.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/inventory/transfers",status_class="4xx"} 301.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/inventory/transfers",status_class="4xx"} 301.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/inventory/transfers",status_class="2xx"} 4646.42672120198
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/inventory/transfers",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/inventory/transfers",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/inventory/transfers",status_class="2xx"} 10.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/inventory/transfers",status_class="2xx"} 21.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/inventory/transfers",status_class="2xx"} 31.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/inventory/transfers",status_class="2xx"} 66.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/inventory/transfers",status_class="2xx"} 85.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/inventory/transfers",status_class="2xx"} 138.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/inventory/transfers",status_class="2xx"} 237.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/inventory/transfers",status_class="2xx"} 368.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/inventory/transfers",status_class="2xx"} 1481.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/inventory/transfers",status_class="2xx"} 1481.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/inventory/transfers",status_class="2xx"} 1481.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/inventory/transfers",status_class="2xx"} 1481.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/inventory/transfers",status_class="2xx"} 1481.0
+mintree_http_request_duration_seconds_sum{method="POST",route="/api/auth/login",status_class="2xx"} 12.542228265996528
+mintree_http_request_duration_seconds_bucket{le="0.005",method="POST",route="/api/auth/login",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="POST",route="/api/auth/login",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="POST",route="/api/auth/login",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="POST",route="/api/auth/login",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="POST",route="/api/auth/login",status_class="2xx"} 199.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_count{method="POST",route="/api/auth/login",status_class="2xx"} 200.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/masters/warehouses",status_class="2xx"} 0.061787136999555514
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/masters/warehouses",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/masters/warehouses",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/masters/warehouses",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/masters/warehouses",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/masters/warehouses",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/masters/suppliers",status_class="2xx"} 0.012627215999600594
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/masters/suppliers",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/masters/suppliers",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/masters/suppliers",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_sum{method="GET",route="/api/health",status_class="2xx"} 0.011255779999373772
+mintree_http_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/health",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.01",method="GET",route="/api/health",status_class="2xx"} 0.0
+mintree_http_request_duration_seconds_bucket{le="0.025",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.05",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.1",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.25",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="0.5",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="1.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="2.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="3.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="5.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="10.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="30.0",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_bucket{le="+Inf",method="GET",route="/api/health",status_class="2xx"} 1.0
+mintree_http_request_duration_seconds_count{method="GET",route="/api/health",status_class="2xx"} 1.0
+# HELP mintree_pg_connections_active Backends executing a statement
+# TYPE mintree_pg_connections_active gauge
+mintree_pg_connections_active 1.0
+# HELP mintree_pg_connections_idle Idle backends
+# TYPE mintree_pg_connections_idle gauge
+mintree_pg_connections_idle 38.0
+# HELP mintree_pg_connections_idle_in_transaction Backends idle inside a transaction
+# TYPE mintree_pg_connections_idle_in_transaction gauge
+mintree_pg_connections_idle_in_transaction 0.0
+# HELP mintree_pg_lock_waiters Backends currently waiting on a lock
+# TYPE mintree_pg_lock_waiters gauge
+mintree_pg_lock_waiters 0.0
+# HELP mintree_pg_connections_total All backends on this database
+# TYPE mintree_pg_connections_total gauge
+mintree_pg_connections_total 39.0
+# HELP mintree_pg_max_connections max_connections
+# TYPE mintree_pg_max_connections gauge
+mintree_pg_max_connections 100.0
+# HELP mintree_pg_deadlocks_total Deadlocks detected (cumulative)
+# TYPE mintree_pg_deadlocks_total gauge
+mintree_pg_deadlocks_total 0.0
+# HELP mintree_pg_xact_commit_total Committed transactions (cumulative)
+# TYPE mintree_pg_xact_commit_total gauge
+mintree_pg_xact_commit_total 1.732293e+06
+# HELP mintree_pg_xact_rollback_total Rolled back transactions (cumulative)
+# TYPE mintree_pg_xact_rollback_total gauge
+mintree_pg_xact_rollback_total 27908.0
+# HELP mintree_pg_temp_files_total Temp files created (cumulative)
+# TYPE mintree_pg_temp_files_total gauge
+mintree_pg_temp_files_total 12.0
+# HELP mintree_pg_blocks_read_total Disk blocks read (cumulative)
+# TYPE mintree_pg_blocks_read_total gauge
+mintree_pg_blocks_read_total 178180.0
+# HELP mintree_pg_blocks_hit_total Buffer cache hits (cumulative)
+# TYPE mintree_pg_blocks_hit_total gauge
+mintree_pg_blocks_hit_total 1.93845031e+08
+# HELP mintree_pg_database_size_bytes Database size
+# TYPE mintree_pg_database_size_bytes gauge
+mintree_pg_database_size_bytes 3.50659087e+08
+# HELP mintree_outbox_unpublished Outbox events waiting to be published
+# TYPE mintree_outbox_unpublished gauge
+mintree_outbox_unpublished 0.0
+# HELP mintree_outbox_oldest_unpublished_age_seconds Age of the oldest unpublished outbox event
+# TYPE mintree_outbox_oldest_unpublished_age_seconds gauge
+mintree_outbox_oldest_unpublished_age_seconds 0.0
+# HELP mintree_outbox_dead Outbox events that exhausted publish attempts (need investigation)
+# TYPE mintree_outbox_dead gauge
+mintree_outbox_dead 0.0
+# HELP mintree_job_failures_open Permanently failed background jobs not yet resolved
+# TYPE mintree_job_failures_open gauge
+mintree_job_failures_open 0.0
+# HELP mintree_rabbitmq_queue_messages_ready Messages ready for delivery
+# TYPE mintree_rabbitmq_queue_messages_ready gauge
+mintree_rabbitmq_queue_messages_ready{queue="dead_letter"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="default"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="documents"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="imports"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="integrations"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="notifications"} 0.0
+mintree_rabbitmq_queue_messages_ready{queue="reports"} 0.0
+# HELP mintree_rabbitmq_queue_messages_unacked Delivered, not yet acked
+# TYPE mintree_rabbitmq_queue_messages_unacked gauge
+mintree_rabbitmq_queue_messages_unacked{queue="dead_letter"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="default"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="documents"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="imports"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="integrations"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="notifications"} 0.0
+mintree_rabbitmq_queue_messages_unacked{queue="reports"} 0.0
+# HELP mintree_rabbitmq_queue_consumers Consumers attached
+# TYPE mintree_rabbitmq_queue_consumers gauge
+mintree_rabbitmq_queue_consumers{queue="dead_letter"} 0.0
+mintree_rabbitmq_queue_consumers{queue="default"} 1.0
+mintree_rabbitmq_queue_consumers{queue="documents"} 0.0
+mintree_rabbitmq_queue_consumers{queue="imports"} 0.0
+mintree_rabbitmq_queue_consumers{queue="integrations"} 0.0
+mintree_rabbitmq_queue_consumers{queue="notifications"} 1.0
+mintree_rabbitmq_queue_consumers{queue="reports"} 0.0
