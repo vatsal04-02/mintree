@@ -14,3 +14,7 @@ from app.inventory.models import InventoryBatch, StockBalance, StockLedger, Stoc
 from app.procurement.models import (  # noqa: E402,F401
     ApprovalPolicy, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, PurchaseOrderItem, PurchaseRequest, PurchaseRequestItem,
 )
+from app.accounts.models import (  # noqa: E402,F401
+    Account, AccountingPeriod, DocumentCounter, ItemValuation, JournalEntry, JournalLine, Payment, PaymentAllocation,
+    SupplierInvoice, SupplierInvoiceLine,
+)

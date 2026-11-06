@@ -37,6 +37,13 @@ RESOURCES: dict[str, list[str]] = {
     "procurement.pr": ["read", "create", "update", "approve"],
     "procurement.po": ["read", "create", "update", "approve", "cancel"],
     "procurement.receipt": ["read", "post"],
+    # Accounts
+    "accounts.coa": ["read", "create"],
+    "accounts.period": ["read", "close"],
+    "accounts.journal": ["read", "post"],
+    "accounts.report": ["read"],
+    "accounts.supplier_invoice": ["read", "post"],
+    "accounts.payment": ["read", "post"],
 }
 
 
@@ -64,7 +71,7 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
         ["masters.*", "!masters.supplier_bank:*", "documents.*", "admin.user:read", "admin.department:*",
          "admin.audit:read", "admin.role:read"],
     ),
-    "management": ("Management / Owner", "Company-wide read visibility.", ["inventory.*:read", "procurement.*:read", "masters.*:read", "masters.*:export", "!masters.supplier_bank:*", "documents.document:read",
+    "management": ("Management / Owner", "Company-wide read visibility.", ["accounts.*:read", "inventory.*:read", "procurement.*:read", "masters.*:read", "masters.*:export", "!masters.supplier_bank:*", "documents.document:read",
                     "documents.document:download"]),
     "production_manager": ("Production Manager", "Production planning and execution.",
                            ["inventory.stock:read", "inventory.batch:read", "inventory.reservation:*", "inventory.issue:post",
@@ -96,7 +103,7 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
                           "masters.uom:read", "documents.document:read", "documents.document:create",
                           "documents.document:download"]),
     "accounts_manager": ("Accounts Manager", "Finance.",
-                         ["masters.supplier:*", "masters.supplier_bank:*", "masters.customer:*",
+                         ["accounts.*", "procurement.po:read", "procurement.receipt:read", "inventory.stock:read", "masters.supplier:*", "masters.supplier_bank:*", "masters.customer:*",
                           "masters.item:read", "masters.uom:read", "documents.document:*"]),
     "marketing_manager": ("Marketing Manager", "Brand and content.",
                           ["masters.brand:*", "masters.item:read", "documents.document:*"]),

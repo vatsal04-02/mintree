@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from psycopg import errors as pgerr
 
+from app.accounts import service as acct
 from app.audit import service as audit
 from app.core import outbox
 from app.core.deps import CurrentUser
@@ -187,7 +188,7 @@ def post_goods_receipt(db: Session, cu: CurrentUser, *, po_id: int, warehouse_id
             raise BusinessConflict("duplicate_delivery_note", "This supplier delivery note has already been received") from e
         raise
 
-    out = []
+    out, valued = [], []
     for n, l in enumerate(sorted(lines, key=lambda x: x["po_item_id"]), 1):
         pi, qty = po_items[l["po_item_id"]], Decimal(str(l["qty"]))
         it = items[pi.item_id]
@@ -203,8 +204,18 @@ def post_goods_receipt(db: Session, cu: CurrentUser, *, po_id: int, warehouse_id
         # `pi` was loaded under FOR UPDATE, so this read-modify-write is race-free; the CHECK constraint
         # (qty_received <= qty_ordered) is the final guard. (Do NOT also issue an UPDATE expression: that double-counted.)
         pi.qty_received = pi.qty_received + qty
+        valued.append((it, qty, acct.money(qty * pi.unit_price)))
         out.append({"line_no": n, "po_item_id": pi.id, "item_id": it.id, "qty": str(qty), "batch_id": batch_id,
                     "balance_id": bal["balance_id"], "qc_status": "QUARANTINE" if it.is_batch_tracked else "N/A"})
+    # Accounting in the SAME transaction: valuation (locked in item order) + Dr Inventory / Cr GRNI at PO price.
+    vrows = acct.lock_valuations(db, [it.id for it, _, _ in valued])
+    by_account: dict[str, Decimal] = {}
+    for it, qty, value in valued:
+        acct.val_receive(db, vrows, it.id, qty, value)
+        code = acct.INVENTORY_ACCOUNT[it.kind]
+        by_account[code] = by_account.get(code, Decimal(0)) + value
+    acct.post_journal(db, entry_date=date.today(), description=f"Goods receipt {gr.number}", source_type="goods_receipt", source_id=gr.id,
+                      lines=[(c, v, Decimal(0)) for c, v in sorted(by_account.items())] + [("2100", Decimal(0), sum(by_account.values()))], actor_id=cu.id)
     full = all(i.qty_received >= i.qty_ordered for i in po_items.values())
     po.status, po.version = ("RECEIVED" if full else "PARTIALLY_RECEIVED"), po.version + 1
     body = {"id": gr.id, "number": gr.number, "po_id": po_id, "po_status": po.status, "delivery_note_no": delivery_note_no, "lines": out}

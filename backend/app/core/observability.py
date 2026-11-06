@@ -45,6 +45,7 @@ OUTBOX_PUBLISHED = Counter("mintree_outbox_published_total", "Outbox events publ
 OUTBOX_PUBLISH_FAILURES = Counter("mintree_outbox_publish_failures_total", "Outbox publish attempts that failed")
 
 BUSINESS_CONFLICTS = Counter("mintree_business_conflicts_total", "Expected business conflicts (HTTP 409)", ["code"])
+JOURNALS = Counter("mintree_journal_entries_total", "Journal entries posted")
 STOCK_POSTINGS = Counter("mintree_stock_postings_total", "Stock ledger postings", ["movement"])
 
 LOG_DROPPED = Counter("mintree_log_records_dropped_total", "Log records dropped because the log sink could not keep up")

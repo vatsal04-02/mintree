@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 
 from app.administration.router import router as admin_router
+from app.accounts.router import router as accounts_router
 from app.administration.jobs import router as jobs_router
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
@@ -79,5 +80,5 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
-for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router):
+for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router):
     app.include_router(r, prefix="/api")

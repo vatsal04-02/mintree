@@ -73,6 +73,7 @@ class PurchaseOrderItem(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
     qty_ordered: Mapped[Decimal] = mapped_column(QTY)
     qty_received: Mapped[Decimal] = mapped_column(QTY, default=0, server_default="0")  # projection, maintained with receipts
+    qty_invoiced: Mapped[Decimal] = mapped_column(QTY, default=0, server_default="0")  # three-way match: invoiced <= received
     unit_price: Mapped[Decimal] = mapped_column(MONEY)
     tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0, server_default="0")
     __table_args__ = (
@@ -80,6 +81,7 @@ class PurchaseOrderItem(Base):
         CheckConstraint("qty_ordered > 0", name="ordered_positive"),
         CheckConstraint("qty_received >= 0", name="received_non_negative"),
         CheckConstraint("qty_received <= qty_ordered", name="no_over_receipt"),   # final guard against over-receipt
+        CheckConstraint("qty_invoiced >= 0 AND qty_invoiced <= qty_received", name="invoiced_within_received"),
         CheckConstraint("unit_price >= 0", name="price_non_negative"),
     )
 

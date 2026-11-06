@@ -94,12 +94,41 @@ CHECKS: list[tuple[str, str, str]] = [
     ("consumer_effects_are_not_duplicated",
      "At most one notification per (event, kind) and one dedupe marker per (consumer, event)",
      """SELECT event_id, kind, count(*) FROM notifications GROUP BY 1,2 HAVING count(*) > 1"""),
+    ("journal_entries_are_balanced_and_nonempty",
+     "Every journal entry's debits equal its credits (and match its header totals)",
+     """SELECT e.id, e.total_debit, e.total_credit, COALESCE(sum(l.debit),0), COALESCE(sum(l.credit),0) FROM journal_entries e
+          LEFT JOIN journal_lines l ON l.entry_id = e.id GROUP BY e.id
+         HAVING COALESCE(sum(l.debit),0) <> COALESCE(sum(l.credit),0) OR COALESCE(sum(l.debit),0) <> e.total_debit OR e.total_debit = 0"""),
+    ("trial_balance_balances",
+     "Total debits equal total credits across the whole ledger",
+     """SELECT sum(debit), sum(credit) FROM journal_lines HAVING sum(debit) <> sum(credit)"""),
+    ("accounts_payable_control_reconciles_with_open_supplier_invoices",
+     "GL 2000 Accounts Payable (credit - debit) equals the sum of outstanding supplier invoices",
+     """SELECT gl.bal, sub.outstanding FROM
+          (SELECT COALESCE(sum(l.credit - l.debit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = '2000') gl,
+          (SELECT COALESCE(sum(total - amount_paid),0) outstanding FROM supplier_invoices) sub WHERE gl.bal <> sub.outstanding"""),
+    ("inventory_gl_reconciles_with_item_valuation",
+     "GL inventory accounts 1300+1310+1320 (debit - credit) equal the sum of item valuations",
+     """SELECT gl.bal, v.val FROM
+          (SELECT COALESCE(sum(l.debit - l.credit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code IN ('1300','1310','1320')) gl,
+          (SELECT COALESCE(sum(value),0) val FROM item_valuation) v WHERE gl.bal <> v.val"""),
+    ("every_financial_document_has_its_journal",
+     "Goods receipts, supplier invoices and payments each have exactly one journal entry",
+     """SELECT 'goods_receipt', gr.id FROM goods_receipts gr WHERE (SELECT count(*) FROM journal_entries j WHERE j.source_type='goods_receipt' AND j.source_id = gr.id) <> 1
+        UNION ALL SELECT 'supplier_invoice', i.id FROM supplier_invoices i WHERE i.journal_entry_id IS NULL OR NOT EXISTS (SELECT 1 FROM journal_entries j WHERE j.id = i.journal_entry_id)
+        UNION ALL SELECT 'payment', p.id FROM payments p WHERE p.journal_entry_id IS NULL OR NOT EXISTS (SELECT 1 FROM journal_entries j WHERE j.id = p.journal_entry_id)"""),
+    ("supplier_invoice_payments_and_quantities_consistent",
+     "amount_paid equals the sum of allocations; invoiced qty equals the sum of invoice lines and never exceeds received",
+     """SELECT 'paid', i.id FROM supplier_invoices i LEFT JOIN (SELECT invoice_id, sum(amount) s FROM payment_allocations WHERE invoice_type='supplier_invoice' GROUP BY 1) a
+              ON a.invoice_id = i.id WHERE i.amount_paid <> COALESCE(a.s,0)
+        UNION ALL SELECT 'qty', poi.id FROM purchase_order_items poi LEFT JOIN (SELECT po_item_id, sum(qty) s FROM supplier_invoice_lines GROUP BY 1) l
+              ON l.po_item_id = poi.id WHERE poi.qty_invoiced <> COALESCE(l.s,0) OR poi.qty_invoiced > poi.qty_received"""),
     ("ledger_is_append_only_by_construction",
      "Ledger rows carry the reversal link only once (a movement is reversed at most once)",
      """SELECT reverses_ledger_id, count(*) FROM stock_ledger WHERE reverses_ledger_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1"""),
 ]
 
-SKIPPED = [("accounting_journals_balanced", "Accounts module (double-entry ledger) is not implemented yet; check will be added with it")]
+SKIPPED: list[tuple[str, str]] = []
 
 
 def run_checks(engine) -> dict:
@@ -116,7 +145,7 @@ def run_checks(engine) -> dict:
             rows = [list(map(str, r)) for r in conn.execute(text(sql)).all()]
             results.append({"name": name, "description": desc, "ok": not rows, "violations": len(rows), "sample": rows[:5]})
         counts = {t: conn.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in
-                  ("stock_balances", "stock_ledger", "stock_reservations", "goods_receipts", "purchase_orders", "idempotency_keys", "outbox_events")}
+                  ("stock_balances", "stock_ledger", "stock_reservations", "goods_receipts", "purchase_orders", "idempotency_keys", "outbox_events", "journal_entries")}
         if own:
             conn.rollback()
     return {"ok": all(r["ok"] for r in results), "checks": results, "skipped": [{"name": n, "reason": r} for n, r in SKIPPED], "row_counts": counts}

@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.permissions import RESOURCES, ROLES, role_permission_codes
 from app.core.security import hash_password
+from app.accounts.models import Account, AccountingPeriod
 from app.masters.models import UnitOfMeasure, Warehouse
 
 DEPARTMENTS = [("MGMT", "Management"), ("PROD", "Production"), ("PURCH", "Purchase"), ("STORES", "Stores & Warehouse"),
@@ -27,6 +28,24 @@ UOMS = [("KG", "Kilogram"), ("G", "Gram"), ("L", "Litre"), ("ML", "Millilitre"),
 WAREHOUSES = [("RM-WH", "RM Warehouse", "RM"), ("PM-WH", "PM Warehouse", "PM"), ("QC-QRN", "QC Quarantine", "QC_QUARANTINE"),
               ("REJ", "Rejected Materials", "REJECTED"), ("BULK", "Bulk Storage", "BULK"), ("WIP", "Work in Progress", "WIP"),
               ("FG-WH", "Finished Goods", "FG"), ("DISP-WH", "Dispatch Warehouse", "DISPATCH")]
+
+
+COA = [("1000", "Cash", "ASSET"), ("1100", "Bank", "ASSET"), ("1200", "Accounts Receivable", "ASSET"), ("1300", "Inventory - Raw & Packaging Materials", "ASSET"),
+       ("1310", "Inventory - Work in Progress / Bulk", "ASSET"), ("1320", "Inventory - Finished Goods", "ASSET"), ("1500", "Input GST", "ASSET"),
+       ("2000", "Accounts Payable", "LIABILITY"), ("2100", "Goods Received Not Invoiced (GRNI)", "LIABILITY"), ("2200", "Output GST", "LIABILITY"),
+       ("3000", "Owner's Equity", "EQUITY"), ("4000", "Sales Revenue", "REVENUE"), ("4100", "Sales Returns", "REVENUE"),
+       ("5000", "Cost of Goods Sold", "EXPENSE"), ("5100", "Production Wastage & Variance", "EXPENSE"), ("5200", "Inventory Adjustments", "EXPENSE"),
+       ("5300", "Purchase Price Variance", "EXPENSE")]
+
+
+def _fiscal_periods(today):
+    import calendar
+    from datetime import date
+    y = today.year if today.month >= 4 else today.year - 1
+    for k in range(12):
+        m = 4 + k
+        yy, mm = (y, m) if m <= 12 else (y + 1, m - 12)
+        yield f"{yy}-{mm:02d}", date(yy, mm, 1), date(yy, mm, calendar.monthrange(yy, mm)[1])
 
 
 def sync_permissions(db: Session) -> dict[str, Permission]:
@@ -58,6 +77,12 @@ def seed(db: Session) -> str | None:
     db.add_all(UnitOfMeasure(code=c, name=n) for c, n in UOMS if c not in have)
     have = {w.code for w in db.scalars(select(Warehouse))}
     db.add_all(Warehouse(code=c, name=n, kind=k) for c, n, k in WAREHOUSES if c not in have)
+    have = {a.code for a in db.scalars(select(Account))}
+    db.add_all(Account(code=c, name=n, type=t) for c, n, t in COA if c not in have)
+    from datetime import date as _d
+    have = {p.name for p in db.scalars(select(AccountingPeriod))}
+    for fy in (_d.today(), _d(_d.today().year - 1, _d.today().month, 1)):   # current and previous fiscal year
+        db.add_all(AccountingPeriod(name=n, start_date=a, end_date=b) for n, a, b in _fiscal_periods(fy) if n not in have and not have.add(n))
     db.flush()
 
     generated = None
