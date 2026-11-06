@@ -103,10 +103,10 @@ CHECKS: list[tuple[str, str, str]] = [
      "Total debits equal total credits across the whole ledger",
      """SELECT sum(debit), sum(credit) FROM journal_lines HAVING sum(debit) <> sum(credit)"""),
     ("accounts_payable_control_reconciles_with_open_supplier_invoices",
-     "GL 2000 Accounts Payable (credit - debit) equals the sum of outstanding supplier invoices",
+     "GL 2000 Accounts Payable (credit - debit) equals the sum of outstanding supplier invoices (total - paid - debit notes)",
      """SELECT gl.bal, sub.outstanding FROM
           (SELECT COALESCE(sum(l.credit - l.debit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = '2000') gl,
-          (SELECT COALESCE(sum(total - amount_paid),0) outstanding FROM supplier_invoices) sub WHERE gl.bal <> sub.outstanding"""),
+          (SELECT COALESCE(sum(total - amount_paid - credited_amount),0) outstanding FROM supplier_invoices) sub WHERE gl.bal <> sub.outstanding"""),
     ("inventory_gl_reconciles_with_item_valuation",
      "GL inventory accounts 1300+1310+1320 (debit - credit) equal item valuations plus cost sitting in open production orders (WIP)",
      """SELECT gl.bal, v.val FROM

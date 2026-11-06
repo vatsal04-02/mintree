@@ -34,3 +34,4 @@ from app.branding.models import Campaign, ContentItem, PublishingRecord  # noqa:
 from app.approvals import models as _approvals_models  # noqa: E402,F401
 from app.notifications import models as _notifications_models  # noqa: E402,F401
 from app.procurement import rfq_models as _rfq_models  # noqa: E402,F401
+from app.accounts import ext_models as _acct_ext_models  # noqa: E402,F401

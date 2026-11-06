@@ -35,7 +35,7 @@ COA = [("1000", "Cash", "ASSET"), ("1100", "Bank", "ASSET"), ("1200", "Accounts 
        ("2000", "Accounts Payable", "LIABILITY"), ("2100", "Goods Received Not Invoiced (GRNI)", "LIABILITY"), ("2200", "Output GST", "LIABILITY"),
        ("3000", "Owner's Equity", "EQUITY"), ("4000", "Sales Revenue", "REVENUE"), ("4100", "Sales Returns", "REVENUE"),
        ("5000", "Cost of Goods Sold", "EXPENSE"), ("5100", "Production Wastage & Variance", "EXPENSE"), ("5200", "Inventory Adjustments", "EXPENSE"),
-       ("5300", "Purchase Price Variance", "EXPENSE")]
+       ("5300", "Purchase Price Variance", "EXPENSE"), ("5400", "Bank Charges", "EXPENSE"), ("5500", "Marketplace Fees & Settlement Adjustments", "EXPENSE")]
 
 
 def _fiscal_periods(today):

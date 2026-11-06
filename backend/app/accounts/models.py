@@ -111,6 +111,7 @@ class SupplierInvoice(Base):
     tax_total: Mapped[Decimal] = mapped_column(MONEY)
     total: Mapped[Decimal] = mapped_column(MONEY)
     amount_paid: Mapped[Decimal] = mapped_column(MONEY, default=0, server_default="0")
+    credited_amount: Mapped[Decimal] = mapped_column(MONEY, default=0, server_default="0")     # debit notes raised against this invoice
     status: Mapped[str] = mapped_column(String(10), default="OPEN", server_default="OPEN")
     journal_entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -119,7 +120,7 @@ class SupplierInvoice(Base):
     __table_args__ = (
         UniqueConstraint("supplier_id", "supplier_invoice_no", name="uq_supplier_invoices_supplier_no"),   # same bill never booked twice
         CheckConstraint("total = subtotal + tax_total", name="total_consistent"),
-        CheckConstraint("amount_paid >= 0 AND amount_paid <= total", name="paid_within_total"),
+        CheckConstraint("amount_paid >= 0 AND credited_amount >= 0 AND amount_paid + credited_amount <= total", name="settled_within_total"),
         CheckConstraint("status IN ('OPEN','PARTIAL','PAID')", name="status_valid"),
     )
 

@@ -60,6 +60,10 @@ RESOURCES: dict[str, list[str]] = {
     "accounts.report": ["read"],
     "accounts.supplier_invoice": ["read", "post"],
     "accounts.payment": ["read", "post"],
+    "accounts.bank": ["read", "create", "reconcile"],
+    "accounts.debit_note": ["read", "post"],
+    "accounts.gst": ["read"],
+    "accounts.settlement": ["post"],
     # Maintenance
     "maintenance.equipment": ["read", "create"],
     "maintenance.workorder": ["read", "create", "assign", "execute", "verify"],

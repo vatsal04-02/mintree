@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "finance.fiscal_year_start_month": (4, "1-12; Indian fiscal year starts in April"),
     "procurement.two_level_threshold": (None, "PO total at or above which two distinct approvers are required; empty = single level"),
     "inventory.rotation_policy": ("FEFO", "FEFO or FIFO for batch allocation"),
+    "costing.overhead_pct": (0, "Reporting-only overhead allocation as a percentage of COGS (not posted to the ledger)"),
     "quality.near_expiry_days": (90, "Batches expiring within this many days are flagged"),
 }
 

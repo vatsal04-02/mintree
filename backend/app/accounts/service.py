@@ -196,8 +196,8 @@ def post_payment(db: Session, cu: CurrentUser, *, direction: str, party_id: int,
         raise BusinessConflict("allocation_mismatch", "Allocations must add up to the payment amount")
     if len({a["invoice_id"] for a in allocations}) != len(allocations):
         raise Unprocessable("An invoice may appear once per payment")
-    if bank_account_code not in ("1000", "1100"):
-        raise Unprocessable("Payments settle through Cash (1000) or Bank (1100)")
+    if bank_account_code not in ("1000", "1100") and not db.execute(text("SELECT 1 FROM bank_accounts WHERE ledger_account_code = :c AND is_active"), {"c": bank_account_code}).first():
+        raise Unprocessable("Payments settle through Cash (1000), Bank (1100) or a registered bank account")
     supplier = direction == "PAID"
     if supplier:
         model, inv_type, ctl = SupplierInvoice, "supplier_invoice", "2000"

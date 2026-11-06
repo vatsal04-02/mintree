@@ -85,6 +85,8 @@ class MarketplaceSettlement(Base):
     other_deductions: Mapped[Decimal] = mapped_column(MONEY, default=0)
     net_settlement: Mapped[Decimal] = mapped_column(MONEY)
     received_amount: Mapped[Decimal | None] = mapped_column(MONEY)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))        # set once the receipt + deductions are in the ledger
+    payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id"))
     __table_args__ = (UniqueConstraint("account_id", "reference", name="uq_marketplace_settlements_ref"),
                       CheckConstraint("net_settlement = gross_sales - commission - shipping_fees - ad_fees - returns_refunds - other_deductions", name="net_consistent"),
                       CheckConstraint("period_end >= period_start", name="period_ordered"))

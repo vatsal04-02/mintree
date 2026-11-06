@@ -61,6 +61,6 @@ class PaymentIn(_In):
     amount: PosMoney
     payment_date: date
     method: Literal["BANK_TRANSFER", "CASH", "CHEQUE", "UPI"]
-    bank_account_code: Literal["1000", "1100"]
+    bank_account_code: str = Field(pattern=r"^[0-9]{3,10}$")   # 1000 Cash, 1100 Bank, or a registered bank account's ledger code
     reference: str | None = Field(None, max_length=80)
     allocations: list[Alloc] = Field(min_length=1, max_length=100)
