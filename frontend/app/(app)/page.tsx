@@ -5,15 +5,23 @@ import { ArrowUpRight } from "lucide-react";
 import { api, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDateTime, titleCase } from "@/lib/format";
+import { MODULE_BY_ID } from "@/lib/modules";
 import { Badge, PageHeader } from "@/components/ui";
 
 type Counts = Record<string, number | null>;
 type Audit = { id: number; occurred_at: string; user_email: string | null; action: string; entity: string; entity_id: string | null };
 
-const MODULES = [
-  { n: "01", name: "Production", phase: 3 }, { n: "02", name: "Purchase", phase: 1 }, { n: "03", name: "Dispatch", phase: 5 },
-  { n: "04", name: "R&D", phase: 2 }, { n: "05", name: "Quality", phase: 4 }, { n: "06", name: "Maintenance", phase: 8 },
-  { n: "07", name: "Accounts", phase: 6 }, { n: "08", name: "E-commerce", phase: 7 }, { n: "09", name: "Meta & Branding", phase: 8 },
+// Honest status per PRD module (see docs/PRD_COVERAGE.md). "Partial" means built and usable, with the stated limit.
+const MODULES: { n: string; id: string; name: string; status: "live" | "partial"; note?: string }[] = [
+  { n: "01", id: "production", name: "Production", status: "partial", note: "no capacity scheduling" },
+  { n: "02", id: "procurement", name: "Purchase", status: "live" },
+  { n: "03", id: "dispatch", name: "Dispatch", status: "partial", note: "whole-order shipments; courier is a stand-in" },
+  { n: "04", id: "rnd", name: "R&D", status: "live" },
+  { n: "05", id: "quality", name: "Quality", status: "partial", note: "no sampling plans" },
+  { n: "06", id: "maintenance", name: "Maintenance", status: "live" },
+  { n: "07", id: "accounts", name: "Accounts", status: "partial", note: "no GST filing / e-invoice" },
+  { n: "08", id: "ecommerce", name: "E-commerce", status: "partial", note: "file & webhook import; live marketplace APIs pending" },
+  { n: "09", id: "branding", name: "Meta & Branding", status: "partial", note: "publishing recorded manually" },
 ];
 
 export default function Overview() {
@@ -72,15 +80,22 @@ export default function Overview() {
             </section>
           )}
           <section className="panel">
-            <div className="px-4 py-3 border-b border-line"><h2 className="text-[14px] font-semibold">Modules</h2><p className="text-muted text-[12px]">Delivery follows the phased roadmap; each phase is released when its workflow passes end-to-end.</p></div>
+            <div className="px-4 py-3 border-b border-line"><h2 className="text-[14px] font-semibold">Modules</h2><p className="text-muted text-[12px]">Every module is built; “Partial” names what is still missing (full detail in docs/PRD_COVERAGE.md).</p></div>
             <ul className="divide-y divide-line">
               <li className="flex items-center justify-between px-4 h-10 text-[13px]"><span><span className="text-muted tnum mr-2.5">00</span>Foundation — access, audit, master data, documents</span><Badge tone="success">Live</Badge></li>
-              {MODULES.sort((a, b) => a.phase - b.phase).map((m) => (
-                <li key={m.n} className="flex items-center justify-between px-4 h-10 text-[13px]">
-                  <span><span className="text-muted tnum mr-2.5">{m.n}</span>{m.name}</span>
-                  <span className="text-muted text-[12px]">Phase {m.phase}</span>
-                </li>
-              ))}
+              {MODULES.map((m) => {
+                const mod = MODULE_BY_ID[m.id];
+                const allowed = mod?.screens.some((sc) => can(sc.perm));
+                const row = (
+                  <>
+                    <span><span className="text-muted tnum mr-2.5">{m.n}</span>{m.name}{m.note && <span className="text-muted text-[12px] ml-2">— {m.note}</span>}</span>
+                    <Badge tone={m.status === "live" ? "success" : "info"}>{m.status === "live" ? "Live" : "Partial"}</Badge>
+                  </>
+                );
+                return allowed
+                  ? <li key={m.n}><Link href={`/m/${m.id}`} className="flex items-center justify-between px-4 h-10 text-[13px] hover:bg-primary/5">{row}</Link></li>
+                  : <li key={m.n} className="flex items-center justify-between px-4 h-10 text-[13px] opacity-60">{row}</li>;
+              })}
             </ul>
           </section>
         </div>
