@@ -23,6 +23,8 @@ from app.documents.router import router as documents_router
 from app.inventory.router import router as inventory_router
 from app.masters.router import router as masters_router
 from app.procurement.router import router as procurement_router
+from app.quality.router import router as quality_router
+from app.rnd.router import router as rnd_router
 
 configure_logging()
 obs.instrument_engine(engine)
@@ -80,5 +82,5 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
-for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router):
+for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router):
     app.include_router(r, prefix="/api")

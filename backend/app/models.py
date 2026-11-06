@@ -18,3 +18,5 @@ from app.accounts.models import (  # noqa: E402,F401
     Account, AccountingPeriod, DocumentCounter, ItemValuation, JournalEntry, JournalLine, Payment, PaymentAllocation,
     SupplierInvoice, SupplierInvoiceLine,
 )
+from app.rnd.models import Formulation, FormulationIngredient, FormulationVersion, LabTrial  # noqa: E402,F401
+from app.quality.models import CapaAction, Deviation, Inspection, InspectionResult, QualitySpec, QualitySpecTest  # noqa: E402,F401

@@ -95,6 +95,9 @@ def qc_decision(batch_id: int, body: s.QCDecision, key: str = Depends(require_id
     def effect(d):
         from app.audit import service as audit
         from app.core import outbox
+        from app.core.errors import BusinessConflict
+        if d.execute(text("SELECT 1 FROM inspections WHERE batch_id = :b LIMIT 1"), {"b": batch_id}).first():
+            raise BusinessConflict("inspection_required", "This batch is governed by a quality inspection; decide it through /quality/inspections")
         r = svc.set_qc_status(d, batch_id=batch_id, decision=body.decision, reason=body.reason, actor_id=cu.id)
         audit.record(d, user=cu, action=f"qc_{body.decision.lower()}", entity="inventory_batch", entity_id=batch_id,
                      before={"qc_status": r["from"]}, after={"qc_status": r["to"]}, reason=body.reason)
