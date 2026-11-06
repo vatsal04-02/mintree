@@ -11,6 +11,7 @@ from app.core.db import get_db
 from app.core.deps import CurrentUser, require
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.core.uow import run_tx
+from app.crm.ext_models import LeadSource
 from app.crm.models import Complaint, Lead
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -29,12 +30,14 @@ class LeadIn(_In):
     phone: str | None = Field(default=None, max_length=30)
     email: EmailStr | None = None
     source: str | None = None
+    lead_source_id: int | None = None
     owner_id: int | None = None
     notes: str | None = None
 
 
 class StatusIn(_In):
     status: Literal["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"]
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class ComplaintIn(_In):
@@ -49,7 +52,7 @@ class ComplaintUpdate(_In):
 
 
 def lead_dict(l: Lead) -> dict:
-    return {"id": l.id, "name": l.name, "company": l.company, "phone": l.phone, "email": l.email, "source": l.source, "status": l.status, "owner_id": l.owner_id, "notes": l.notes}
+    return {"id": l.id, "name": l.name, "company": l.company, "phone": l.phone, "email": l.email, "source": l.source, "lead_source_id": l.lead_source_id, "converted_customer_id": l.converted_customer_id, "lost_reason": l.lost_reason, "status": l.status, "owner_id": l.owner_id, "notes": l.notes}
 
 
 def complaint_dict(c: Complaint) -> dict:
@@ -59,6 +62,8 @@ def complaint_dict(c: Complaint) -> dict:
 @router.post("/leads", status_code=201)
 def create_lead(body: LeadIn, db: Session = DB, cu: CurrentUser = Depends(require("crm.lead:create"))):
     def work(d: Session):
+        if body.lead_source_id and not d.get(LeadSource, body.lead_source_id):
+            raise Unprocessable("Lead source does not exist")
         l = Lead(**body.model_dump())
         d.add(l)
         d.flush()
@@ -83,7 +88,13 @@ def lead_status(lid: int, body: StatusIn, db: Session = DB, cu: CurrentUser = De
             raise NotFound("Lead")
         if body.status not in LEAD_FLOW[l.status]:
             raise BusinessConflict("invalid_transition", f"A lead cannot move from {l.status} to {body.status}")
-        audit.record(d, user=cu, action="status", entity="lead", entity_id=l.id, before={"status": l.status}, after={"status": body.status})
+        if body.status == "WON":
+            raise BusinessConflict("use_convert", "A lead is won by converting it to a customer: POST /crm/leads/{id}/convert")
+        if body.status == "LOST":
+            if not body.reason:
+                raise Unprocessable("A lost reason is required")
+            l.lost_reason = body.reason
+        audit.record(d, user=cu, action="status", entity="lead", entity_id=l.id, before={"status": l.status}, after={"status": body.status}, reason=body.reason)
         l.status = body.status
         return lead_dict(l)
     return run_tx(db, work, name="crm.lead.status")

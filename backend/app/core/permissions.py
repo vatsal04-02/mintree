@@ -90,6 +90,9 @@ RESOURCES: dict[str, list[str]] = {
     # CRM
     "crm.lead": ["read", "create", "update"],
     "crm.complaint": ["read", "create", "update"],
+    "crm.lead_source": CRUD,
+    "crm.opportunity": ["read", "create", "update"],
+    "crm.activity": ["read", "create"],
     # Branding / marketing
     "branding.campaign": ["read", "create"],
     "branding.content": ["read", "create", "approve", "publish"],
@@ -162,9 +165,9 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
                          ["accounts.*", "sales.*:read", "analytics.dashboard:read", "dispatch.order:read", "procurement.po:read", "procurement.receipt:read", "inventory.stock:read", "masters.supplier:*", "masters.supplier_bank:*", "masters.customer:*",
                           "masters.item:read", "masters.uom:read", "documents.document:*"]),
     "marketing_manager": ("Marketing Manager", "Brand and content.",
-                          ["masters.brand:*", "branding.*", "crm.lead:*", "analytics.dashboard:read", "masters.item:read", "documents.document:*"]),
+                          ["masters.brand:*", "branding.*", "crm.lead:*", "crm.lead_source:*", "crm.activity:*", "crm.opportunity:read", "analytics.dashboard:read", "masters.item:read", "documents.document:*"]),
     "sales_operator": ("Sales / E-commerce Operator", "Orders and customers.",
-                       ["ecommerce.*:read", "ecommerce.order:ingest", "crm.lead:*", "crm.complaint:*", "sales.*", "!sales.followup:manage", "!sales.pricing:update", "dispatch.order:read", "dispatch.order:create", "dispatch.order:confirm", "dispatch.shipment:read", "dispatch.return:read", "dispatch.return:create", "masters.customer:read", "masters.customer:create", "masters.customer:update",
+                       ["ecommerce.*:read", "ecommerce.order:ingest", "crm.lead:*", "crm.complaint:*", "crm.opportunity:*", "crm.activity:*", "crm.lead_source:read", "sales.*", "!sales.followup:manage", "!sales.pricing:update", "dispatch.order:read", "dispatch.order:create", "dispatch.order:confirm", "dispatch.shipment:read", "dispatch.return:read", "dispatch.return:create", "masters.customer:read", "masters.customer:create", "masters.customer:update",
                         "masters.item:read", "masters.brand:read", "documents.document:read"]),
 }
 

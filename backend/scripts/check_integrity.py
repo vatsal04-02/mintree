@@ -70,6 +70,13 @@ CHECKS: list[tuple[str, str, str]] = [
         SELECT 'value', pr.id FROM purchase_returns pr LEFT JOIN journal_entries e ON e.id = pr.journal_entry_id
          WHERE e.id IS NULL OR e.total_debit <> pr.total_value OR e.total_debit <> e.total_credit
             OR pr.total_value <> (SELECT COALESCE(sum(value),0) FROM purchase_return_lines WHERE return_id = pr.id)"""),
+    ("crm_lead_opportunity_quotation_customer_chain_is_consistent",
+     "Converted leads point at an active customer; an opportunity shares its customer with its lead and quotation; a WON opportunity's quotation is ACCEPTED or CONVERTED",
+     """SELECT 'lead_customer' AS kind, l.id AS ref FROM leads l LEFT JOIN customers c ON c.id = l.converted_customer_id WHERE l.status = 'WON' AND c.id IS NULL
+        UNION ALL SELECT 'opp_vs_lead', o.id FROM opportunities o JOIN leads l ON l.id = o.lead_id WHERE l.converted_customer_id IS NOT NULL AND o.customer_id IS DISTINCT FROM l.converted_customer_id
+        UNION ALL SELECT 'opp_vs_quotation', o.id FROM opportunities o JOIN sales_quotations q ON q.id = o.quotation_id WHERE q.customer_id <> o.customer_id
+        UNION ALL SELECT 'won_without_accepted_quote', o.id FROM opportunities o LEFT JOIN sales_quotations q ON q.id = o.quotation_id WHERE o.stage = 'WON' AND (q.id IS NULL OR q.status NOT IN ('ACCEPTED','CONVERTED'))
+        UNION ALL SELECT 'stage_history_gap', o.id FROM opportunities o WHERE NOT EXISTS (SELECT 1 FROM opportunity_stage_history h WHERE h.opportunity_id = o.id AND h.to_stage = o.stage)"""),
     ("po_amendment_history_is_consistent",
      "Each PO has at most one pending amendment, decided amendments carry a decider, and approved amendments never leave a line below its received quantity",
      """SELECT 'pending' AS kind, po_id AS ref FROM po_amendments WHERE status='PENDING' GROUP BY po_id HAVING count(*) > 1

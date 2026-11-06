@@ -218,9 +218,11 @@ def test_lead_and_complaint_workflows(login, shop):
     c = login("sales_operator")
     l = c.post("/api/crm/leads", json={"name": "Spa Chain", "email": "buyer@spa.example", "source": "Trade fair"}).json()
     assert c.post(f"/api/crm/leads/{l['id']}/status", json={"status": "WON"}).status_code == 409, "must be qualified first"
-    for s in ("CONTACTED", "QUALIFIED", "WON"):
+    for s in ("CONTACTED", "QUALIFIED"):
         assert c.post(f"/api/crm/leads/{l['id']}/status", json={"status": s}).status_code == 200
-    assert c.post(f"/api/crm/leads/{l['id']}/status", json={"status": "LOST"}).status_code == 409
+    assert c.post(f"/api/crm/leads/{l['id']}/status", json={"status": "WON"}).status_code == 409, "won only through conversion to a customer"
+    assert c.post(f"/api/crm/leads/{l['id']}/convert", json={}).json()["status"] == "WON"
+    assert c.post(f"/api/crm/leads/{l['id']}/status", json={"status": "LOST", "reason": "x"}).status_code == 409
     f = make_fg(shop, 50, 10)
     cu = make_customer()
     cm = c.post("/api/crm/complaints", json={"customer_id": cu, "batch_id": f["batch"], "description": "Serum separated in the bottle"})

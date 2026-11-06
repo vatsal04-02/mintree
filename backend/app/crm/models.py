@@ -17,8 +17,12 @@ class Lead(Base):
     status: Mapped[str] = mapped_column(String(12), default="NEW", server_default="NEW")
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     notes: Mapped[str | None] = mapped_column(Text)
+    lead_source_id: Mapped[int | None] = mapped_column(ForeignKey("lead_sources.id"))
+    converted_customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))    # set when the lead is converted (trace to the master customer)
+    lost_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    __table_args__ = (CheckConstraint("status IN ('NEW','CONTACTED','QUALIFIED','WON','LOST')", name="status_valid"),)
+    __table_args__ = (CheckConstraint("status IN ('NEW','CONTACTED','QUALIFIED','WON','LOST')", name="status_valid"),
+                      CheckConstraint("status <> 'WON' OR converted_customer_id IS NOT NULL", name="won_needs_customer"))
 
 
 class Complaint(Base):
