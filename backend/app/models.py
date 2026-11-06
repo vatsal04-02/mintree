@@ -46,3 +46,4 @@ from app.dispatch.ext_models import DeliveryAttempt, ProofOfDelivery, ShipmentPa
 from app.quality.ext_models import CertificateOfAnalysis, SamplingPlan  # noqa: E402,F401
 from app.production.plan_models import ProductionPlan, ProductionPlanLine, WorkCentre  # noqa: E402,F401
 from app.notifications.models import NotificationPreference, UserNotification  # noqa: E402,F401
+from app.core.demo_models import DemoSeedStep  # noqa: E402,F401
