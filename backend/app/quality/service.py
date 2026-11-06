@@ -58,10 +58,14 @@ def create_inspection(db: Session, cu: CurrentUser, batch_id: int, stage: str) -
     return inspection_dict(db, ins)
 
 
+def auto_inspection(db: Session, batch_id: int, item_id: int, stage: str) -> int | None:
+    """Called by goods-receipt (INCOMING) and production completion (FINISHED): an inspection is created automatically when a spec exists."""
+    spec = active_spec(db, item_id, stage)
+    return _new_inspection(db, batch_id, item_id, stage, spec).id if spec else None
+
+
 def auto_incoming(db: Session, batch_id: int, item_id: int) -> int | None:
-    """Called by goods-receipt posting: an INCOMING inspection is created automatically when a specification exists."""
-    spec = active_spec(db, item_id, "INCOMING")
-    return _new_inspection(db, batch_id, item_id, "INCOMING", spec).id if spec else None
+    return auto_inspection(db, batch_id, item_id, "INCOMING")
 
 
 def record_result(db: Session, cu: CurrentUser, inspection_id: int, *, test_name: str, value, passed: bool | None, observation: str | None) -> dict:

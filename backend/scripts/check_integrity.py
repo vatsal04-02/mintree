@@ -108,10 +108,19 @@ CHECKS: list[tuple[str, str, str]] = [
           (SELECT COALESCE(sum(l.credit - l.debit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = '2000') gl,
           (SELECT COALESCE(sum(total - amount_paid),0) outstanding FROM supplier_invoices) sub WHERE gl.bal <> sub.outstanding"""),
     ("inventory_gl_reconciles_with_item_valuation",
-     "GL inventory accounts 1300+1310+1320 (debit - credit) equal the sum of item valuations",
+     "GL inventory accounts 1300+1310+1320 (debit - credit) equal item valuations plus cost sitting in open production orders (WIP)",
      """SELECT gl.bal, v.val FROM
           (SELECT COALESCE(sum(l.debit - l.credit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code IN ('1300','1310','1320')) gl,
-          (SELECT COALESCE(sum(value),0) val FROM item_valuation) v WHERE gl.bal <> v.val"""),
+          (SELECT (SELECT COALESCE(sum(value),0) FROM item_valuation) + (SELECT COALESCE(sum(wip_cost),0) FROM production_orders) val) v WHERE gl.bal <> v.val"""),
+    ("production_orders_are_consistent",
+     "Issued quantities match the ledger; completed orders have an output batch whose receipt equals actual qty; consumption cost = order input cost; pinned BOM/formula present",
+     """SELECT 'issued', pm.id FROM production_materials pm LEFT JOIN (SELECT source_id, source_line, -sum(qty_delta) s FROM stock_ledger WHERE source_type='production_order' AND movement_type='PRODUCTION_ISSUE' GROUP BY 1,2) l
+              ON l.source_id = pm.order_id AND l.source_line = pm.line_no WHERE pm.issued_qty <> COALESCE(l.s,0)
+        UNION ALL SELECT 'output', o.id FROM production_orders o LEFT JOIN (SELECT source_id, sum(qty_delta) s FROM stock_ledger WHERE source_type='production_order' AND movement_type='PRODUCTION_OUTPUT' GROUP BY 1) l
+              ON l.source_id = o.id WHERE o.status = 'COMPLETED' AND (o.output_batch_id IS NULL OR o.actual_qty <> COALESCE(l.s,0))
+        UNION ALL SELECT 'cost', o.id FROM production_orders o LEFT JOIN (SELECT order_id, sum(cost) s FROM production_consumptions GROUP BY 1) c ON c.order_id = o.id
+              WHERE o.input_cost <> COALESCE(c.s,0)
+        UNION ALL SELECT 'wip', o.id FROM production_orders o WHERE (o.status = 'COMPLETED' AND o.wip_cost <> 0) OR (o.status IN ('PLANNED','RELEASED','CANCELLED') AND o.wip_cost <> 0)"""),
     ("every_financial_document_has_its_journal",
      "Goods receipts, supplier invoices and payments each have exactly one journal entry",
      """SELECT 'goods_receipt', gr.id FROM goods_receipts gr WHERE (SELECT count(*) FROM journal_entries j WHERE j.source_type='goods_receipt' AND j.source_id = gr.id) <> 1
