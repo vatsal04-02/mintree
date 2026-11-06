@@ -367,3 +367,409 @@ def production_finished_goods(c: Ctx) -> dict:
             coa = c.ok(qa.post(f"/api/quality/inspections/{r['inspection']}/coa"))
             out["coa_id"] = coa["id"]
     return out
+
+
+@step("production_planning")
+def production_planning(c: Ctx) -> dict:
+    """A confirmed weekly plan: one line is short of materials (it waits on the surfactant PO that is still awaiting approval) and over a work centre's capacity (overload accepted with a
+    reason); one line is converted to a planned order. Plus a DELAYED order that is mid-production and a future order."""
+    items, pm = item_ids(c), c.u("pm")
+    boms, wcs, W = c.refs["production_finished_goods"]["boms"], c.refs["master_data"]["wc"], c.refs["foundation"]["wh_rm"]
+    plan = c.ok(pm.post("/api/production/plans", json={"name": "Week 46: Oud wash push + Olive butter", "period_start": c.d(-1), "period_end": c.d(10), "notes": "Demo plan", "lines": [
+        {"bom_id": boms["FG-BW-OUD-200"], "planned_qty": "1000", "planned_date": c.d(3), "warehouse_id": W, "work_centre_id": wcs["WC-PACK"]},
+        {"bom_id": boms["FG-BB-OLIVE-150"], "planned_qty": "150", "planned_date": c.d(2), "warehouse_id": W, "work_centre_id": wcs["WC-FILL"]}]}))
+    mc = c.ok(pm.get(f"/api/production/plans/{plan['id']}/material-check"))
+    assert mc["ok"] is False, "the plan is expected to be short of materials (surfactant / bottles)"
+    c.expect(pm.post(f"/api/production/plans/{plan['id']}/confirm", json={"expected_version": plan["version"]}), 409, "capacity_exceeded")      # shown refusal, then accepted with a reason
+    conf = c.ok(pm.post(f"/api/production/plans/{plan['id']}/confirm", json={"expected_version": plan["version"], "accept_overload_reason": "Second packing shift approved by the plant head"}))
+    conv = c.ok(pm.post(f"/api/production/plans/{plan['id']}/lines/2/convert"))                                  # Olive butter: materials available -> a planned order
+    delayed = run_order(c, boms["FG-BW-OUD-200"], "200", planned_days=-3, finish="progress", stages_done=1)     # started, stage 1 running, planned date already passed
+    future = run_order(c, boms["FG-DETAN-60"], "100", planned_days=5, finish="plan")
+    return {"plan": plan["id"], "plan_short_items": [l["item_id"] for l in mc["lines"] if l["short"] != "0.000"], "converted_order": conv["order"]["id"], "delayed_order": delayed["id"], "future_order": future["id"]}
+
+
+@step("sales_crm")
+def sales_crm(c: Ctx) -> dict:
+    items, cus = item_ids(c), cus_ids(c)
+    sales, adm = c.u("sales"), c.u("admin")
+    W = c.refs["foundation"]["wh_rm"]
+    price = {code: Decimal(p) / GST for code, _, p, _ in CATALOGUE}
+    unit = lambda code, trade=True: money(price[code] * (TRADE if trade else 1))
+    src = {s["code"]: s["id"] for s in c.ok(adm.get("/api/crm/lead-sources"))["items"]}
+    out: dict = {}
+    c.ok(c.u("disp").post("/api/sales/prices", json={"customer_id": cus["DM-CUS-1"], "item_id": items["FG-BW-OUD-200"], "price": unit("FG-BW-OUD-200"), "valid_from": c.d(-90)}))
+    # 1) won: lead -> qualified -> customer -> opportunity -> quotation -> accepted -> sales order
+    with c.days_ago(14):
+        l1 = c.ok(sales.post("/api/crm/leads", json={"name": "Priya Nair", "company": "Studio Bloom Salon, Kochi", "email": "priya@studiobloom.example", "phone": "+910000000101",
+                                                    "lead_source_id": src["TRADE-FAIR"], "source": "Trade fair", "notes": "Demo lead: salon range enquiry"}))
+        c.ok(sales.post("/api/crm/activities", json={"kind": "CALL", "subject": "Intro call: salon range and trade pricing", "duration_min": 20, "lead_id": l1["id"]}))
+        c.ok(sales.post(f"/api/crm/leads/{l1['id']}/status", json={"status": "CONTACTED"}))
+        c.ok(sales.post("/api/crm/activities", json={"kind": "MEETING", "subject": "Product demo at the salon", "duration_min": 60, "lead_id": l1["id"], "notes": "Wants Oud body wash for retail shelf + backbar"}))
+        c.ok(sales.post(f"/api/crm/leads/{l1['id']}/status", json={"status": "QUALIFIED"}))
+        conv = c.ok(sales.post(f"/api/crm/leads/{l1['id']}/convert", json={"customer_type": "B2B"}))
+        opp = c.ok(sales.post("/api/crm/opportunities", json={"name": "Studio Bloom: Oud wash launch order", "lead_id": l1["id"], "expected_value": "75000", "expected_close": c.d(14)}))
+        q = c.ok(sales.post("/api/sales/quotations", json={"customer_id": conv["customer_id"], "valid_until": c.d(30), "notes": "Trade pricing, 30-day validity", "lines": [{"item_id": items["FG-BW-OUD-200"], "qty": "100", "unit_price": unit("FG-BW-OUD-200")}]}))
+        opp = c.ok(sales.post(f"/api/crm/opportunities/{opp['id']}/quotation", json={"quotation_id": q["id"], "expected_version": opp["version"]}))
+        q = c.ok(sales.post(f"/api/sales/quotations/{q['id']}/send", json={"expected_version": q["version"]}))
+        q = c.ok(sales.post(f"/api/sales/quotations/{q['id']}/accept", json={"expected_version": q["version"]}))
+        opp = c.ok(sales.post(f"/api/crm/opportunities/{opp['id']}/stage", json={"stage": "NEGOTIATION", "expected_version": opp["version"], "note": "Customer accepted terms by e-mail"}))
+        opp = c.ok(sales.post(f"/api/crm/opportunities/{opp['id']}/stage", json={"stage": "WON", "expected_version": opp["version"], "note": "PO received"}))
+        q = c.ok(sales.post(f"/api/sales/quotations/{q['id']}/convert", json={"expected_version": q["version"], "warehouse_id": W}))
+    out.update(won_lead=l1["id"], won_customer=conv["customer_id"], won_opportunity=opp["id"], won_quotation=q["id"], won_order=q["sales_order_id"])
+    # 2) open: qualified lead, opportunity in negotiation, quotation sent but not yet accepted
+    with c.days_ago(5):
+        l2 = c.ok(sales.post("/api/crm/leads", json={"name": "Arjun Mehta", "company": "Urban Spa Group", "email": "arjun@urbanspa.example", "lead_source_id": src["REFERRAL"], "source": "Referral"}))
+        for st in ("CONTACTED", "QUALIFIED"):
+            c.ok(sales.post(f"/api/crm/leads/{l2['id']}/status", json={"status": st}))
+        conv2 = c.ok(sales.post(f"/api/crm/leads/{l2['id']}/convert", json={"customer_type": "B2B"}))
+        o2 = c.ok(sales.post("/api/crm/opportunities", json={"name": "Urban Spa: 3-outlet body care range", "lead_id": l2["id"], "expected_value": "210000", "expected_close": c.d(20)}))
+        q2 = c.ok(sales.post("/api/sales/quotations", json={"customer_id": conv2["customer_id"], "valid_until": c.d(25), "lines": [
+            {"item_id": items["FG-BB-OLIVE-150"], "qty": "120", "unit_price": unit("FG-BB-OLIVE-150")}, {"item_id": items["FG-BS-OUD-150"], "qty": "80", "unit_price": unit("FG-BS-OUD-150")}]}))
+        o2 = c.ok(sales.post(f"/api/crm/opportunities/{o2['id']}/quotation", json={"quotation_id": q2["id"], "expected_version": o2["version"]}))
+        c.ok(sales.post(f"/api/sales/quotations/{q2['id']}/send", json={"expected_version": q2["version"]}))
+        o2 = c.ok(sales.post(f"/api/crm/opportunities/{o2['id']}/stage", json={"stage": "NEGOTIATION", "expected_version": o2["version"]}))
+        c.ok(sales.post("/api/crm/activities", json={"kind": "EMAIL", "subject": "Sent revised volume pricing", "opportunity_id": o2["id"]}))
+    out.update(open_lead=l2["id"], open_customer=conv2["customer_id"], open_opportunity=o2["id"], open_quotation=q2["id"])
+    # 3) lost: a qualified opportunity that did not convert, with the reason on record
+    with c.days_ago(10):
+        l4 = c.ok(sales.post("/api/crm/leads", json={"name": "Meera Iyer", "company": "Aroma Boutique, Pune", "email": "meera@aroma.example", "lead_source_id": src["INSTAGRAM"], "source": "Instagram"}))
+        for st in ("CONTACTED", "QUALIFIED"):
+            c.ok(sales.post(f"/api/crm/leads/{l4['id']}/status", json={"status": st}))
+        o4 = c.ok(sales.post("/api/crm/opportunities", json={"name": "Aroma Boutique: gift sets", "lead_id": l4["id"], "expected_value": "40000", "expected_close": c.d(7)}))
+        c.ok(sales.post(f"/api/crm/opportunities/{o4['id']}/stage", json={"stage": "LOST", "expected_version": o4["version"], "lost_reason": "Prefers imported brands; price sensitive"}))
+        c.ok(sales.post(f"/api/crm/leads/{l4['id']}/status", json={"status": "LOST", "reason": "Prefers imported brands; price sensitive"}))
+    # 4) new + follow-ups (one overdue)
+    l3 = c.ok(sales.post("/api/crm/leads", json={"name": "Sana Qureshi", "company": "Velvet Wellness, Hyderabad", "email": "sana@velvet.example", "lead_source_id": src["WEBSITE"], "source": "Website 'Partner With Us'"}))
+    with c.days_ago(8):
+        c.ok(sales.post("/api/sales/followups", json={"subject": "Send salon catalogue and price list", "due_date": c.d(3), "lead_id": l3["id"], "assigned_to": me(c, "sales")}))       # now overdue
+    c.ok(sales.post("/api/sales/followups", json={"subject": "Call back about backbar sizes", "due_date": c.d(2), "lead_id": l3["id"], "assigned_to": me(c, "sales")}))
+    c.ok(sales.post(f"/api/sales/customers/{out['won_customer']}/contacts", json={"name": "Priya Nair", "role": "Owner", "email": "priya@studiobloom.example", "is_primary": True}))
+    out.update(lost_lead=l4["id"], lost_opportunity=o4["id"], new_lead=l3["id"])
+    return out
+
+
+# ================================================================== dispatch and receivables
+def _hook(c: Ctx, awb: str, event_id: str, etype: str, when) -> None:
+    import hashlib
+    import hmac
+    import json
+    from app.core.config import get_settings
+    raw = json.dumps({"event_id": event_id, "awb": awb, "event_type": etype, "occurred_at": when.isoformat()}).encode()
+    sig = hmac.new(get_settings().courier_webhook_secret.encode(), raw, hashlib.sha256).hexdigest()
+    c.ok(c.u("disp").post("/api/dispatch/webhooks/courier/fake", content=raw, headers={"X-Signature": sig, "Content-Type": "application/json"}))
+
+
+def _ago(days: float, hours: float = 0):
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc) - timedelta(days=days, hours=hours)
+
+
+@step("dispatch_and_receivables")
+def dispatch_and_receivables(c: Ctx) -> dict:
+    items, cus = item_ids(c), cus_ids(c)
+    disp, acct = c.u("disp"), c.u("acct")
+    W = c.refs["foundation"]["wh_rm"]
+    price = {code: Decimal(p) / GST for code, _, p, _ in CATALOGUE}
+    out: dict = {"orders": {}, "invoices": {}, "shipments": {}}
+
+    def new_order(cust: str, lines: list[tuple[str, int]], trade=True, channel="B2B") -> dict:
+        return c.ok(disp.post("/api/dispatch/orders", json={"customer_id": cus[cust], "warehouse_id": W, "channel": channel, "lines": [
+            {"item_id": items[code], "qty": str(q), "unit_price": money(price[code] * (TRADE if trade else 1))} for code, q in lines]}))
+
+    def advance(o: dict, to: str = "PACKED") -> dict:
+        v = o["version"]
+        c.ok(disp.post(f"/api/dispatch/orders/{o['id']}/confirm", json={"expected_version": v}))
+        a = c.ok(disp.post(f"/api/dispatch/orders/{o['id']}/allocate", headers=c.k("al"), json={"expected_version": v + 1}))
+        if to == "ALLOCATED":
+            return a
+        return c.ok(disp.post(f"/api/dispatch/orders/{o['id']}/pack", json={"expected_version": v + 2, "cartons": 2, "weight_kg": "6.5"}))
+
+    def ship(o: dict, lines: list[tuple[int, str]] | None = None, packages: list[dict] | None = None) -> dict:
+        body: dict = {"expected_version": o["version"], "courier": "fake"}
+        if lines:
+            body["lines"] = [{"so_item_id": i, "qty": q} for i, q in lines]
+        if packages:
+            body["packages"] = packages
+        d = c.ok(disp.post(f"/api/dispatch/orders/{o['id']}/dispatch", headers=c.k("dp"), json=body))
+        c.ok(disp.post(f"/api/dispatch/shipments/{d['shipment_id']}/book"))
+        d["awb"] = c.ok(disp.get(f"/api/dispatch/shipments/{d['shipment_id']}"))["awb"]
+        return d
+
+    def pay(inv: dict, cust: str, amount: str) -> None:
+        c.ok(acct.post("/api/accounts/payments", headers=c.k("pay"), json={"direction": "RECEIVED", "party_id": cus[cust], "amount": amount, "payment_date": c.d(0), "method": "BANK_TRANSFER",
+                                                                           "bank_account_code": "1100", "allocations": [{"invoice_id": inv["id"], "amount": amount}]}))
+
+    # 1) the CRM-won order (100 Oud wash) ships in TWO shipments: 60 now-ish (one failed attempt, then delivered with proof), 40 later (still on the road)
+    won = c.ok(disp.get(f"/api/dispatch/orders/{c.refs['sales_crm']['won_order']}"))
+    with c.days_ago(12):
+        packed = advance(won)
+        s1 = ship(packed, [(won["items"][0]["id"], "60")], packages=[{"weight_kg": "6.2", "length_cm": "40", "width_cm": "30", "height_cm": "25", "contents": "Oud body wash x 30"}, {"weight_kg": "6.2", "contents": "Oud body wash x 30"}])
+        _hook(c, s1["awb"], "w1-pk", "PICKED_UP", _ago(11.8))
+        _hook(c, s1["awb"], "w1-it", "IN_TRANSIT", _ago(11))
+    c.ok(disp.post(f"/api/dispatch/shipments/{s1['shipment_id']}/delivery-attempts", headers=c.k("att"), json={"outcome": "FAILED", "reason": "Salon closed on Sunday; customer to be called", "attempted_at": _ago(9).isoformat()}))
+    c.ok(disp.post(f"/api/dispatch/shipments/{s1['shipment_id']}/delivery-attempts", headers=c.k("att"), json={"outcome": "DELIVERED", "received_by": "P. Nair (owner)", "remarks": "Signed delivery slip", "attempted_at": _ago(8).isoformat()}))
+    with c.days_ago(4):
+        s2 = ship({"id": won["id"], "version": s1["version"]}, None)                       # the remaining 40
+        _hook(c, s2["awb"], "w2-pk", "PICKED_UP", _ago(3.8))
+        _hook(c, s2["awb"], "w2-it", "IN_TRANSIT", _ago(3))
+    out["orders"]["won_partial"], out["shipments"]["won_1"], out["shipments"]["won_2"] = won["id"], s1["shipment_id"], s2["shipment_id"]
+    out["invoices"]["won_1"], out["invoices"]["won_2"] = s1["invoice"]["id"], s2["invoice"]["id"]
+    pay(s1["invoice"], _cust_of(c, won["id"]), money(Decimal(s1["invoice"]["total"])))        # shipment 1 invoice paid in full; shipment 2 invoice still open
+
+    # 2) a paid order (20 days ago)
+    with c.days_ago(20):
+        so1 = new_order("DM-CUS-1", [("FG-BW-OUD-200", 60)])
+        d1 = ship(advance(so1))
+        _hook(c, d1["awb"], "o1-d", "DELIVERED", _ago(18))
+        pay(d1["invoice"], "DM-CUS-1", money(Decimal(d1["invoice"]["total"])))
+    out["orders"]["paid"], out["invoices"]["paid"] = so1["id"], d1["invoice"]["id"]
+    # 3) an OVERDUE receivable: invoiced 45 days ago on 30-day terms, delivered, nothing paid
+    with c.days_ago(45):
+        so2 = new_order("DM-CUS-2", [("FG-BB-OLIVE-150", 60), ("FG-BS-OUD-150", 40)], channel="DISTRIBUTOR")
+        d2 = ship(advance(so2))
+        _hook(c, d2["awb"], "o2-d", "DELIVERED", _ago(43))
+    out["orders"]["overdue"], out["invoices"]["overdue"] = so2["id"], d2["invoice"]["id"]
+    # 4) a customer return with RESTOCK decision -> credit note -> customer pays the reduced balance
+    with c.days_ago(18):
+        so3 = new_order("DM-CUS-3", [("FG-BB-OLIVE-150", 30)], trade=False, channel="BRAND")
+        d3 = ship(advance(so3))
+        _hook(c, d3["awb"], "o3-d", "DELIVERED", _ago(16))
+        sh = c.ok(disp.get(f"/api/dispatch/shipments/{d3['shipment_id']}"))
+        r = c.ok(disp.post(f"/api/dispatch/returns?order_id={so3['id']}", headers=c.k("rt"), json={"reason": "damaged jar lid on arrival", "lines": [{"shipment_line_id": sh["lines"][0]["id"], "qty": "2"}]}))
+        c.ok(disp.post(f"/api/dispatch/returns/{r['id']}/receive", headers=c.k("rc")))
+        c.ok(disp.post(f"/api/dispatch/returns/{r['id']}/decide", headers=c.k("dc"), json={"decision": "RESTOCK"}))
+        inv3 = c.ok(disp.get(f"/api/dispatch/invoices/{d3['invoice']['id']}"))
+        due = Decimal(str(inv3["total"])) - Decimal(str(inv3.get("credited_amount") or 0)) - Decimal(str(inv3.get("amount_paid") or 0))
+        pay(d3["invoice"], "DM-CUS-3", money(due))
+    out["orders"]["returned"], out["returns"] = so3["id"], r["id"]
+    # 5) shipment exceptions: one stuck in transit for 9 days, one delivery that failed
+    with c.days_ago(9):
+        so4 = new_order("DM-CUS-6", [("FG-BB-OLIVE-150", 20)], channel="DISTRIBUTOR")
+        d4 = ship(advance(so4))
+        _hook(c, d4["awb"], "o4-pk", "PICKED_UP", _ago(8.8))
+        _hook(c, d4["awb"], "o4-it", "IN_TRANSIT", _ago(8))
+    with c.days_ago(3):
+        so5 = new_order("DM-CUS-5", [("FG-BS-OUD-150", 15)])
+        d5 = ship(advance(so5))
+        _hook(c, d5["awb"], "o5-pk", "PICKED_UP", _ago(2.8))
+        _hook(c, d5["awb"], "o5-ft", "FAILED_DELIVERY", _ago(1))
+    with Session(engine) as s:                                       # demo fixture: the courier's "created" age for the delayed shipment (shipments.created_at is set by the database clock)
+        from sqlalchemy import text
+        s.execute(text("UPDATE shipments SET created_at = now() - interval '9 days' WHERE id = :i"), {"i": d4["shipment_id"]})
+        s.commit()
+    out["orders"].update(delayed=so4["id"], failed=so5["id"])
+    out["shipments"].update(delayed=d4["shipment_id"], failed=d5["shipment_id"])
+    # 6) work in progress for the demo: packed (dispatch is the next click), allocated, confirmed-but-QC-blocked, draft
+    p = advance(new_order("DM-CUS-1", [("FG-BS-OUD-150", 50)]))
+    a = advance(new_order("DM-CUS-2", [("FG-BW-OUD-200", 30)], channel="DISTRIBUTOR"), "ALLOCATED")
+    blocked = new_order("DM-CUS-5", [("FG-DETAN-60", 10)])
+    c.ok(disp.post(f"/api/dispatch/orders/{blocked['id']}/confirm", json={"expected_version": blocked["version"]}))
+    c.expect(disp.post(f"/api/dispatch/orders/{blocked['id']}/allocate", headers=c.k("al"), json={"expected_version": blocked["version"] + 1}), 409, "insufficient_stock")   # batch still in QC quarantine
+    d = new_order("DM-CUS-1", [("FG-DETAN-60", 20)])
+    out["orders"].update(packed=p["id"], allocated=a["id"], qc_blocked=blocked["id"], draft=d["id"])
+    return out
+
+
+def _cust_of(c: Ctx, order_id: int) -> str:
+    cid = c.ok(c.u("disp").get(f"/api/dispatch/orders/{order_id}"))["customer_id"]
+    return next(code for code, i in cus_ids(c).items() if i == cid)
+
+
+# ================================================================== marketplaces (DEMO accounts, sample orders; no live API is contacted)
+PLATFORMS = [("AMAZON", "DM-MKT-AMZ", "Amazon"), ("FLIPKART", "DM-MKT-FLK", "Flipkart"), ("MYNTRA", "DM-MKT-MYN", "Myntra"), ("NYKAA", "DM-CUS-4", "Nykaa")]
+SKUS = {"AMAZON": ("MT-AMZ-OLIVE-BB", "FG-BB-OLIVE-150"), "FLIPKART": ("MT-FLK-OUDSCRUB", "FG-BS-OUD-150"), "MYNTRA": ("MT-MYN-OLIVE-BB", "FG-BB-OLIVE-150"), "NYKAA": ("MT-NYK-OUDSCRUB", "FG-BS-OUD-150")}
+
+
+@step("marketplaces")
+def marketplaces(c: Ctx) -> dict:
+    items, cus = item_ids(c), cus_ids(c)
+    mgr, ops, disp, acct = c.u("disp"), c.u("sales"), c.u("disp"), c.u("acct")
+    W = c.refs["foundation"]["wh_rm"]
+    price = {code: Decimal(p) / GST for code, _, p, _ in CATALOGUE}
+    out: dict = {"accounts": {}, "orders": {}}
+    for plat, ccode, label in PLATFORMS:
+        a = c.ok(mgr.post("/api/ecommerce/accounts", json={"platform": plat, "name": f"[DEMO] {label} seller account (sample data, no live API)", "seller_id": f"DEMO-{plat}-01",
+                                                          "customer_id": cus[ccode], "warehouse_id": W}))
+        sku, code = SKUS[plat]
+        c.ok(mgr.put(f"/api/ecommerce/accounts/{a['id']}/mappings", json={"platform_sku": sku, "item_id": items[code]}))
+        out["accounts"][plat] = a["id"]
+    with c.days_ago(10):
+        for plat, ccode, label in PLATFORMS:
+            sku, code = SKUS[plat]
+            aid = out["accounts"][plat]
+            orders = [{"order_id": f"DEMO-{plat[:3]}-1001", "order_date": c.d(0), "customer_name": f"Online customer ({label}), Bengaluru", "shipping_address": "Indiranagar, Bengaluru", "items": [{"sku": sku, "qty": "3", "unit_price": money(price[code])}]},
+                      {"order_id": f"DEMO-{plat[:3]}-1002", "order_date": c.d(0), "customer_name": f"Online customer ({label}), Delhi", "shipping_address": "Saket, Delhi", "items": [{"sku": sku, "qty": "2", "unit_price": money(price[code])}]}]
+            first = c.ok(ops.post(f"/api/ecommerce/accounts/{aid}/orders", json={"orders": orders}))
+            again = c.ok(ops.post(f"/api/ecommerce/accounts/{aid}/orders", json={"orders": orders}))      # the same file imported twice: nothing is duplicated
+            assert again["duplicate"] == 2 and again["created"] == 0, again
+            out["orders"][plat] = first
+    # an order with an unmapped SKU lands in the exception queue; mapping the SKU and retrying creates the sales order
+    with c.days_ago(2):
+        aid = out["accounts"]["NYKAA"]
+        c.ok(ops.post(f"/api/ecommerce/accounts/{aid}/orders", json={"orders": [{"order_id": "DEMO-NYK-2001", "order_date": c.d(0), "customer_name": "Online customer (Nykaa), Mumbai",
+                                                                                "items": [{"sku": "MT-NYK-NEWSKU", "qty": "1", "unit_price": "650"}]}]}))
+    # fulfil the first Amazon and Nykaa orders: allocate -> pack -> dispatch -> delivered; then settlement and a customer return on Amazon
+    def fulfil(plat: str, ext_id: str, delivered: bool = True) -> dict:
+        ext = next(e for e in c.ok(mgr.get("/api/ecommerce/external-orders", params={"account_id": out["accounts"][plat], "page_size": 100}))["items"] if e["external_order_id"] == ext_id)
+        so = c.ok(disp.get(f"/api/dispatch/orders/{ext['sales_order_id']}"))
+        v = so["version"]
+        c.ok(disp.post(f"/api/dispatch/orders/{so['id']}/confirm", json={"expected_version": v}))
+        c.ok(disp.post(f"/api/dispatch/orders/{so['id']}/allocate", headers=c.k("al"), json={"expected_version": v + 1}))
+        pk = c.ok(disp.post(f"/api/dispatch/orders/{so['id']}/pack", json={"expected_version": v + 2, "cartons": 1, "weight_kg": "0.9"}))
+        d = c.ok(disp.post(f"/api/dispatch/orders/{so['id']}/dispatch", headers=c.k("dp"), json={"expected_version": pk["version"], "courier": "fake"}))
+        c.ok(disp.post(f"/api/dispatch/shipments/{d['shipment_id']}/book"))
+        awb = c.ok(disp.get(f"/api/dispatch/shipments/{d['shipment_id']}"))["awb"]
+        if delivered:
+            _hook(c, awb, f"mk-{ext_id}", "DELIVERED", _ago(7))
+        return {"so": so["id"], "invoice": d["invoice"], "shipment": d["shipment_id"], "ext": ext_id}
+    with c.days_ago(9):
+        amz = fulfil("AMAZON", "DEMO-AMA-1001")
+        nyk = fulfil("NYKAA", "DEMO-NYK-1001")
+        fulfil("FLIPKART", "DEMO-FLI-1001", delivered=False)                    # shipped, still in transit
+    out["fulfilled"] = {"amazon": amz, "nykaa": nyk}
+    # settlement: gross sales of the delivered Amazon order less commission/fees; the bank credit matches -> reconciled; then posted to the books
+    gross = Decimal(amz["invoice"]["total"])
+    commission, ship_fee, ad = (gross * Decimal("0.15")).quantize(Decimal("0.01")), Decimal("60.00"), Decimal("45.00")
+    st = c.ok(mgr.post(f"/api/ecommerce/accounts/{out['accounts']['AMAZON']}/settlements", json={"reference": "DEMO-AMZ-SET-001", "period_start": c.d(-14), "period_end": c.d(-7),
+                                                                                                  "gross_sales": str(gross), "commission": str(commission), "shipping_fees": str(ship_fee), "ad_fees": str(ad)}))
+    c.ok(mgr.post(f"/api/ecommerce/settlements/{st['id']}/received", json={"received_amount": st["net_settlement"]}))
+    c.ok(acct.post(f"/api/accounts/settlements/{st['id']}/post", headers=c.k("set"), json={"bank_account_code": "1100"}))
+    out["settlement"] = st["id"]
+    # a marketplace return/refund against the delivered Nykaa order
+    rt = c.ok(mgr.post("/api/ecommerce/returns", json={"account_id": out["accounts"]["NYKAA"], "platform_return_ref": "DEMO-NYK-RET-01", "external_order_id": "DEMO-NYK-1001", "reason": "Customer changed mind",
+                                                       "lines": [{"sku": SKUS["NYKAA"][0], "qty": "1"}]}))
+    out["marketplace_return"] = rt["id"]
+    return out
+
+
+# ================================================================== accounts payable
+@step("payables")
+def payables(c: Ctx) -> dict:
+    """Supplier invoices matched to received POs (three-way match), paid in full / partly / not yet; a debit note for a short supply."""
+    acct, buyer = c.u("acct"), c.u("buyer")
+    sup = sup_ids(c)
+    base = c.refs["procurement_baseline"]["po"]
+    out: dict = {"invoices": {}}
+
+    def invoice(po_id: int, no: str, days: int, only: list[tuple[int, str]] | None = None) -> dict:
+        po = c.ok(buyer.get(f"/api/procurement/purchase-orders/{po_id}"))
+        with c.days_ago(days):
+            lines = [{"po_item_id": i["id"], "qty": q if only else i["qty_received"], "unit_price": i["unit_price"], "tax_rate": i["tax_rate"]} for i, q in
+                     ([(next(x for x in po["items"] if x["id"] == pid), q) for pid, q in only] if only else [(i, None) for i in po["items"]])]
+            return c.ok(acct.post("/api/accounts/supplier-invoices", headers=c.k("si"), json={"po_id": po_id, "supplier_invoice_no": no, "invoice_date": c.d(0), "lines": lines}))
+
+    def pay(inv: dict, supplier: str, amount: str, days: int) -> None:
+        with c.days_ago(days):
+            c.ok(acct.post("/api/accounts/payments", headers=c.k("sp"), json={"direction": "PAID", "party_id": sup[supplier], "amount": amount, "payment_date": c.d(0), "method": "BANK_TRANSFER",
+                                                                              "bank_account_code": "1100", "allocations": [{"invoice_id": inv["id"], "amount": amount}]}))
+
+    i1 = invoice(base["1"], "HB/2026/0412", 36)
+    pay(i1, "DM-SUP-1", str(i1["total"]), 20)                                                  # paid in full
+    i2 = invoice(base["2"], "CO/2026/0188", 34)                                                # invoiced, awaiting payment (older than the 30-day terms -> overdue payable)
+    i3 = invoice(base["3"], "PP/26-27/0907", 33)
+    pay(i3, "DM-SUP-3", money(Decimal(str(i3["total"])) / 2), 15)                              # half paid
+    rfq_po = c.refs["procurement_exceptions"]["rfq_po"]
+    i4 = invoice(rfq_po, "GL/26/0061", 27, only=[(c.refs["procurement_exceptions"]["rfq_item_po"], "120")])   # invoice only what has been received (120 of 240 kg)
+    # a short-supply debit note on the unpaid Coastal Oils invoice
+    dn = c.ok(acct.post(f"/api/accounts/supplier-invoices/{i2['id']}/debit-notes", headers=c.k("dn"), json={"amount_ex_tax": "1500", "tax_rate": "18", "reason_type": "SHORT_SUPPLY", "reason": "2 kg short on Oud fragrance oil delivery"}))
+    out["invoices"].update(paid=i1["id"], unpaid=i2["id"], half=i3["id"], rfq=i4["id"])
+    out["debit_note"] = dn["id"]
+    return out
+
+
+@step("banking")
+def banking(c: Ctx) -> dict:
+    """Owner capital, then a bank statement that matches most book entries; one SMS charge is unmatched and one book payment is not on the statement yet."""
+    acct = c.u("acct")
+    bank_id = c.refs["master_data"]["bank_id"]
+    with c.days_ago(60):
+        c.ok(acct.post("/api/accounts/journals", headers=c.k("jv"), json={"entry_date": c.d(0), "description": "Owner capital introduced (demo)", "lines": [{"account_code": "1100", "debit": "1500000"}, {"account_code": "3000", "credit": "1500000"}]}))
+    with Session(engine) as s:
+        from sqlalchemy import text
+        rows = s.execute(text("""SELECT l.id, e.entry_date, l.debit - l.credit AS amt, e.description FROM journal_lines l JOIN accounts a ON a.id = l.account_id JOIN journal_entries e ON e.id = l.entry_id
+                                 WHERE a.code = '1100' ORDER BY e.entry_date, l.id""")).all()
+    on_stmt = rows[:-1]                                              # the latest book entry has not reached the statement yet
+    csv_ = "date,description,reference,credit,debit\n" + "".join(f"{r[1]},{(r[3] or 'bank movement')[:40].replace(',', ' ')},,{r[2] if r[2] > 0 else ''},{-r[2] if r[2] < 0 else ''}\n" for r in on_stmt)
+    csv_ += f"{c.d(-1)},SMS alert charges,,,23.60\n"
+    imp = c.ok(acct.post(f"/api/accounts/bank-accounts/{bank_id}/statements", files={"file": ("demo-statement.csv", csv_, "text/csv")}))
+    matched = 0
+    for sug in c.ok(acct.get(f"/api/accounts/bank-accounts/{bank_id}/suggestions")):
+        cand = sug["candidates"][0]
+        r = acct.post(f"/api/accounts/bank-transactions/{sug['txn_id']}/match", json={"journal_line_id": cand["journal_line_id"]})
+        matched += r.status_code == 200
+    return {"statement_lines": imp["imported"], "matched": matched}
+
+
+# ================================================================== maintenance
+@step("maintenance")
+def maintenance(c: Ctx) -> dict:
+    """Assets, preventive schedules (one completed, one OVERDUE), a breakdown with downtime and spare-part use."""
+    adm, mm = c.u("admin"), c.u("maint")
+    eq: dict = {}
+    for aid, name, cat, loc, kw in [("EQ-MIX-500", "Planetary Mixer 500 L", "Mixing", "Plant 1", {"manufacturer": "Demo Machinery Co", "capacity": "500 L"}),
+                                    ("EQ-FILL-02", "Semi-automatic Filling Line", "Filling", "Plant 1", {"manufacturer": "Demo Machinery Co", "capacity": "1200 units/h"}),
+                                    ("EQ-HOMOG-01", "High-shear Homogeniser", "Mixing", "Plant 1", {}), ("EQ-LAB-PH", "Laboratory pH meter", "Laboratory", "QC lab", {})]:
+        eq[aid] = c.ok(adm.post("/api/maintenance/equipment", json={"asset_id": aid, "name": name, "category": cat, "location": loc, "calibration_required": aid == "EQ-LAB-PH",
+                                                                   "calibration_due": c.d(45) if aid == "EQ-LAB-PH" else None, "purchase_date": c.d(-700), "installation_date": c.d(-690), **kw}))["id"]
+    out: dict = {"equipment": eq}
+    tech = me(c, "maint")
+    # preventive schedules: the mixer's service was due 20 days ago and done; the filling line's was due 8 days ago and is still open (overdue)
+    with c.days_ago(35):
+        s1 = c.ok(mm.post("/api/maintenance/schedules", json={"equipment_id": eq["EQ-MIX-500"], "title": "Mixer monthly service: seals, gearbox oil, motor check", "frequency_days": 30, "first_due": c.d(15),
+                                                             "checklist": ["Check seals", "Replace gearbox oil", "Inspect motor insulation"], "assigned_to": tech}))
+    s2 = c.ok(mm.post("/api/maintenance/schedules", json={"equipment_id": eq["EQ-FILL-02"], "title": "Filling line quarterly service: nozzles and pneumatics", "frequency_days": 90, "first_due": c.d(-8),
+                                                         "checklist": ["Clean nozzles", "Check air pressure", "Lubricate slides"], "assigned_to": tech}))
+    gen = c.ok(mm.post("/api/maintenance/schedules/generate"))
+    wos = c.ok(mm.get("/api/maintenance/work-orders", params={"page_size": 100}))
+    items = wos["items"] if isinstance(wos, dict) else wos
+    mix_wo = next(w for w in items if w["equipment_id"] == eq["EQ-MIX-500"] and w["kind"] == "PREVENTIVE")
+    c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/assign", json={"assignee_id": tech}))
+    c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/start"))
+    for i in range(3):
+        c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/checklist", json={"index": i, "done": True}))
+    c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/spare-parts", json={"part_name": "Gearbox oil 5 L", "qty": 2, "unit_cost": 1250}))
+    c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/complete", json={"root_cause": None, "repair_notes": "Oil changed; seals intact."}))
+    c.ok(c.u("admin").post(f"/api/maintenance/work-orders/{mix_wo['id']}/verify"))
+    # breakdown on the homogeniser: downtime starts, repair uses spare parts, closes the downtime
+    with c.days_ago(6):
+        bd = c.ok(mm.post("/api/maintenance/breakdowns", json={"equipment_id": eq["EQ-HOMOG-01"], "description": "Mechanical seal leaking; machine stopped", "priority": "HIGH", "production_impact": "Bulk batches delayed by a day"}))
+        c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/assign", json={"assignee_id": tech}))
+        c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/start"))
+        c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/spare-parts", json={"part_name": "Mechanical seal kit", "qty": 1, "unit_cost": 8400}))
+        c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/complete", json={"root_cause": "Seal face worn after 14 months", "repair_notes": "Seal kit replaced; pressure-tested."}))
+        c.ok(c.u("admin").post(f"/api/maintenance/work-orders/{bd['id']}/verify"))
+    out.update(mixer_wo=mix_wo["id"], breakdown_wo=bd["id"], overdue_schedule=s2["id"], generated=gen)
+    return out
+
+
+# ================================================================== branding and marketing (manual recording: no Meta API is called)
+@step("branding")
+def branding(c: Ctx) -> dict:
+    mk, adm = c.u("mkt"), c.u("admin")
+    brands = c.ok(adm.get("/api/masters/brands", params={"page_size": 20}))["items"]
+    if brands:
+        brand_id = brands[0]["id"]
+    else:
+        brand_id = c.ok(adm.post("/api/masters/brands", json={"code": "MINTREE", "name": "Mintree"}))["id"]
+    camp = c.ok(mk.post("/api/branding/campaigns", json={"name": "Winter Oud collection (demo)", "brand_id": brand_id, "budget": "150000", "start_date": c.d(-20), "end_date": c.d(25)}))
+    camp2 = c.ok(mk.post("/api/branding/campaigns", json={"name": "Salon partner outreach (demo)", "brand_id": brand_id, "budget": "60000", "start_date": c.d(-5), "end_date": c.d(40)}))
+    c.ok(mk.post("/api/branding/assets", json={"brand_id": brand_id, "kind": "COLOR", "name": "Brand black", "value": "#111111"}))
+    c.ok(mk.post("/api/branding/social-accounts", json={"platform": "INSTAGRAM", "handle": "@mintree.demo", "brand_id": brand_id}))      # no credentials: manual recording only
+    posts = {}
+    with c.days_ago(15):
+        for key, title, status in (("published", "Oud body wash reel: the winter ritual", "publish"), ("approved", "Behind the scenes: small-batch mixing", "approve"),
+                                   ("rejected", "Flash sale teaser", "reject"), ("pending", "Salon backbar range carousel", "submit"), ("draft", "Customer review round-up", "draft")):
+            cont = c.ok(mk.post("/api/branding/content", json={"campaign_id": camp["id"] if key != "pending" else camp2["id"], "channel": "INSTAGRAM", "title": title,
+                                                              "caption": "Demo content (recorded manually; nothing is posted by the system)."}))
+            posts[key] = cont["id"]
+            if status in ("publish", "approve", "reject", "submit"):
+                c.ok(mk.post(f"/api/branding/content/{cont['id']}/submit"))
+            if status in ("publish", "approve"):
+                c.ok(adm.post(f"/api/branding/content/{cont['id']}/approve"))
+            if status == "reject":
+                c.ok(adm.post(f"/api/branding/content/{cont['id']}/reject", json={"reason": "Discount claim not approved by management"}))
+            if status == "publish":
+                c.ok(mk.post(f"/api/branding/content/{cont['id']}/publish", json={"external_url": "https://example.com/demo-post"}))
+    for day, (reach, imp, clicks, eng, results, spend) in enumerate([(5200, 8100, 310, 640, 18, "4200"), (6100, 9400, 365, 720, 22, "4600"), (4800, 7600, 280, 590, 15, "3900")], 1):
+        c.ok(mk.post("/api/branding/metrics", json={"campaign_id": camp["id"], "metric_date": c.d(-day), "reach": reach, "impressions": imp, "clicks": clicks, "engagements": eng, "results": results, "spend": spend}))
+    return {"brand": brand_id, "campaigns": [camp["id"], camp2["id"]], "content": posts}

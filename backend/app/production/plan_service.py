@@ -171,7 +171,7 @@ def utilisation(db: Session, wc_id: int, start, end) -> dict:
     wc = db.get(WorkCentre, wc_id)
     if not wc:
         raise NotFound("Work centre")
-    rows = db.execute(text("""SELECT date_trunc('day', s.completed_at AT TIME ZONE 'Asia/Kolkata')::date AS day, count(*) stages,
+    rows = db.execute(text("""SELECT business_date(s.completed_at) AS day, count(*) stages,
                                      round(sum(EXTRACT(EPOCH FROM (s.completed_at - s.started_at)) / 3600)::numeric, 2) AS hours
                                 FROM production_stages s WHERE s.work_centre_id = :w AND s.status = 'DONE' AND business_date(s.completed_at) BETWEEN :a AND :b GROUP BY 1 ORDER BY 1"""),
                       {"w": wc_id, "a": start, "b": end}).mappings().all()

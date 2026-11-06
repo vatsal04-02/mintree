@@ -66,15 +66,15 @@ def statement(db: Session, party_type: str, party_id: int, start: date, end: dat
         if not db.execute(text("SELECT 1 FROM customers WHERE id = :i"), {"i": party_id}).first():
             raise NotFound("Customer")
         ev = """SELECT i.invoice_date AS d, 'INVOICE' AS kind, i.number AS ref, i.total AS debit, 0::numeric AS credit FROM sales_invoices i WHERE i.customer_id = :p
-                UNION ALL SELECT cn.created_at::date, 'CREDIT_NOTE', cn.number, 0, cn.total FROM credit_notes cn JOIN sales_invoices i ON i.id = cn.invoice_id WHERE i.customer_id = :p
+                UNION ALL SELECT business_date(cn.created_at), 'CREDIT_NOTE', cn.number, 0, cn.total FROM credit_notes cn JOIN sales_invoices i ON i.id = cn.invoice_id WHERE i.customer_id = :p
                 UNION ALL SELECT p.payment_date, 'PAYMENT', p.number, 0, p.amount FROM payments p WHERE p.party_type = 'customer' AND p.party_id = :p
-                UNION ALL SELECT ms.posted_at::date, 'SETTLEMENT_DEDUCTION', ms.reference, 0, ms.commission + ms.shipping_fees + ms.ad_fees + ms.other_deductions
+                UNION ALL SELECT business_date(ms.posted_at), 'SETTLEMENT_DEDUCTION', ms.reference, 0, ms.commission + ms.shipping_fees + ms.ad_fees + ms.other_deductions
                   FROM marketplace_settlements ms JOIN marketplace_accounts a ON a.id = ms.account_id WHERE a.customer_id = :p AND ms.posted_at IS NOT NULL"""
     else:
         if not db.execute(text("SELECT 1 FROM suppliers WHERE id = :i"), {"i": party_id}).first():
             raise NotFound("Supplier")
         ev = """SELECT i.invoice_date AS d, 'INVOICE' AS kind, i.number AS ref, 0::numeric AS debit, i.total AS credit FROM supplier_invoices i WHERE i.supplier_id = :p
-                UNION ALL SELECT dn.created_at::date, 'DEBIT_NOTE', dn.number, dn.total, 0 FROM debit_notes dn JOIN supplier_invoices i ON i.id = dn.supplier_invoice_id WHERE i.supplier_id = :p
+                UNION ALL SELECT business_date(dn.created_at), 'DEBIT_NOTE', dn.number, dn.total, 0 FROM debit_notes dn JOIN supplier_invoices i ON i.id = dn.supplier_invoice_id WHERE i.supplier_id = :p
                 UNION ALL SELECT p.payment_date, 'PAYMENT', p.number, p.amount, 0 FROM payments p WHERE p.party_type = 'supplier' AND p.party_id = :p"""
     rows = db.execute(text(f"SELECT * FROM ({ev}) x ORDER BY d, kind, ref"), {"p": party_id}).mappings().all()
     sign = 1 if party_type == "customer" else -1                     # customer: debit increases what they owe; supplier: credit increases what we owe
@@ -133,8 +133,8 @@ def gst_summary(db: Session, start: date, end: date) -> dict:
             b2b += taxable
         else:
             b2c += taxable
-    cn = db.execute(text("""SELECT COALESCE(sum(cn.subtotal),0) sub, COALESCE(sum(cn.tax_total),0) tax, count(*) n FROM credit_notes cn WHERE cn.created_at::date BETWEEN :s AND :e"""), {"s": start, "e": end}).mappings().one()
-    dn = db.execute(text("SELECT COALESCE(sum(subtotal),0) sub, COALESCE(sum(tax_total),0) tax, count(*) n FROM debit_notes WHERE created_at::date BETWEEN :s AND :e"), {"s": start, "e": end}).mappings().one()
+    cn = db.execute(text("""SELECT COALESCE(sum(cn.subtotal),0) sub, COALESCE(sum(cn.tax_total),0) tax, count(*) n FROM credit_notes cn WHERE business_date(cn.created_at) BETWEEN :s AND :e"""), {"s": start, "e": end}).mappings().one()
+    dn = db.execute(text("SELECT COALESCE(sum(subtotal),0) sub, COALESCE(sum(tax_total),0) tax, count(*) n FROM debit_notes WHERE business_date(created_at) BETWEEN :s AND :e"), {"s": start, "e": end}).mappings().one()
     inward = db.execute(text("SELECT COALESCE(sum(subtotal),0) sub, COALESCE(sum(tax_total),0) tax, count(*) n FROM supplier_invoices WHERE invoice_date BETWEEN :s AND :e"), {"s": start, "e": end}).mappings().one()
     out_tax = sum((b["cgst"] + b["sgst"] + b["igst"] for b in by_rate.values()), Decimal(0))
     fmt = lambda d: {k: (str(v) if isinstance(v, Decimal) else v) for k, v in d.items()}

@@ -117,8 +117,8 @@ def compare_boms(db: Session, a: int, b: int) -> dict:
 
 def wastage_report(db: Session, start: date, end: date) -> dict:
     rows = db.execute(text("""SELECT w.category, w.responsible_department AS department, sum(w.qty) AS qty, count(*) AS records, round(sum(w.qty * COALESCE(o.unit_cost,0)), 2) AS value_at_cost
-                                FROM wastage_records w JOIN production_orders o ON o.id = w.order_id WHERE o.completed_at::date BETWEEN :s AND :e GROUP BY 1, 2 ORDER BY value_at_cost DESC"""), {"s": start, "e": end}).mappings().all()
-    yields = db.execute(text("""SELECT o.number, o.output_item_id, o.planned_qty, o.actual_qty, o.yield_pct FROM production_orders o WHERE o.status = 'COMPLETED' AND o.completed_at::date BETWEEN :s AND :e ORDER BY o.yield_pct NULLS LAST LIMIT 20"""), {"s": start, "e": end}).mappings().all()
+                                FROM wastage_records w JOIN production_orders o ON o.id = w.order_id WHERE business_date(o.completed_at) BETWEEN :s AND :e GROUP BY 1, 2 ORDER BY value_at_cost DESC"""), {"s": start, "e": end}).mappings().all()
+    yields = db.execute(text("""SELECT o.number, o.output_item_id, o.planned_qty, o.actual_qty, o.yield_pct FROM production_orders o WHERE o.status = 'COMPLETED' AND business_date(o.completed_at) BETWEEN :s AND :e ORDER BY o.yield_pct NULLS LAST LIMIT 20"""), {"s": start, "e": end}).mappings().all()
     return {"period": {"start": start, "end": end}, "by_category": [{**dict(r), "qty": str(r["qty"]), "value_at_cost": str(r["value_at_cost"])} for r in rows],
             "lowest_yield_orders": [{**dict(y), "planned_qty": str(y["planned_qty"]), "actual_qty": None if y["actual_qty"] is None else str(y["actual_qty"]), "yield_pct": None if y["yield_pct"] is None else str(y["yield_pct"])} for y in yields],
             "total_value_at_cost": str(sum((Decimal(r["value_at_cost"]) for r in rows), Decimal(0)))}

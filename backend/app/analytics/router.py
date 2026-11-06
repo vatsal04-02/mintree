@@ -27,7 +27,7 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
 
     sales = one("""SELECT COALESCE(sum(subtotal),0) revenue, count(*) invoices, COALESCE(sum(total - amount_paid - credited_amount),0) receivable
                      FROM sales_invoices WHERE invoice_date <= :d""")
-    credit_notes_total = one("SELECT COALESCE(sum(subtotal),0) AS credited FROM credit_notes WHERE created_at::date <= :d")
+    credit_notes_total = one("SELECT COALESCE(sum(subtotal),0) AS credited FROM credit_notes WHERE business_date(created_at) <= :d")
     inv = one("SELECT COALESCE(sum(value),0) value FROM item_valuation")
     inv_kind = rows("""SELECT i.kind, COALESCE(sum(v.value),0) AS value, COALESCE(sum(v.qty),0) AS qty FROM item_valuation v JOIN items i ON i.id = v.item_id GROUP BY i.kind ORDER BY i.kind""")
     payable = one("""SELECT COALESCE(sum(l.credit - l.debit),0) ap FROM journal_lines l JOIN accounts a ON a.id = l.account_id
@@ -78,7 +78,7 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
     outstanding = one("SELECT count(*) FILTER (WHERE total - amount_paid - credited_amount > 0) AS open_sales_invoices FROM sales_invoices")
     ap_open = db.scalar(text("SELECT count(*) FROM supplier_invoices WHERE total - amount_paid - credited_amount > 0"))
     supplier_otd = db.execute(text("""SELECT round(100.0 * count(*) FILTER (WHERE first_receipt <= expected_date) / NULLIF(count(*), 0), 1) FROM
-                                       (SELECT p.expected_date, min(g.received_at)::date first_receipt FROM purchase_orders p JOIN goods_receipts g ON g.po_id = p.id WHERE p.expected_date IS NOT NULL GROUP BY p.id) x""")).scalar()
+                                       (SELECT p.expected_date, business_date(min(g.received_at)) first_receipt FROM purchase_orders p JOIN goods_receipts g ON g.po_id = p.id WHERE p.expected_date IS NOT NULL GROUP BY p.id) x""")).scalar()
     gm = None if not margin["revenue"] else round(100 * float(margin["revenue"] - margin["cogs"]) / float(margin["revenue"]), 1)
     extended = {
         "production": {"completed_30d": prod["completed_30d"], "planned_qty_30d": str(prod["planned_qty_30d"]), "actual_qty_30d": str(prod["actual_qty_30d"]), "active_orders": prod["active"],

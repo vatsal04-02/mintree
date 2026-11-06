@@ -99,7 +99,8 @@ def test_default_as_of_is_the_business_date_not_the_server_date(fin, db, monkeyp
 
 def test_no_banned_date_sources_in_application_code():
     """date.today(), current_date and CURRENT_DATE depend on the OS / DB session clock; use app.core.clock instead."""
-    bad = re.compile(r"\bdate\.today\(\)|\bcurrent_date\b|\bCURRENT_DATE\b|\bdatetime\.now\(\)|\bdatetime\.utcnow\(\)", re.I)
+    # also: casting a timestamptz column to date uses the DB session zone, not the business zone (use business_date(col))
+    bad = re.compile(r"\bdate\.today\(\)|\bcurrent_date\b|\bCURRENT_DATE\b|\bdatetime\.now\(\)|\bdatetime\.utcnow\(\)|_at\)?::date", re.I)
     offenders = []
     for p in APP.rglob("*.py"):
         if p.name == "clock.py":

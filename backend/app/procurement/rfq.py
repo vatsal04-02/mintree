@@ -197,7 +197,7 @@ def delivery_tracking(db: Session, supplier_id: int | None = None) -> list[dict]
 def supplier_performance(db: Session) -> list[dict]:
     """On-time = a receipt dated on/before the PO expected date; fill rate = received/ordered over closed and open POs with receipts; price variance is not guessed."""
     rows = db.execute(text("""
-        WITH r AS (SELECT p.supplier_id, p.id po_id, p.expected_date, min(g.received_at)::date first_receipt
+        WITH r AS (SELECT p.supplier_id, p.id po_id, p.expected_date, business_date(min(g.received_at)) first_receipt
                      FROM purchase_orders p JOIN goods_receipts g ON g.po_id = p.id AND g.status = 'POSTED' GROUP BY p.id),
              q AS (SELECT p.supplier_id, sum(i.qty_ordered) ordered, sum(i.qty_received) received, count(DISTINCT p.id) pos
                      FROM purchase_orders p JOIN purchase_order_items i ON i.po_id = p.id WHERE p.status NOT IN ('DRAFT','PENDING_APPROVAL','CANCELLED') GROUP BY p.supplier_id)
