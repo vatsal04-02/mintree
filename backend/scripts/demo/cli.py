@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-import argparse
-import sys
+import logging
+
+logging.disable(logging.INFO)     # BEFORE the alembic import below: alembic logs plugin setup at import time, and the app logs every request as JSON. This tool prints its own progress.
+
+import argparse  # noqa: E402
+import sys  # noqa: E402
 
 from alembic import command
 from alembic.config import Config
