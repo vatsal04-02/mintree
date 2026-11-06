@@ -30,3 +30,7 @@ from app.maintenance.models import CalibrationRecord, DowntimeRecord, Equipment,
 from app.ecommerce.models import ExternalOrder, ExternalOrderItem, MarketplaceAccount, MarketplaceSettlement, SkuMapping  # noqa: E402,F401
 from app.crm.models import Complaint, Lead  # noqa: E402,F401
 from app.branding.models import Campaign, ContentItem, PublishingRecord  # noqa: E402,F401
+
+from app.approvals import models as _approvals_models  # noqa: E402,F401
+from app.notifications import models as _notifications_models  # noqa: E402,F401
+from app.procurement import rfq_models as _rfq_models  # noqa: E402,F401

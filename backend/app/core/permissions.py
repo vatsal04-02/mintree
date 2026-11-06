@@ -37,6 +37,7 @@ RESOURCES: dict[str, list[str]] = {
     "procurement.pr": ["read", "create", "update", "approve"],
     "procurement.po": ["read", "create", "update", "approve", "cancel"],
     "procurement.receipt": ["read", "post"],
+    "procurement.rfq": ["read", "create", "send", "quote", "award"],
     # Dispatch
     "dispatch.order": ["read", "create", "confirm", "allocate", "pack", "dispatch", "cancel"],
     "dispatch.shipment": ["read", "book"],
@@ -74,6 +75,9 @@ RESOURCES: dict[str, list[str]] = {
     # Branding / marketing
     "branding.campaign": ["read", "create"],
     "branding.content": ["read", "create", "approve", "publish"],
+    # Approvals / settings
+    "approvals.delegation": ["create"],
+    "admin.settings": ["read", "update"],
     # Analytics
     "analytics.dashboard": ["read"],
 }
@@ -143,6 +147,12 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
                        ["ecommerce.*:read", "ecommerce.order:ingest", "crm.lead:*", "crm.complaint:*", "dispatch.order:read", "dispatch.order:create", "dispatch.order:confirm", "dispatch.shipment:read", "dispatch.return:read", "dispatch.return:create", "masters.customer:read", "masters.customer:create", "masters.customer:update",
                         "masters.item:read", "masters.brand:read", "documents.document:read"]),
 }
+
+
+# Everyone who can approve something may delegate their own authority; business admins can read company settings.
+for _r in ("business_admin", "purchase_manager", "quality_manager", "rnd_manager", "production_manager", "accounts_manager", "marketing_manager", "maintenance_manager", "dispatch_manager"):
+    ROLES[_r][2].append("approvals.delegation:create")
+ROLES["business_admin"][2].append("admin.settings:read")
 
 
 def role_permission_codes(role_code: str) -> set[str]:

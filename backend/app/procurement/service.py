@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 from psycopg import errors as pgerr
 
 from app.accounts import service as acct
+from app.approvals.models import ApprovalRecord
+from app.approvals.service import current_cycle, effective_roles, get_setting, history as approval_history
 from app.audit import service as audit
+from app.notifications.service import notify
 from app.core import outbox
 from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
@@ -99,15 +102,24 @@ def create_po(db: Session, cu: CurrentUser, *, supplier_id: int, items: list[dic
     return po_dict(po)
 
 
-def _check_approval_authority(db: Session, cu: CurrentUser, po: PurchaseOrder) -> None:
-    pols = db.scalars(select(ApprovalPolicy).where(ApprovalPolicy.doc_type == "purchase_order",
-                                                   ApprovalPolicy.role_code.in_(cu.role_codes or {""}))).all()
+def _check_approval_authority(db: Session, cu: CurrentUser, po: PurchaseOrder) -> tuple[int | None, bool]:
+    """-> (delegator id if the authority is borrowed, True). Uses the user's own roles plus any active delegation for purchase orders."""
+    roles, via = effective_roles(db, cu, "purchase_order")
+    pols = db.scalars(select(ApprovalPolicy).where(ApprovalPolicy.doc_type == "purchase_order", ApprovalPolicy.role_code.in_(roles or {""}))).all()
     ok = [p for p in pols if p.max_amount is None or p.max_amount >= po.total_amount]
     if not ok:
-        raise BusinessConflict("approval_limit_exceeded", "This purchase order exceeds your approval limit",
-                               amount=str(po.total_amount))
-    if po.created_by == cu.id and not any(p.allow_self_approval for p in ok):
+        raise BusinessConflict("approval_limit_exceeded", "This purchase order exceeds your approval limit", amount=str(po.total_amount))
+    own = [p for p in ok if p.role_code in cu.role_codes]
+    acting_for = None if own else via.get(ok[0].role_code)
+    creators = {cu.id} | ({acting_for} if acting_for else set())
+    if po.created_by in creators and not any(p.allow_self_approval for p in ok):
         raise BusinessConflict("self_approval_not_allowed", "You cannot approve a purchase order you created")
+    return acting_for, True
+
+
+def required_levels(db: Session, po: PurchaseOrder) -> int:
+    threshold = get_setting(db, "procurement.two_level_threshold")
+    return 2 if threshold is not None and po.total_amount >= Decimal(str(threshold)) else 1
 
 
 def po_transition(db: Session, cu: CurrentUser, po_id: int, action: str, expected_version: int, reason: str | None = None) -> dict:
@@ -121,19 +133,39 @@ def po_transition(db: Session, cu: CurrentUser, po_id: int, action: str, expecte
         raise _version_conflict()
     if po.status not in frm:
         raise BusinessConflict("invalid_status", f"Cannot {action} a purchase order in status {po.status}")
+    acting_for = None
+    if action in ("approve", "reject"):
+        acting_for, _ = _check_approval_authority(db, cu, po)
     if action == "approve":
-        _check_approval_authority(db, cu, po)
+        cycle = current_cycle(db, "purchase_order", po.id)
+        prior = [r for r in approval_history(db, "purchase_order", po.id, cycle) if r.decision == "APPROVED"]
+        if any(r.user_id == cu.id for r in prior):
+            raise BusinessConflict("already_approved_by_you", "A second approval must come from a different person")
+        level = len(prior) + 1
+        db.add(ApprovalRecord(doc_type="purchase_order", doc_id=po.id, cycle=cycle, level=level, user_id=cu.id, acting_for_user_id=acting_for, decision="APPROVED"))
+        if level < required_levels(db, po):
+            po.version += 1                                   # still pending: first of two approvals recorded
+            audit.record(db, user=cu, action="approve_level_1", entity="purchase_order", entity_id=po.id, after={"level": level, "of": required_levels(db, po)})
+            notify(db, kind="po.second_approval", title=f"{po.number} needs a second approval", link=f"/procurement/purchase-orders/{po.id}",
+                   permission="procurement.po:approve", exclude_user_id=cu.id)
+            return {**po_dict(po), "approval_level": level, "approvals_required": required_levels(db, po)}
         po.approved_by, po.approved_at = cu.id, text("now()")
     if action == "reject":
         if not reason:
             raise Unprocessable("A rejection reason is required")
         po.rejection_reason = reason
+        db.add(ApprovalRecord(doc_type="purchase_order", doc_id=po.id, cycle=current_cycle(db, "purchase_order", po.id), level=1, user_id=cu.id,
+                              acting_for_user_id=acting_for, decision="REJECTED", reason=reason))
     if action == "cancel" and any(i.qty_received > 0 for i in po.items):
         raise BusinessConflict("po_has_receipts", "A purchase order with receipts cannot be cancelled")
     before = po.status
     po.status, po.version = to, po.version + 1
     audit.record(db, user=cu, action=action, entity="purchase_order", entity_id=po.id, before={"status": before}, after={"status": to},
                  reason=reason)
+    if action == "submit":
+        notify(db, kind="po.submitted", title=f"{po.number} awaiting approval", link=f"/procurement/purchase-orders/{po.id}", permission="procurement.po:approve", exclude_user_id=cu.id)
+    if action in ("approve", "reject"):
+        notify(db, kind=f"po.{action}d", title=f"{po.number} {action}d", body=reason, link=f"/procurement/purchase-orders/{po.id}", user_ids=[po.created_by], exclude_user_id=cu.id)
     if action == "approve":
         outbox.add(db, event_type="procurement.purchase_order.approved", aggregate_type="purchase_order", aggregate_id=po.id,
                    payload={"po_id": po.id, "number": po.number, "total": str(po.total_amount), "approved_by": cu.id})
