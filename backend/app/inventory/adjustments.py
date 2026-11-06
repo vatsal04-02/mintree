@@ -89,10 +89,10 @@ def post_opening_stock(db: Session, cu, *, warehouse_id: int, qc_status: str, no
                                         source_type="opening_stock", source_id=doc.id)
             if qc_status == "RELEASED":
                 db.execute(text("UPDATE inventory_batches SET qc_status = 'RELEASED', qc_decided_at = now() WHERE id = :b"), {"b": batch_id})
-            else:
-                quality.auto_incoming(db, batch_id, it.id)
         bal = svc.receive(db, item_id=it.id, warehouse_id=warehouse_id, location_id=l.get("location_id"), batch_id=batch_id, qty=qty, source_type="opening_stock", source_id=doc.id,
                           source_line=ln, actor_id=cu.id, quarantine=it.is_batch_tracked and qc_status != "RELEASED", movement="RECEIPT")
+        if batch_id and qc_status != "RELEASED":
+            quality.auto_incoming(db, batch_id, it.id)       # after the receipt so the inspection records the real lot size
         valued.append((it, qty, acct.money(qty * cost)))
         out.append({"line_no": ln, "item_id": it.id, "qty": str(qty), "batch_id": batch_id, "balance_id": bal["balance_id"]})
     vrows = acct.lock_valuations(db, [it.id for it, _, _ in valued])

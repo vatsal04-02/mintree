@@ -231,10 +231,10 @@ def post_goods_receipt(db: Session, cu: CurrentUser, *, po_id: int, warehouse_id
             batch_id = inv.create_batch(db, item_id=it.id, supplier_id=po.supplier_id, supplier_lot_no=l.get("supplier_lot_no"),
                                         mfg_date=l.get("mfg_date"), expiry_date=l.get("expiry_date"), source_type="goods_receipt",
                                         source_id=gr.id)
-        if batch_id:
-            quality.auto_incoming(db, batch_id, it.id)       # INCOMING inspection when a specification exists
         bal = inv.receive(db, item_id=it.id, warehouse_id=warehouse_id, location_id=l.get("location_id"), batch_id=batch_id, qty=qty,
                           source_type="goods_receipt", source_id=gr.id, source_line=n, actor_id=cu.id, quarantine=it.is_batch_tracked)
+        if batch_id:
+            quality.auto_incoming(db, batch_id, it.id)       # INCOMING inspection when a specification exists (after the receipt, so the lot size is known)
         db.add(GoodsReceiptItem(gr_id=gr.id, line_no=n, po_item_id=pi.id, item_id=it.id, qty=qty, batch_id=batch_id,
                                 location_id=l.get("location_id")))
         # `pi` was loaded under FOR UPDATE, so this read-modify-write is race-free; the CHECK constraint

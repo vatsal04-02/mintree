@@ -17,7 +17,7 @@ from app.core.clock import business_today
 DECISION_TO_QC = {"RELEASE": "RELEASED", "REJECT": "REJECTED", "HOLD": "HOLD"}
 
 
-def create_spec(db: Session, cu: CurrentUser, *, item_id: int, stage: str, tests: list[dict]) -> dict:
+def create_spec(db: Session, cu: CurrentUser, *, item_id: int, stage: str, tests: list[dict], sampling_plan_id: int | None = None) -> dict:
     db.execute(text("SELECT id FROM items WHERE id = :i FOR NO KEY UPDATE"), {"i": item_id})        # serialise spec versioning per item
     cur = db.scalar(select(QualitySpec).where(QualitySpec.item_id == item_id, QualitySpec.stage == stage, QualitySpec.status == "ACTIVE"))
     ver = 1
@@ -25,7 +25,12 @@ def create_spec(db: Session, cu: CurrentUser, *, item_id: int, stage: str, tests
         cur.status = "OBSOLETE"
         ver = cur.version_no + 1
         db.flush()
-    spec = QualitySpec(item_id=item_id, stage=stage, version_no=ver, created_by=cu.id)
+    if sampling_plan_id:
+        from app.quality.ext_models import SamplingPlan
+        plan = db.get(SamplingPlan, sampling_plan_id)
+        if not plan or not plan.is_active:
+            raise Unprocessable("Sampling plan not found or inactive")
+    spec = QualitySpec(item_id=item_id, stage=stage, version_no=ver, created_by=cu.id, sampling_plan_id=sampling_plan_id)
     spec.tests = [QualitySpecTest(**t) for t in tests]
     db.add(spec)
     db.flush()
@@ -42,6 +47,8 @@ def _new_inspection(db: Session, batch_id: int, item_id: int, stage: str, spec: 
     ins = Inspection(number=f"QC/{business_today():%y}/{n:06d}", stage=stage, batch_id=batch_id, spec_id=spec.id, request_id=request_id_var.get())
     db.add(ins)
     db.flush()
+    from app.quality.ext_service import apply_sampling
+    apply_sampling(db, ins, spec)
     return ins
 
 
@@ -212,7 +219,7 @@ def close_deviation(db: Session, cu: CurrentUser, dev_id: int) -> dict:
 
 # ------------------------------------------------------------------ views
 def spec_dict(s: QualitySpec) -> dict:
-    return {"id": s.id, "item_id": s.item_id, "stage": s.stage, "version_no": s.version_no, "status": s.status,
+    return {"id": s.id, "item_id": s.item_id, "stage": s.stage, "version_no": s.version_no, "status": s.status, "sampling_plan_id": s.sampling_plan_id,
             "tests": [{"test_name": t.test_name, "min": None if t.min_value is None else str(t.min_value), "max": None if t.max_value is None else str(t.max_value),
                        "pass_fail": t.is_pass_fail, "mandatory": t.mandatory} for t in s.tests]}
 
@@ -220,6 +227,7 @@ def spec_dict(s: QualitySpec) -> dict:
 def inspection_dict(db: Session, i: Inspection) -> dict:
     res = latest_results(db, i.id)
     return {"id": i.id, "number": i.number, "stage": i.stage, "batch_id": i.batch_id, "status": i.status, "decision": i.decision,
+            "lot_qty": None if i.lot_qty is None else str(i.lot_qty), "sample_size": i.sample_size,
             "results": [{"test_name": n, "value": None if r.value is None else str(r.value), "passed": r.passed} for n, r in res.items()]}
 
 

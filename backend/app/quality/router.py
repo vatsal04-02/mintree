@@ -39,6 +39,7 @@ class SpecIn(_In):
     item_id: int
     stage: Literal["INCOMING", "IN_PROCESS", "FINISHED"]
     tests: list[TestIn] = Field(min_length=1, max_length=100)
+    sampling_plan_id: int | None = None
 
 
 class InspectionIn(_In):
@@ -78,7 +79,7 @@ class CapaIn(_In):
 
 @router.post("/specs", status_code=201)
 def create_spec(body: SpecIn, db: Session = DB, cu: CurrentUser = Depends(require("quality.spec:create"))):
-    return run_tx(db, lambda d: svc.create_spec(d, cu, item_id=body.item_id, stage=body.stage, tests=[t.model_dump() for t in body.tests]), name="quality.spec.create")
+    return run_tx(db, lambda d: svc.create_spec(d, cu, item_id=body.item_id, stage=body.stage, tests=[t.model_dump() for t in body.tests], sampling_plan_id=body.sampling_plan_id), name="quality.spec.create")
 
 
 @router.get("/specs")

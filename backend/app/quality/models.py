@@ -17,6 +17,7 @@ class QualitySpec(Base):
     stage: Mapped[str] = mapped_column(String(12))              # INCOMING | IN_PROCESS | FINISHED
     version_no: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(10), default="ACTIVE", server_default="ACTIVE")
+    sampling_plan_id: Mapped[int | None] = mapped_column(ForeignKey("sampling_plans.id"))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tests: Mapped[list["QualitySpecTest"]] = relationship(order_by="QualitySpecTest.id", lazy="selectin")
@@ -51,6 +52,8 @@ class Inspection(Base):
     spec_id: Mapped[int] = mapped_column(ForeignKey("quality_specs.id"))
     status: Mapped[str] = mapped_column(String(12), default="PENDING", server_default="PENDING")
     decision: Mapped[str | None] = mapped_column(String(10))
+    lot_qty: Mapped[Decimal | None] = mapped_column(Numeric(18, 3))              # lot size when the inspection was opened
+    sample_size: Mapped[int | None] = mapped_column(Integer)                      # units to test, from the spec's sampling plan
     decision_reason: Mapped[str | None] = mapped_column(Text)
     decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

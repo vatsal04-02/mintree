@@ -59,6 +59,8 @@ RESOURCES: dict[str, list[str]] = {
     "quality.inspection": ["read", "create", "record", "decide"],
     "quality.deviation": ["read", "create", "update", "close"],
     "quality.capa": ["read", "create", "update", "verify"],
+    "quality.sampling_plan": CRUD,
+    "quality.coa": ["read", "issue", "revoke"],
     # Accounts
     "accounts.coa": ["read", "create"],
     "accounts.period": ["read", "close"],
