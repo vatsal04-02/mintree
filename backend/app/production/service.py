@@ -215,6 +215,8 @@ def stage_action(db: Session, cu: CurrentUser, order_id: int, seq: int, action: 
     else:
         if st.status != "IN_PROGRESS":
             raise BusinessConflict("invalid_status", "Only a started stage can be completed")
+        from app.production.extras import check_stage_can_complete
+        check_stage_can_complete(db, order_id, seq)                  # a failing in-process reading blocks completion until a passing re-check
         st.status, st.completed_at, st.parameters, st.notes = "DONE", datetime.now(timezone.utc), parameters, notes
     audit.record(db, user=cu, action=f"stage_{action}", entity="production_order", entity_id=o.id, after={"stage": st.name})
     return order_dict(o)

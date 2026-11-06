@@ -33,6 +33,7 @@ RESOURCES: dict[str, list[str]] = {
     "inventory.transfer": ["post"],
     "inventory.adjustment": ["post"],
     "inventory.reversal": ["post"],
+    "inventory.stocktake": ["count", "approve"],
     # Procurement
     "procurement.pr": ["read", "create", "update", "approve"],
     "procurement.po": ["read", "create", "update", "approve", "cancel"],
@@ -64,6 +65,7 @@ RESOURCES: dict[str, list[str]] = {
     "accounts.debit_note": ["read", "post"],
     "accounts.gst": ["read"],
     "accounts.settlement": ["post"],
+    "rnd.project": ["read", "create", "update"],
     # Sales / CRM extensions
     "sales.contact": ["read", "create"],
     "sales.pricing": ["read", "update"],
@@ -86,6 +88,8 @@ RESOURCES: dict[str, list[str]] = {
     # Branding / marketing
     "branding.campaign": ["read", "create"],
     "branding.content": ["read", "create", "approve", "publish"],
+    "branding.asset": ["read", "create"],
+    "branding.social": ["read", "manage"],
     # Approvals / settings
     "approvals.delegation": ["create"],
     "admin.settings": ["read", "update"],

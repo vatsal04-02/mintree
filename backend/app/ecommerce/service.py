@@ -9,7 +9,7 @@ import hashlib
 import hmac
 import io
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi.encoders import jsonable_encoder
@@ -26,7 +26,7 @@ from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.core.context import request_id_var
 from app.core.platform_models import WebhookEvent
 from app.dispatch import service as dispatch
-from app.ecommerce.models import ExternalOrder, ExternalOrderItem, MarketplaceAccount, MarketplaceSettlement, SkuMapping
+from app.ecommerce.models import ExternalOrder, ExternalOrderItem, IntegrationLog, MarketplaceAccount, MarketplaceReturn, MarketplaceSettlement, SkuMapping
 
 
 class SystemActor:
@@ -113,7 +113,7 @@ def ingest_order(db: Session, cu: CurrentUser, acct: MarketplaceAccount, o: dict
         return "created" if eo.status == "SO_CREATED" else "exception"
 
 
-def ingest_orders(db: Session, cu: CurrentUser, account_id: int, orders: list[dict]) -> dict:
+def ingest_orders(db: Session, cu: CurrentUser, account_id: int, orders: list[dict], kind: str = "ORDER_IMPORT") -> dict:
     a = _account(db, account_id)
     if a.status != "ACTIVE":
         raise BusinessConflict("account_paused", "This marketplace account is paused")
@@ -121,8 +121,93 @@ def ingest_orders(db: Session, cu: CurrentUser, account_id: int, orders: list[di
     for o in orders:
         res[ingest_order(db, cu, a, o)] += 1
     db.execute(text("UPDATE marketplace_accounts SET last_sync_at = now() WHERE id = :i"), {"i": a.id})
+    log(db, a.id, kind, "PARTIAL" if res["exception"] else "OK", f"{res['created']} created, {res['exception']} in exception queue, {res['duplicate']} duplicates", res)
     audit.record(db, user=cu, action="ingest", entity="marketplace_account", entity_id=a.id, after=res)
     return res
+
+
+def log(db: Session, account_id: int, kind: str, status: str, message: str | None = None, counts: dict | None = None) -> None:
+    db.add(IntegrationLog(account_id=account_id, kind=kind, status=status, message=message, counts=counts, request_id=request_id_var.get()))
+
+
+def health(db: Session, account_id: int) -> dict:
+    a = _account(db, account_id)
+    q = lambda sql: db.execute(text(sql), {"a": account_id}).scalar()
+    logs = db.execute(text("SELECT kind, status, message, created_at FROM integration_logs WHERE account_id = :a ORDER BY id DESC LIMIT 5"), {"a": account_id}).mappings().all()
+    stale = a.last_sync_at is None or (datetime.now(timezone.utc) - a.last_sync_at).total_seconds() > 86400
+    exceptions = q("SELECT count(*) FROM external_orders WHERE account_id = :a AND status = 'EXCEPTION'")
+    state = "PAUSED" if a.status == "PAUSED" else ("ATTENTION" if exceptions or stale else "HEALTHY")
+    return {"account": account_dict(a), "state": state, "last_sync_at": a.last_sync_at, "stale_over_24h": stale, "exception_queue": exceptions,
+            "unmapped_skus_waiting": q("SELECT count(DISTINCT i.platform_sku) FROM external_orders e JOIN external_order_items i ON i.external_order_pk = e.id WHERE e.account_id = :a AND e.status = 'EXCEPTION'"),
+            "recent": [dict(l) for l in logs], "connection": "FILE_AND_WEBHOOK", "api_connection": "not configured (needs seller credentials / platform approval)"}
+
+
+def create_return(db: Session, cu: CurrentUser, *, account_id: int, platform_return_ref: str, external_order_id: str, reason: str, lines: list[dict]) -> dict:
+    """Registers a marketplace return and opens the internal sales return (stock + credit note follow the normal returns workflow). Repeats are no-ops."""
+    _account(db, account_id)
+    eo = db.scalar(select(ExternalOrder).where(ExternalOrder.account_id == account_id, ExternalOrder.external_order_id == external_order_id))
+    if not eo or not eo.sales_order_id:
+        raise Unprocessable("That marketplace order has no sales order (not imported, or still in the exception queue)")
+    existing = db.scalar(select(MarketplaceReturn).where(MarketplaceReturn.account_id == account_id, MarketplaceReturn.platform_return_ref == platform_return_ref))
+    if existing:
+        return return_dict(existing) | {"duplicate": True}
+    maps = {m.platform_sku: m for m in db.scalars(select(SkuMapping).where(SkuMapping.account_id == account_id))}
+    sl_rows = db.execute(text("""SELECT sl.id, sl.item_id, sl.qty FROM shipment_lines sl JOIN shipments s ON s.id = sl.shipment_id WHERE s.so_id = :o ORDER BY sl.id"""), {"o": eo.sales_order_id}).all()
+    by_item = {r[1]: r for r in sl_rows}
+    ret_lines = []
+    for l in lines:
+        m = maps.get(l["sku"])
+        if not m or m.item_id not in by_item:
+            raise Unprocessable(f"SKU {l['sku']} was not shipped on this order")
+        ret_lines.append({"shipment_line_id": by_item[m.item_id][0], "qty": Decimal(str(l["qty"])) * Decimal(m.pack_multiplier)})
+    sr = dispatch.create_return(db, cu, order_id=eo.sales_order_id, reason=reason, lines=ret_lines)
+    mr = MarketplaceReturn(account_id=account_id, platform_return_ref=platform_return_ref, external_order_pk=eo.id, sales_return_id=sr["id"], reason=reason, created_by=cu.id)
+    db.add(mr)
+    db.flush()
+    log(db, account_id, "RETURN", "OK", f"Return {platform_return_ref} -> {sr['number']}", {"lines": len(ret_lines)})
+    audit.record(db, user=cu, action="create", entity="marketplace_return", entity_id=mr.id, after={"ref": platform_return_ref, "sales_return": sr["number"]})
+    return return_dict(mr) | {"sales_return": sr["number"]}
+
+
+def set_dispute(db: Session, cu: CurrentUser, rid: int, status: str, note: str | None) -> dict:
+    r = db.scalar(select(MarketplaceReturn).where(MarketplaceReturn.id == rid).with_for_update())
+    if not r:
+        raise NotFound("Marketplace return")
+    flow = {"NONE": {"OPEN"}, "OPEN": {"WON", "LOST"}, "WON": set(), "LOST": set()}
+    if status not in flow[r.dispute_status]:
+        raise BusinessConflict("invalid_transition", f"A dispute cannot move from {r.dispute_status} to {status}")
+    r.dispute_status, r.dispute_note = status, note or r.dispute_note
+    audit.record(db, user=cu, action="dispute", entity="marketplace_return", entity_id=r.id, after={"status": status}, reason=note)
+    return return_dict(r)
+
+
+def return_dict(r: MarketplaceReturn) -> dict:
+    return {"id": r.id, "account_id": r.account_id, "platform_return_ref": r.platform_return_ref, "sales_return_id": r.sales_return_id, "reason": r.reason, "dispute_status": r.dispute_status, "dispute_note": r.dispute_note}
+
+
+def analytics(db: Session, start: date, end: date) -> dict:
+    """Per platform, from imported orders and the ledger-backed documents. Rates use orders as denominator. Net realised revenue = cash actually received in posted settlements."""
+    plat = db.execute(text("""
+        SELECT a.platform, count(DISTINCT e.id) AS orders,
+               count(DISTINCT e.id) FILTER (WHERE o.status = 'CANCELLED') AS cancelled,
+               count(DISTINCT e.id) FILTER (WHERE EXISTS (SELECT 1 FROM sales_returns r WHERE r.so_id = o.id)) AS returned,
+               COALESCE(sum(e.total) FILTER (WHERE e.status = 'SO_CREATED'), 0) AS gross_value
+          FROM marketplace_accounts a LEFT JOIN external_orders e ON e.account_id = a.id AND e.order_date BETWEEN :s AND :e LEFT JOIN sales_orders o ON o.id = e.sales_order_id
+         GROUP BY a.platform ORDER BY a.platform"""), {"s": start, "e": end}).mappings().all()
+    fees = {r["platform"]: r for r in db.execute(text("""
+        SELECT a.platform, sum(s.commission + s.shipping_fees + s.ad_fees + s.other_deductions) AS fees, sum(COALESCE(s.received_amount, 0)) FILTER (WHERE s.posted_at IS NOT NULL) AS realised, sum(s.gross_sales) AS gross
+          FROM marketplace_settlements s JOIN marketplace_accounts a ON a.id = s.account_id WHERE s.period_end BETWEEN :s AND :e GROUP BY a.platform"""), {"s": start, "e": end}).mappings()}
+    skus = db.execute(text("""SELECT i.platform_sku, a.platform, sum(i.qty) AS units, sum(i.qty * i.unit_price) AS value FROM external_order_items i JOIN external_orders e ON e.id = i.external_order_pk
+                                JOIN marketplace_accounts a ON a.id = e.account_id WHERE e.order_date BETWEEN :s AND :e GROUP BY 1, 2 ORDER BY value DESC LIMIT 20"""), {"s": start, "e": end}).mappings().all()
+    daily = db.execute(text("""SELECT e.order_date AS day, count(*) AS orders FROM external_orders e WHERE e.order_date BETWEEN :s AND :e GROUP BY 1 ORDER BY 1"""), {"s": start, "e": end}).mappings().all()
+    out = []
+    for p in plat:
+        f = fees.get(p["platform"])
+        out.append({"platform": p["platform"], "orders": p["orders"], "gross_order_value": str(p["gross_value"]), "cancelled": p["cancelled"], "returned": p["returned"],
+                    "cancellation_rate_pct": round(100 * p["cancelled"] / p["orders"], 1) if p["orders"] else None, "return_rate_pct": round(100 * p["returned"] / p["orders"], 1) if p["orders"] else None,
+                    "marketplace_fees": str(f["fees"]) if f else "0", "net_realised_revenue": str(f["realised"] or 0) if f else "0"})
+    return {"period": {"start": start, "end": end}, "platforms": out, "top_skus": [{**dict(k), "units": str(k["units"]), "value": str(k["value"])} for k in skus],
+            "orders_by_day": [dict(d) for d in daily], "note": "contribution margin needs product cost per SKU: see accounts product-costing"}
 
 
 def parse_csv(content: str) -> list[dict]:
@@ -163,7 +248,7 @@ def handle_order_webhook(db: Session, cu: CurrentUser, account_id: int, event: d
     if ev is None:
         return {"result": "duplicate"}
     cu.id = db.scalar(text("SELECT min(id) FROM users"))
-    r = ingest_orders(db, cu, account_id, [event["order"]])
+    r = ingest_orders(db, cu, account_id, [event["order"]], kind="WEBHOOK")
     db.execute(text("UPDATE webhook_events SET status = 'PROCESSED' WHERE id = :i"), {"i": ev})
     return {"result": "processed", **r}
 
@@ -206,6 +291,7 @@ def record_settlement(db: Session, cu: CurrentUser, account_id: int, data: dict)
         db.flush()
     except IntegrityError as ex:
         _dup(ex, "duplicate_settlement", "A settlement with this reference already exists for the account")
+    log(db, account_id, "SETTLEMENT", "OK", f"Settlement {s.reference} recorded (net {net})", {"net": str(net)})
     audit.record(db, user=cu, action="create", entity="marketplace_settlement", entity_id=s.id, after={"net": str(net)})
     return settlement_dict(s, db)
 

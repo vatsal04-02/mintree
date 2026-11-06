@@ -163,3 +163,52 @@ def settlement(aid: int, body: SettlementIn, db: Session = DB, cu: CurrentUser =
 @router.post("/settlements/{sid}/received")
 def received(sid: int, body: ReceivedIn, db: Session = DB, cu: CurrentUser = Depends(require("ecommerce.settlement:create"))):
     return run_tx(db, lambda d: svc.set_received(d, cu, sid, body.received_amount), name="ecommerce.settlement.received")
+
+
+class ReturnLine(_In):
+    sku: str
+    qty: Decimal = Field(gt=0)
+
+
+class ReturnIn(_In):
+    account_id: int
+    platform_return_ref: str = Field(min_length=1, max_length=80)
+    external_order_id: str
+    reason: str = Field(min_length=3)
+    lines: list[ReturnLine] = Field(min_length=1, max_length=100)
+
+
+class DisputeIn(_In):
+    status: Literal["OPEN", "WON", "LOST"]
+    note: str | None = None
+
+
+@router.get("/accounts/{aid}/health")
+def health(aid: int, db: Session = DB, _: CurrentUser = Depends(require("ecommerce.account:read"))):
+    return svc.health(db, aid)
+
+
+@router.get("/integration-logs")
+def integration_logs(account_id: int | None = None, status: str | None = None, page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), db: Session = DB,
+                     _: CurrentUser = Depends(require("ecommerce.account:read"))):
+    from sqlalchemy import text
+    rows = db.execute(text("""SELECT id, account_id, kind, status, message, counts, created_at FROM integration_logs
+                               WHERE (CAST(:a AS bigint) IS NULL OR account_id = :a) AND (CAST(:s AS text) IS NULL OR status = :s) ORDER BY id DESC LIMIT :n OFFSET :o"""),
+                      {"a": account_id, "s": status, "n": page_size, "o": (page - 1) * page_size}).mappings().all()
+    return {"items": [dict(r) for r in rows], "page": page}
+
+
+@router.post("/returns", status_code=201)
+def create_return(body: ReturnIn, db: Session = DB, cu: CurrentUser = Depends(require("ecommerce.order:ingest", "dispatch.return:create"))):
+    return run_tx(db, lambda d: svc.create_return(d, cu, account_id=body.account_id, platform_return_ref=body.platform_return_ref, external_order_id=body.external_order_id, reason=body.reason,
+                                                  lines=[l.model_dump() for l in body.lines]), name="ecommerce.return.create")
+
+
+@router.post("/returns/{rid}/dispute")
+def dispute(rid: int, body: DisputeIn, db: Session = DB, cu: CurrentUser = Depends(require("ecommerce.order:ingest"))):
+    return run_tx(db, lambda d: svc.set_dispute(d, cu, rid, body.status, body.note), name="ecommerce.return.dispute")
+
+
+@router.get("/analytics")
+def analytics(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("ecommerce.order:read"))):
+    return svc.analytics(db, start, end)

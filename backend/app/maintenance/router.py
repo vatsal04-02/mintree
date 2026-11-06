@@ -28,6 +28,13 @@ class EquipmentIn(_In):
     location: str | None = None
     calibration_required: bool = False
     calibration_due: date | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_no: str | None = None
+    purchase_date: date | None = None
+    installation_date: date | None = None
+    capacity: str | None = None
+    warranty_until: date | None = None
 
 
 class ScheduleIn(_In):
@@ -35,6 +42,8 @@ class ScheduleIn(_In):
     title: str = Field(min_length=3, max_length=160)
     frequency_days: int = Field(ge=1, le=3650)
     first_due: date
+    checklist: list[str] | None = Field(default=None, max_length=50)
+    assigned_to: int | None = None
 
 
 class BreakdownIn(_In):
@@ -75,7 +84,7 @@ def list_equipment(status: str | None = None, db: Session = DB, _: CurrentUser =
 
 @router.post("/schedules", status_code=201)
 def create_schedule(body: ScheduleIn, db: Session = DB, cu: CurrentUser = Depends(require("maintenance.workorder:create"))):
-    return run_tx(db, lambda d: svc.create_schedule(d, cu, body.equipment_id, body.title, body.frequency_days, body.first_due), name="maintenance.schedule.create")
+    return run_tx(db, lambda d: svc.create_schedule(d, cu, body.equipment_id, body.title, body.frequency_days, body.first_due, body.checklist, body.assigned_to), name="maintenance.schedule.create")
 
 
 @router.post("/schedules/generate")
@@ -130,3 +139,43 @@ def downtime(eid: int, db: Session = DB, _: CurrentUser = Depends(require("maint
     rows = db.execute(text("SELECT id, started_at, ended_at, reason, EXTRACT(EPOCH FROM COALESCE(ended_at, now()) - started_at)/3600 AS hours FROM downtime_records WHERE equipment_id = :e ORDER BY id DESC"),
                       {"e": eid}).mappings().all()
     return {"equipment_id": eid, "total_hours": round(sum(float(r["hours"]) for r in rows), 2), "records": [dict(r) for r in rows]}
+
+
+class ChecklistIn(_In):
+    index: int = Field(ge=0)
+    done: bool
+    note: str | None = None
+
+
+class SpareIn(_In):
+    part_name: str = Field(min_length=1, max_length=160)
+    qty: int = Field(gt=0, le=10000)
+    unit_cost: float | None = Field(default=None, ge=0)
+
+
+@router.post("/work-orders/{wid}/checklist")
+def checklist(wid: int, body: ChecklistIn, db: Session = DB, cu: CurrentUser = Depends(require("maintenance.workorder:execute"))):
+    return run_tx(db, lambda d: svc.tick_checklist(d, cu, wid, body.index, body.done, body.note), name="maintenance.wo.checklist")
+
+
+@router.post("/work-orders/{wid}/spare-parts", status_code=201)
+def spare(wid: int, body: SpareIn, db: Session = DB, cu: CurrentUser = Depends(require("maintenance.workorder:execute"))):
+    return run_tx(db, lambda d: svc.add_spare_part(d, cu, wid, body.part_name, body.qty, body.unit_cost), name="maintenance.wo.spare")
+
+
+@router.get("/work-orders/{wid}/spare-parts")
+def spares(wid: int, db: Session = DB, _: CurrentUser = Depends(require("maintenance.workorder:read"))):
+    return [dict(r) | {"unit_cost": None if r["unit_cost"] is None else str(r["unit_cost"])} for r in db.execute(
+        text("SELECT id, part_name, qty, unit_cost, recorded_at FROM spare_part_usage WHERE work_order_id = :w ORDER BY id"), {"w": wid}).mappings()]
+
+
+@router.get("/dashboard")
+def dashboard(db: Session = DB, _: CurrentUser = Depends(require("maintenance.equipment:read"))):
+    one = lambda sql: db.scalar(text(sql))
+    return {"equipment_by_status": {r[0]: r[1] for r in db.execute(text("SELECT status, count(*) FROM equipment GROUP BY status"))},
+            "open_work_orders": one("SELECT count(*) FROM maintenance_work_orders WHERE status <> 'CLOSED'"),
+            "overdue_preventive": one("SELECT count(*) FROM maintenance_work_orders WHERE kind = 'PREVENTIVE' AND status <> 'CLOSED' AND due_date < current_date"),
+            "calibration_overdue": one("SELECT count(*) FROM equipment WHERE calibration_required AND status <> 'RETIRED' AND (calibration_due IS NULL OR calibration_due < current_date)"),
+            "calibration_due_30d": one("SELECT count(*) FROM equipment WHERE calibration_required AND calibration_due BETWEEN current_date AND current_date + 30"),
+            "downtime_hours_30d": float(one("SELECT COALESCE(round(sum(EXTRACT(EPOCH FROM COALESCE(ended_at, now()) - started_at))/3600), 0) FROM downtime_records WHERE started_at > now() - interval '30 days'")),
+            "warranty_expiring_60d": one("SELECT count(*) FROM equipment WHERE warranty_until BETWEEN current_date AND current_date + 60")}

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import (BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text)
+from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -121,3 +121,24 @@ class WastageRecord(Base):
     reason: Mapped[str] = mapped_column(Text)
     responsible_department: Mapped[str | None] = mapped_column(String(60))
     __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"),)
+
+
+class ProcessCheck(Base):
+    """In-process quality reading taken during a stage. Append-only (trigger); `passed` is computed from the limits when given, otherwise stated by the inspector.
+    A stage cannot be completed while the latest reading of any parameter in it has failed."""
+
+    __tablename__ = "process_checks"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("production_orders.id"))
+    stage_seq: Mapped[int] = mapped_column(Integer)
+    parameter: Mapped[str] = mapped_column(String(80))
+    value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    min_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    max_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    passed: Mapped[bool] = mapped_column(Boolean)
+    observation: Mapped[str | None] = mapped_column(Text)
+    corrective_action: Mapped[str | None] = mapped_column(Text)
+    inspector_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("passed OR corrective_action IS NOT NULL", name="failure_needs_corrective_action"),
+                      Index("ix_process_checks_order", "order_id", "stage_seq", "parameter", "id"))

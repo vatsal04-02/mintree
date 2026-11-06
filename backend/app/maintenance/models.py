@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
-from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -16,6 +17,13 @@ class Equipment(Base):
     status: Mapped[str] = mapped_column(String(18), default="OPERATIONAL", server_default="OPERATIONAL")
     calibration_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     calibration_due: Mapped[date | None] = mapped_column(Date)
+    manufacturer: Mapped[str | None] = mapped_column(String(120))
+    model: Mapped[str | None] = mapped_column(String(120))
+    serial_no: Mapped[str | None] = mapped_column(String(80))
+    purchase_date: Mapped[date | None] = mapped_column(Date)
+    installation_date: Mapped[date | None] = mapped_column(Date)
+    capacity: Mapped[str | None] = mapped_column(String(80))
+    warranty_until: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (CheckConstraint("status IN ('OPERATIONAL','UNDER_MAINTENANCE','BREAKDOWN','RETIRED')", name="status_valid"),)
 
@@ -27,6 +35,8 @@ class MaintenanceSchedule(Base):
     title: Mapped[str] = mapped_column(String(160))
     frequency_days: Mapped[int] = mapped_column(Integer)
     next_due: Mapped[date] = mapped_column(Date)
+    checklist: Mapped[list | None] = mapped_column(JSONB)                 # list of step texts copied onto each generated work order
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     __table_args__ = (CheckConstraint("frequency_days > 0", name="frequency_positive"),)
 
@@ -49,6 +59,7 @@ class MaintenanceWorkOrder(Base):
     raised_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    checklist: Mapped[list | None] = mapped_column(JSONB)                 # [{"text", "done", "note"}]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (
         CheckConstraint("kind IN ('PREVENTIVE','BREAKDOWN')", name="kind_valid"),
@@ -81,3 +92,15 @@ class CalibrationRecord(Base):
     certificate_ref: Mapped[str | None] = mapped_column(String(120))
     performed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     __table_args__ = (CheckConstraint("result IN ('PASS','FAIL')", name="result_valid"), CheckConstraint("due_date > calibrated_on", name="dates_ordered"))
+
+
+class SparePartUsage(Base):
+    __tablename__ = "spare_part_usage"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("maintenance_work_orders.id"))
+    part_name: Mapped[str] = mapped_column(String(160))
+    qty: Mapped[int] = mapped_column(Integer)
+    unit_cost: Mapped[float | None] = mapped_column(Numeric(18, 2))
+    recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"),)

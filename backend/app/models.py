@@ -36,3 +36,4 @@ from app.notifications import models as _notifications_models  # noqa: E402,F401
 from app.procurement import rfq_models as _rfq_models  # noqa: E402,F401
 from app.accounts import ext_models as _acct_ext_models  # noqa: E402,F401
 from app.sales import models as _sales_models  # noqa: E402,F401
+from app.inventory import stocktake_models as _stocktake_models  # noqa: E402,F401

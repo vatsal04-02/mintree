@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import (BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func,
                         text)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -10,12 +11,30 @@ from app.core.db import Base
 QTY4 = Numeric(18, 4)
 
 
+class DevelopmentProject(Base):
+    __tablename__ = "development_projects"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(160))
+    concept: Mapped[str | None] = mapped_column(Text)
+    product_category: Mapped[str | None] = mapped_column(String(80))
+    target_specification: Mapped[str | None] = mapped_column(Text)
+    research_notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(14), default="CONCEPT", server_default="CONCEPT")
+    lead_researcher_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    target_launch_date: Mapped[date | None] = mapped_column(Date)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("status IN ('CONCEPT','DEVELOPMENT','TRIALS','APPROVED','LAUNCHED','CANCELLED')", name="status_valid"),)
+
+
 class Formulation(Base):
     __tablename__ = "formulations"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     code: Mapped[str] = mapped_column(String(40), unique=True)
     name: Mapped[str] = mapped_column(String(160))
     product_item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))      # the BULK / FG item this formula makes
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("development_projects.id"))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     versions: Mapped[list["FormulationVersion"]] = relationship(order_by="FormulationVersion.version_no", lazy="selectin")
@@ -77,3 +96,20 @@ class LabTrial(Base):
     concluded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (UniqueConstraint("version_id", "trial_no"), CheckConstraint("quantity > 0", name="qty_positive"),
                       CheckConstraint("status IN ('PLANNED','IN_PROGRESS','PASSED','FAILED')", name="status_valid"))
+
+
+class TrialObservation(Base):
+    """Append-only (trigger) structured observations on a lab trial: stability, compatibility, texture, appearance, fragrance, pH / viscosity ..."""
+
+    __tablename__ = "trial_observations"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    trial_id: Mapped[int] = mapped_column(ForeignKey("lab_trials.id"))
+    kind: Mapped[str] = mapped_column(String(14))
+    parameter: Mapped[str | None] = mapped_column(String(80))
+    value: Mapped[str | None] = mapped_column(String(120))
+    result: Mapped[str] = mapped_column(String(8), default="INFO", server_default="INFO")
+    notes: Mapped[str | None] = mapped_column(Text)
+    observed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("kind IN ('STABILITY','COMPATIBILITY','TEXTURE','APPEARANCE','FRAGRANCE','MEASUREMENT','OTHER')", name="kind_valid"),
+                      CheckConstraint("result IN ('INFO','PASS','FAIL')", name="result_valid"), Index("ix_trial_observations_trial", "trial_id", "id"))

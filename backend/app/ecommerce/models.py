@@ -90,3 +90,37 @@ class MarketplaceSettlement(Base):
     __table_args__ = (UniqueConstraint("account_id", "reference", name="uq_marketplace_settlements_ref"),
                       CheckConstraint("net_settlement = gross_sales - commission - shipping_fees - ad_fees - returns_refunds - other_deductions", name="net_consistent"),
                       CheckConstraint("period_end >= period_start", name="period_ordered"))
+
+
+class IntegrationLog(Base):
+    """Sync history / error log for the Integration Centre. One row per ingestion run, webhook, settlement or failed attempt."""
+
+    __tablename__ = "integration_logs"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("marketplace_accounts.id"))
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(8))
+    message: Mapped[str | None] = mapped_column(Text)
+    counts: Mapped[dict | None] = mapped_column(JSONB)
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("kind IN ('ORDER_IMPORT','WEBHOOK','SETTLEMENT','RETURN','STOCK_PREVIEW')", name="kind_valid"),
+                      CheckConstraint("status IN ('OK','PARTIAL','ERROR')", name="status_valid"), Index("ix_integration_logs_account", "account_id", "id"))
+
+
+class MarketplaceReturn(Base):
+    """A marketplace-initiated return (unique per account + platform return reference => repeated notifications are no-ops), linked to the internal sales return."""
+
+    __tablename__ = "marketplace_returns"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("marketplace_accounts.id"))
+    platform_return_ref: Mapped[str] = mapped_column(String(80))
+    external_order_pk: Mapped[int] = mapped_column(ForeignKey("external_orders.id"))
+    sales_return_id: Mapped[int | None] = mapped_column(ForeignKey("sales_returns.id"))
+    reason: Mapped[str] = mapped_column(Text)
+    dispute_status: Mapped[str] = mapped_column(String(8), default="NONE", server_default="NONE")
+    dispute_note: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("account_id", "platform_return_ref", name="uq_marketplace_returns_ref"),
+                      CheckConstraint("dispute_status IN ('NONE','OPEN','WON','LOST')", name="dispute_valid"))

@@ -146,7 +146,8 @@ def transfer(body: s.TransferIn, key: str = Depends(require_idempotency_key), db
 def adjust(body: s.AdjustIn, key: str = Depends(require_idempotency_key), db: Session = DB, cu: CurrentUser = Depends(require("inventory.adjustment:post"))):
     def effect(d):
         from app.audit import service as audit
-        r = svc.adjust(d, balance_id=body.balance_id, delta=body.delta, reason=body.reason, source_id=body.source_id, actor_id=cu.id)
+        from app.inventory.adjustments import post_adjustment
+        r = post_adjustment(d, balance_id=body.balance_id, delta=body.delta, reason=body.reason, source_id=body.source_id, actor_id=cu.id)
         audit.record(d, user=cu, action="stock_adjustment", entity="stock_balance", entity_id=body.balance_id, after=r, reason=body.reason)
         return 201, r, "adjustment", body.source_id
     return idempotent_post(db, cu, scope="inventory.adjustment.post", key=key, payload=body.model_dump(mode="json"), effect=effect)
@@ -157,7 +158,8 @@ def reverse(ledger_id: int, body: s.ReverseIn, key: str = Depends(require_idempo
             cu: CurrentUser = Depends(require("inventory.reversal:post"))):
     def effect(d):
         from app.audit import service as audit
-        r = svc.reverse(d, ledger_id=ledger_id, reason=body.reason, actor_id=cu.id)
+        from app.inventory.adjustments import reverse_adjustment
+        r = reverse_adjustment(d, cu, ledger_id=ledger_id, reason=body.reason)
         audit.record(d, user=cu, action="stock_reversal", entity="stock_ledger", entity_id=ledger_id, after=r, reason=body.reason)
         return 201, r, "reversal", ledger_id
     return idempotent_post(db, cu, scope="inventory.reversal.post", key=key, payload={"ledger_id": ledger_id, **body.model_dump()}, effect=effect)

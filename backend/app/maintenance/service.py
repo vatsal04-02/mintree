@@ -1,5 +1,6 @@
 """Maintenance: equipment register, preventive schedules (idempotent generator), breakdowns with downtime, calibration.
 Registers EQUIPMENT_GUARD with Production so a stage cannot start on broken or out-of-calibration equipment."""
+import json
 from datetime import date, timedelta
 
 from psycopg import errors as pgerr
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.audit import service as audit
 from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
-from app.maintenance.models import CalibrationRecord, DowntimeRecord, Equipment, MaintenanceSchedule, MaintenanceWorkOrder
+from app.maintenance.models import CalibrationRecord, DowntimeRecord, Equipment, MaintenanceSchedule, MaintenanceWorkOrder, SparePartUsage
 from app.production import service as production
 
 
@@ -46,9 +47,10 @@ def create_equipment(db: Session, cu: CurrentUser, data: dict) -> dict:
     return equipment_dict(e)
 
 
-def create_schedule(db: Session, cu: CurrentUser, equipment_id: int, title: str, frequency_days: int, first_due: date) -> dict:
+def create_schedule(db: Session, cu: CurrentUser, equipment_id: int, title: str, frequency_days: int, first_due: date, checklist: list[str] | None = None,
+                    assigned_to: int | None = None) -> dict:
     _eq(db, equipment_id)
-    s = MaintenanceSchedule(equipment_id=equipment_id, title=title, frequency_days=frequency_days, next_due=first_due)
+    s = MaintenanceSchedule(equipment_id=equipment_id, title=title, frequency_days=frequency_days, next_due=first_due, checklist=checklist or None, assigned_to=assigned_to)
     db.add(s)
     db.flush()
     audit.record(db, user=cu, action="create", entity="maintenance_schedule", entity_id=s.id)
@@ -69,9 +71,11 @@ def generate_due(db: Session, as_of: date, actor_id: int | None = None) -> dict:
         for _ in range(12):                                   # catch up missed intervals, bounded
             if s.next_due > as_of:
                 break
-            n = db.execute(text("INSERT INTO maintenance_work_orders(number, equipment_id, kind, schedule_id, due_date, description, raised_by, priority) "
-                                "VALUES (:n, :e, 'PREVENTIVE', :s, :d, :t, :u, 'MEDIUM') ON CONFLICT DO NOTHING"),
-                           {"n": _wo_number(db), "e": s.equipment_id, "s": s.id, "d": s.next_due, "t": s.title, "u": actor_id or db.scalar(select(text("min(id)")).select_from(text("users")))}).rowcount
+            steps = [{"text": t, "done": False, "note": None} for t in (s.checklist or [])]
+            n = db.execute(text("INSERT INTO maintenance_work_orders(number, equipment_id, kind, schedule_id, due_date, description, raised_by, priority, checklist, assigned_to, status) "
+                                "VALUES (:n, :e, 'PREVENTIVE', :s, :d, :t, :u, 'MEDIUM', CAST(:c AS jsonb), CAST(:a AS integer), CASE WHEN CAST(:a AS integer) IS NULL THEN 'OPEN' ELSE 'ASSIGNED' END) ON CONFLICT DO NOTHING"),
+                           {"n": _wo_number(db), "e": s.equipment_id, "s": s.id, "d": s.next_due, "t": s.title, "c": json.dumps(steps) if steps else None, "a": s.assigned_to,
+                            "u": actor_id or db.scalar(select(text("min(id)")).select_from(text("users")))}).rowcount
             created += n
             s.next_due = s.next_due + timedelta(days=s.frequency_days)
     return {"created": created, "as_of": as_of}
@@ -119,6 +123,8 @@ def wo_action(db: Session, cu: CurrentUser, wid: int, action: str, *, assignee_i
             raise BusinessConflict("invalid_status", "Only work in progress can be completed")
         if w.assigned_to != cu.id:
             raise BusinessConflict("not_assignee", "Only the assigned technician can complete this work order")
+        if w.checklist and not all(step["done"] for step in w.checklist):
+            raise BusinessConflict("checklist_incomplete", "Complete every checklist step first", pending=[st["text"] for st in w.checklist if not st["done"]])
         if w.kind == "BREAKDOWN" and not (root_cause and repair_notes):
             raise BusinessConflict("root_cause_required", "A breakdown needs its root cause and repair notes")
         w.status, w.root_cause, w.repair_notes, w.completed_at = "DONE", root_cause, repair_notes, func.now()
@@ -138,6 +144,32 @@ def wo_action(db: Session, cu: CurrentUser, wid: int, action: str, *, assignee_i
     return wo_dict(w)
 
 
+def tick_checklist(db: Session, cu: CurrentUser, wid: int, index: int, done: bool, note: str | None) -> dict:
+    w = _wo(db, wid)
+    if w.status != "IN_PROGRESS":
+        raise BusinessConflict("invalid_status", "Checklist steps are completed while the work is in progress")
+    if w.assigned_to != cu.id:
+        raise BusinessConflict("not_assignee", "Only the assigned technician can update the checklist")
+    steps = [dict(x) for x in (w.checklist or [])]
+    if not 0 <= index < len(steps):
+        raise Unprocessable("No such checklist step")
+    steps[index].update(done=done, note=note)
+    w.checklist = steps                              # reassign: JSONB changes are not tracked in place
+    audit.record(db, user=cu, action="checklist", entity="maintenance_work_order", entity_id=w.id, after={"step": index, "done": done})
+    return wo_dict(w)
+
+
+def add_spare_part(db: Session, cu: CurrentUser, wid: int, part_name: str, qty: int, unit_cost) -> dict:
+    w = _wo(db, wid)
+    if w.status not in ("IN_PROGRESS", "DONE"):
+        raise BusinessConflict("invalid_status", "Spare parts are recorded against work in progress or just completed")
+    r = SparePartUsage(work_order_id=w.id, part_name=part_name, qty=qty, unit_cost=unit_cost, recorded_by=cu.id)
+    db.add(r)
+    db.flush()
+    audit.record(db, user=cu, action="spare_part", entity="maintenance_work_order", entity_id=w.id, after={"part": part_name, "qty": qty})
+    return {"id": r.id, "work_order_id": w.id, "part_name": part_name, "qty": qty, "unit_cost": None if unit_cost is None else str(unit_cost)}
+
+
 def record_calibration(db: Session, cu: CurrentUser, equipment_id: int, calibrated_on: date, due_date: date, result: str, certificate_ref: str | None) -> dict:
     e = _eq(db, equipment_id, lock=True)
     db.add(CalibrationRecord(equipment_id=e.id, calibrated_on=calibrated_on, due_date=due_date, result=result, certificate_ref=certificate_ref, performed_by=cu.id))
@@ -151,9 +183,11 @@ def record_calibration(db: Session, cu: CurrentUser, equipment_id: int, calibrat
 
 def equipment_dict(e: Equipment) -> dict:
     return {"id": e.id, "asset_id": e.asset_id, "name": e.name, "category": e.category, "location": e.location, "status": e.status,
-            "calibration_required": e.calibration_required, "calibration_due": e.calibration_due}
+            "calibration_required": e.calibration_required, "calibration_due": e.calibration_due, "manufacturer": e.manufacturer, "model": e.model, "serial_no": e.serial_no,
+            "purchase_date": e.purchase_date, "installation_date": e.installation_date, "capacity": e.capacity, "warranty_until": e.warranty_until,
+            "under_warranty": bool(e.warranty_until and e.warranty_until >= date.today())}
 
 
 def wo_dict(w: MaintenanceWorkOrder) -> dict:
     return {"id": w.id, "number": w.number, "equipment_id": w.equipment_id, "kind": w.kind, "status": w.status, "priority": w.priority, "description": w.description,
-            "due_date": w.due_date, "assigned_to": w.assigned_to, "root_cause": w.root_cause}
+            "due_date": w.due_date, "assigned_to": w.assigned_to, "root_cause": w.root_cause, "checklist": w.checklist}

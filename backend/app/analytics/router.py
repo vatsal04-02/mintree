@@ -52,6 +52,47 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
     equip = rows("SELECT status, count(*) AS n FROM equipment GROUP BY status ORDER BY status")
     ext = rows("SELECT status, count(*) AS n FROM external_orders GROUP BY status ORDER BY status")
     cmp_ = one("SELECT count(*) FILTER (WHERE status <> 'RESOLVED') AS open_complaints FROM complaints")
+    # ---- sections added for PRD Module 12 (each KPI names the screen/API that lists the underlying records)
+    prod = one("""SELECT count(*) FILTER (WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days') AS completed_30d,
+                         COALESCE(sum(planned_qty) FILTER (WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days'), 0) AS planned_qty_30d,
+                         COALESCE(sum(actual_qty) FILTER (WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days'), 0) AS actual_qty_30d,
+                         count(*) FILTER (WHERE planned_date < current_date AND status NOT IN ('COMPLETED','CANCELLED')) AS delayed,
+                         count(*) FILTER (WHERE status IN ('RELEASED','IN_PROGRESS')) AS active FROM production_orders""")
+    wastage = one("SELECT COALESCE(sum(w.qty), 0) AS qty FROM wastage_records w JOIN production_orders o ON o.id = w.order_id WHERE o.completed_at > now() - interval '30 days'")
+    inv_x = one("""SELECT (SELECT count(*) FROM inventory_batches b WHERE b.expiry_date BETWEEN current_date AND current_date + 90 AND EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.batch_id = b.id AND sb.qty_physical > 0)) AS expiring_90d,
+                          (SELECT count(*) FROM inventory_batches b WHERE b.expiry_date < current_date AND EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.batch_id = b.id AND sb.qty_physical > 0)) AS expired_with_stock,
+                          (SELECT COALESCE(sum(sb.qty_physical), 0) FROM stock_balances sb JOIN inventory_batches b ON b.id = sb.batch_id WHERE b.qc_status IN ('QUARANTINE','HOLD')) AS quarantined_qty,
+                          (SELECT count(*) FROM items i WHERE i.is_active AND i.reorder_level > 0 AND COALESCE((SELECT sum(sb.qty_available) FROM stock_balances sb WHERE sb.item_id = i.id), 0) < i.reorder_level) AS below_reorder""")
+    proc = one("""SELECT count(*) FILTER (WHERE status = 'PENDING_APPROVAL') AS pos_pending_approval, count(*) FILTER (WHERE status IN ('APPROVED','PARTIALLY_RECEIVED')) AS open_pos,
+                         COALESCE(sum(total_amount) FILTER (WHERE status NOT IN ('DRAFT','CANCELLED') AND created_at > now() - interval '30 days'), 0) AS purchase_value_30d,
+                         count(*) FILTER (WHERE status IN ('APPROVED','PARTIALLY_RECEIVED') AND expected_date < current_date) AS late_deliveries FROM purchase_orders""")
+    prs = db.scalar(text("SELECT count(*) FROM purchase_requests WHERE status = 'SUBMITTED'"))
+    quality_x = one("""SELECT (SELECT count(*) FROM inspections WHERE status = 'DECIDED' AND decision = 'REJECT' AND decided_at > now() - interval '30 days') AS rejections_30d,
+                              (SELECT count(*) FROM inventory_batches WHERE qc_status = 'REJECTED') AS rejected_batches""")
+    disp = one("""SELECT (SELECT count(*) FROM shipments WHERE status NOT IN ('DELIVERED','RTO','FAILED_DELIVERY') AND created_at < now() - interval '5 days') AS delayed_shipments,
+                         (SELECT count(*) FROM shipments WHERE status = 'DELIVERED') AS delivered, (SELECT count(*) FROM shipments WHERE status IN ('FAILED_DELIVERY','RTO')) AS failed_or_rto,
+                         (SELECT count(*) FROM sales_returns WHERE status = 'REQUESTED') AS returns_open""")
+    margin = one("""SELECT COALESCE(sum(l.credit - l.debit) FILTER (WHERE a.type = 'REVENUE'), 0) AS revenue, COALESCE(sum(l.debit - l.credit) FILTER (WHERE a.code = '5000'), 0) AS cogs
+                      FROM journal_lines l JOIN accounts a ON a.id = l.account_id JOIN journal_entries e ON e.id = l.entry_id WHERE e.entry_date BETWEEN :d - 30 AND :d""")
+    outstanding = one("SELECT count(*) FILTER (WHERE total - amount_paid - credited_amount > 0) AS open_sales_invoices FROM sales_invoices")
+    ap_open = db.scalar(text("SELECT count(*) FROM supplier_invoices WHERE total - amount_paid - credited_amount > 0"))
+    supplier_otd = db.execute(text("""SELECT round(100.0 * count(*) FILTER (WHERE first_receipt <= expected_date) / NULLIF(count(*), 0), 1) FROM
+                                       (SELECT p.expected_date, min(g.received_at)::date first_receipt FROM purchase_orders p JOIN goods_receipts g ON g.po_id = p.id WHERE p.expected_date IS NOT NULL GROUP BY p.id) x""")).scalar()
+    gm = None if not margin["revenue"] else round(100 * float(margin["revenue"] - margin["cogs"]) / float(margin["revenue"]), 1)
+    extended = {
+        "production": {"completed_30d": prod["completed_30d"], "planned_qty_30d": str(prod["planned_qty_30d"]), "actual_qty_30d": str(prod["actual_qty_30d"]), "active_orders": prod["active"],
+                       "delayed_work_orders": prod["delayed"], "wastage_qty_30d": str(wastage["qty"]), "average_yield_pct": yield_["avg_yield"], "drill": "/api/production/dashboard"},
+        "inventory": {"value_by_kind": inv_kind, "total_value": inv["value"], "below_reorder_level": inv_x["below_reorder"], "expiring_within_90_days": inv_x["expiring_90d"],
+                      "expired_with_stock": inv_x["expired_with_stock"], "quarantined_or_held_qty": str(inv_x["quarantined_qty"]),
+                      "drill": {"reorder": "/api/inventory/reports/reorder", "expiring": "/api/inventory/reports/expiring", "valuation": "/api/inventory/reports/valuation", "slow_moving": "/api/inventory/reports/slow-moving"}},
+        "procurement": {"purchase_requests_awaiting_approval": prs, "purchase_orders_awaiting_approval": proc["pos_pending_approval"], "open_purchase_orders": proc["open_pos"],
+                        "late_deliveries": proc["late_deliveries"], "purchase_value_30d": str(proc["purchase_value_30d"]), "supplier_on_time_pct": None if supplier_otd is None else str(supplier_otd),
+                        "drill": {"approvals": "/api/approvals/pending", "delivery": "/api/procurement/delivery-tracking", "suppliers": "/api/procurement/supplier-performance"}},
+        "quality_extended": {"rejected_inspections_30d": quality_x["rejections_30d"], "rejected_batches": quality_x["rejected_batches"], "drill": "/api/quality/inspections"},
+        "dispatch": {"delayed_shipments": disp["delayed_shipments"], "delivered": disp["delivered"], "failed_or_rto": disp["failed_or_rto"], "returns_open": disp["returns_open"], "drill": "/api/dispatch/dashboard"},
+        "finance_extended": {"open_sales_invoices": outstanding["open_sales_invoices"], "open_supplier_invoices": ap_open, "gross_margin_pct_30d": gm, "revenue_30d": str(margin["revenue"]),
+                             "drill": {"ageing_receivables": "/api/accounts/reports/ageing/receivables", "ageing_payables": "/api/accounts/reports/ageing/payables", "pnl": "/api/accounts/reports/profit-and-loss"}},
+    }
     return {
         "as_of": d,
         "sales": {"revenue_ex_tax": sales["revenue"], "credit_notes_ex_tax": credits["credited"], "net_revenue_ex_tax": sales["revenue"] - credits["credited"], "invoices": sales["invoices"],
@@ -61,4 +102,5 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
         "orders_by_status": orders, "production_by_status": prod, "average_yield_pct": yield_["avg_yield"],
         "quality": dict(qc), "low_stock": low, "purchase_orders_by_status": po, "shipments_by_status": ship,
         "equipment_by_status": equip, "marketplace_orders_by_status": ext, "open_complaints": cmp_["open_complaints"],
+        **extended,
     }
