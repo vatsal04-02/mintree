@@ -130,3 +130,8 @@ def active_reservations(db: Session, reservation_ids: list[int]) -> list[dict]:
 def close_reservation(db: Session, reservation_id: int, status: str) -> None:
     db.execute(text("UPDATE stock_reservations SET status = :s, closed_at = now() WHERE id = :id AND status = 'ACTIVE'"),
                {"s": status, "id": reservation_id})
+
+
+def shrink_reservation(db: Session, reservation_id: int, consumed) -> None:
+    """Partial consumption of an ACTIVE reservation: reduce its quantity, keep it ACTIVE (the CHECK qty > 0 guards over-consumption)."""
+    db.execute(text("UPDATE stock_reservations SET qty = qty - :q WHERE id = :id AND status = 'ACTIVE'"), {"q": consumed, "id": reservation_id})

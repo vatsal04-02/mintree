@@ -25,6 +25,7 @@ from app.core.errors import BusinessConflict, InsufficientStock, NotFound, Unpro
 from app.core.platform_models import WebhookEvent
 from app.core.uow import run_tx
 from app.dispatch import courier
+from app.dispatch.ext_models import DeliveryAttempt, ShipmentPackage
 from app.dispatch.models import (CourierEvent, CreditNote, SalesInvoice, SalesOrder, SalesOrderItem, SalesReturn, SalesReturnLine, Shipment, ShipmentLine)
 from app.inventory import service as inv
 from app.masters.models import Customer, Item
@@ -134,6 +135,8 @@ def pack_order(db: Session, cu: CurrentUser, order_id: int, expected_version: in
 
 def cancel_order(db: Session, cu: CurrentUser, order_id: int, reason: str) -> dict:
     o = _lock_order(db, order_id)
+    if o.status == "PARTIALLY_DISPATCHED":
+        raise BusinessConflict("cannot_cancel", "Part of this order has shipped; close the remainder short (or return what shipped) instead of cancelling")
     if o.status in ("DISPATCHED", "DELIVERED", "CANCELLED"):
         raise BusinessConflict("cannot_cancel", f"An order in status {o.status} cannot be cancelled; use a return")
     ids = [r[0] for r in db.execute(text("SELECT id FROM stock_reservations WHERE reference_type='sales_order' AND reference_id=:r AND status='ACTIVE'"), {"r": str(o.id)})]
@@ -145,52 +148,128 @@ def cancel_order(db: Session, cu: CurrentUser, order_id: int, reason: str) -> di
 
 
 # ------------------------------------------------------------------ dispatch: the atomic posting
-def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version: int, courier_name: str | None) -> dict:
+def _shipment_plan(o: SalesOrder, lines: list[dict] | None) -> dict[int, Decimal]:
+    """so_item_id -> quantity to ship now. No `lines` = everything still unshipped."""
+    remaining = {l.id: l.qty - l.qty_shipped for l in o.items}
+    if lines is None:
+        plan = {i: q for i, q in remaining.items() if q > 0}
+    else:
+        if len({l["so_item_id"] for l in lines}) != len(lines):
+            raise Unprocessable("An order line may appear once per shipment")
+        plan = {}
+        for l in lines:
+            if l["so_item_id"] not in remaining:
+                raise Unprocessable(f"Line {l['so_item_id']} does not belong to this order")
+            q = Decimal(str(l["qty"]))
+            if q <= 0:
+                raise Unprocessable("Shipment quantity must be positive")
+            if q > remaining[l["so_item_id"]]:
+                raise BusinessConflict("exceeds_remaining", "Cannot ship more than the unshipped quantity of this line", so_item_id=l["so_item_id"],
+                                       remaining=str(remaining[l["so_item_id"]]), requested=str(q))
+            plan[l["so_item_id"]] = q
+    if not plan:
+        raise BusinessConflict("nothing_to_ship", "This order has no unshipped quantity")
+    return plan
+
+
+def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version: int, courier_name: str | None, lines: list[dict] | None = None,
+                   packages: list[dict] | None = None) -> dict:
+    """One atomic posting per SHIPMENT: stock out (reservations consumed, split if partial) -> shipment + lines -> COGS -> invoice for exactly what shipped.
+    An order can ship in several shipments; the final shipment of a line bills the exact remainder so invoices always sum to the order total."""
     o = _lock_order(db, order_id, expected_version)
-    if o.status != "PACKED":
-        raise BusinessConflict("invalid_status", f"Only PACKED orders can be dispatched (this one is {o.status})")
+    if o.status not in ("PACKED", "PARTIALLY_DISPATCHED"):
+        raise BusinessConflict("invalid_status", f"Only PACKED or PARTIALLY_DISPATCHED orders can be dispatched (this one is {o.status})")
     courier_name = courier_name or get_settings().courier_default
     courier.get_courier(courier_name)     # fail early on an unknown provider (no network call here)
-    legs: dict[int, list[dict]] = {}
-    for l in sorted(o.items, key=lambda x: x.item_id):
-        res = db.execute(text("SELECT id, qty FROM stock_reservations WHERE reference_type='sales_order' AND reference_id=:r AND item_id=:i AND status='ACTIVE' ORDER BY id"),
-                         {"r": str(o.id), "i": l.item_id}).all()
-        if not res or sum(r[1] for r in res) != l.qty:
-            raise BusinessConflict("reservation_mismatch", "Reserved stock does not match the order; allocate again", item_id=l.item_id)
-        legs[l.item_id] = inv.issue(db, item_id=l.item_id, warehouse_id=o.warehouse_id, qty=l.qty, source_type="sales_order", source_id=o.id, source_line=l.line_no,
-                                    actor_id=cu.id, reservation_ids=[r[0] for r in res], movement="DISPATCH")
-    vrows = acct.lock_valuations(db, list(legs))
-    ship = Shipment(so_id=o.id, courier=courier_name)
+    plan = _shipment_plan(o, lines)
+    by_id = {l.id: l for l in o.items}
+    shipment_no = (db.scalar(text("SELECT COALESCE(max(shipment_no),0) FROM shipments WHERE so_id = :o"), {"o": o.id}) or 0) + 1
+    ship = Shipment(so_id=o.id, shipment_no=shipment_no, courier=courier_name)
     db.add(ship)
     db.flush()
-    total_cost = Decimal(0)
-    by_item = {l.item_id: l for l in o.items}
-    for item_id in sorted(legs):
-        for leg in legs[item_id]:
+    legs: dict[int, list[dict]] = {}
+    for so_item_id in sorted(plan, key=lambda i: by_id[i].item_id):
+        l, take = by_id[so_item_id], plan[so_item_id]
+        res = db.execute(text("SELECT id, qty FROM stock_reservations WHERE reference_type='sales_order' AND reference_id=:r AND item_id=:i AND status='ACTIVE' ORDER BY id"),
+                         {"r": str(o.id), "i": l.item_id}).all()
+        if not res or sum(r[1] for r in res) != l.qty - l.qty_shipped:      # what is still reserved must equal what is still unshipped
+            raise BusinessConflict("reservation_mismatch", "Reserved stock does not match the unshipped quantity; allocate again", item_id=l.item_id)
+        legs[so_item_id] = inv.issue(db, item_id=l.item_id, warehouse_id=o.warehouse_id, qty=take, source_type="shipment", source_id=ship.id, source_line=l.line_no,
+                                     actor_id=cu.id, reservation_ids=[r[0] for r in res], movement="DISPATCH", allow_split=True)
+    vrows = acct.lock_valuations(db, [by_id[i].item_id for i in legs])
+    total_cost = sub = tax = Decimal(0)
+    for so_item_id in sorted(legs, key=lambda i: by_id[i].item_id):
+        l, take = by_id[so_item_id], plan[so_item_id]
+        final = l.qty_shipped + take == l.qty
+        done_net, done_tax = db.execute(text("SELECT COALESCE(sum(net_amount),0), COALESCE(sum(tax_amount),0) FROM shipment_lines WHERE so_item_id = :i"), {"i": l.id}).one()
+        full_net = acct.money(l.qty * l.unit_price)
+        full_tax = acct.money(full_net * l.tax_rate / 100)
+        net = full_net - done_net if final else acct.money(take * l.unit_price)
+        line_tax = full_tax - done_tax if final else acct.money(net * l.tax_rate / 100)
+        sub, tax = sub + net, tax + line_tax
+        gl = legs[so_item_id]
+        net_left, tax_left = net, line_tax
+        for n, leg in enumerate(gl):
             q = Decimal(leg["qty"])
-            cost = acct.val_consume(vrows, item_id, q)
+            cost = acct.val_consume(vrows, l.item_id, q)
             total_cost += cost
-            db.add(ShipmentLine(shipment_id=ship.id, so_item_id=by_item[item_id].id, item_id=item_id, batch_id=leg["batch_id"], balance_id=leg["balance_id"], qty=q,
-                                unit_cost=(cost / q).quantize(Decimal("0.0001"))))
+            last = n == len(gl) - 1
+            ln = net_left if last else acct.money(net * q / take)
+            lt = tax_left if last else acct.money(line_tax * q / take)
+            net_left, tax_left = net_left - ln, tax_left - lt
+            db.add(ShipmentLine(shipment_id=ship.id, so_item_id=l.id, item_id=l.item_id, batch_id=leg["batch_id"], balance_id=leg["balance_id"], qty=q,
+                                unit_cost=(cost / q).quantize(Decimal("0.0001")), net_amount=ln, tax_amount=lt))
+        l.qty_shipped = l.qty_shipped + take
+    total = sub + tax
     if total_cost:
-        acct.post_journal(db, entry_date=business_today(), description=f"COGS {o.number}", source_type="shipment", source_id=ship.id, source_event="cogs",
+        acct.post_journal(db, entry_date=business_today(), description=f"COGS {o.number} shipment {shipment_no}", source_type="shipment", source_id=ship.id, source_event="cogs",
                           lines=[("5000", total_cost, Decimal(0)), ("1320", Decimal(0), total_cost)], actor_id=cu.id)
-    je = acct.post_journal(db, entry_date=business_today(), description=f"Sales invoice for {o.number}", source_type="sales_invoice", source_id=o.id, actor_id=cu.id,
-                           lines=[("1200", o.total, Decimal(0)), ("4000", Decimal(0), o.subtotal), ("2200", Decimal(0), o.tax_total)])
+    je = acct.post_journal(db, entry_date=business_today(), description=f"Sales invoice for {o.number}" + (f" (shipment {shipment_no})" if shipment_no > 1 else ""),
+                           source_type="sales_invoice", source_id=o.id, source_event="post" if shipment_no == 1 else f"shipment:{shipment_no}", actor_id=cu.id,
+                           lines=[("1200", total, Decimal(0)), ("4000", Decimal(0), sub), ("2200", Decimal(0), tax)])
     fy = acct.fiscal_year(business_today())
     seq = acct.next_gapless(db, f"sales_invoice:{fy}")                 # LAST: the hot counter row is held only until commit
-    inv_row = SalesInvoice(number=f"SI/{fy}/{seq:06d}", customer_id=o.customer_id, so_id=o.id, invoice_date=business_today(), subtotal=o.subtotal, tax_total=o.tax_total,
-                           total=o.total, journal_entry_id=je.id)
+    inv_row = SalesInvoice(number=f"SI/{fy}/{seq:06d}", customer_id=o.customer_id, so_id=o.id, shipment_id=ship.id, invoice_date=business_today(), subtotal=sub, tax_total=tax,
+                           total=total, journal_entry_id=je.id)
     db.add(inv_row)
-    for l in o.items:
-        l.qty_shipped = l.qty
-    o.status, o.version = "DISPATCHED", o.version + 1
+    for pn, pk in enumerate(packages or [], 1):
+        db.add(ShipmentPackage(shipment_id=ship.id, package_no=pn, **pk))
+    complete = all(l.qty_shipped >= l.qty for l in o.items)
+    o.status, o.version = ("DISPATCHED" if complete else "PARTIALLY_DISPATCHED"), o.version + 1
     db.flush()
-    audit.record(db, user=cu, action="dispatch", entity="sales_order", entity_id=o.id, after={"invoice": inv_row.number, "shipment_id": ship.id, "cogs": str(total_cost)})
+    audit.record(db, user=cu, action="dispatch", entity="sales_order", entity_id=o.id,
+                 after={"invoice": inv_row.number, "shipment_id": ship.id, "shipment_no": shipment_no, "cogs": str(total_cost), "complete": complete})
     outbox.add(db, event_type="dispatch.shipment.requested", aggregate_type="shipment", aggregate_id=ship.id, payload={"shipment_id": ship.id, "order": o.number, "courier": courier_name})
     outbox.add(db, event_type="dispatch.order.dispatched", aggregate_type="sales_order", aggregate_id=o.id,
-               payload={"order_id": o.id, "number": o.number, "invoice": inv_row.number, "total": str(o.total)})
-    return order_dict(o) | {"invoice": {"id": inv_row.id, "number": inv_row.number, "total": str(inv_row.total)}, "shipment_id": ship.id}
+               payload={"order_id": o.id, "number": o.number, "invoice": inv_row.number, "total": str(total), "shipment_no": shipment_no, "complete": complete})
+    return order_dict(o) | {"invoice": {"id": inv_row.id, "number": inv_row.number, "total": str(inv_row.total)}, "shipment_id": ship.id, "shipment_no": shipment_no}
+
+
+def close_short(db: Session, cu: CurrentUser, order_id: int, reason: str) -> dict:
+    """Stop waiting for the rest of a partially dispatched order: release what is still reserved and treat the order as fully shipped."""
+    o = _lock_order(db, order_id)
+    if o.status != "PARTIALLY_DISPATCHED":
+        raise BusinessConflict("invalid_status", f"Only a partially dispatched order can be closed short (this one is {o.status})")
+    ids = [r[0] for r in db.execute(text("SELECT id FROM stock_reservations WHERE reference_type='sales_order' AND reference_id=:r AND status='ACTIVE' ORDER BY id"), {"r": str(o.id)})]
+    if ids:
+        inv.release_reservations(db, ids)
+    o.short_closed_at, o.short_close_reason = text("now()"), reason
+    o.status, o.version = "DISPATCHED", o.version + 1
+    _maybe_deliver_order(db, o.id)
+    db.flush()
+    db.refresh(o)
+    audit.record(db, user=cu, action="close_short", entity="sales_order", entity_id=o.id, reason=reason,
+                 after={"unshipped": {str(l.id): str(l.qty - l.qty_shipped) for l in o.items if l.qty > l.qty_shipped}})
+    return order_dict(o)
+
+
+def _maybe_deliver_order(db: Session, order_id: int) -> None:
+    """DISPATCHED (nothing left to ship) + every shipment delivered or returned-to-origin + at least one delivered => DELIVERED."""
+    db.flush()                                         # sessions run with autoflush off: make this shipment's new status visible to the counts below
+    pending = db.scalar(text("SELECT count(*) FROM shipments WHERE so_id = :o AND status NOT IN ('DELIVERED','RTO')"), {"o": order_id})
+    delivered = db.scalar(text("SELECT count(*) FROM shipments WHERE so_id = :o AND status = 'DELIVERED'"), {"o": order_id})
+    if not pending and delivered:
+        db.execute(update(SalesOrder).where(SalesOrder.id == order_id, SalesOrder.status == "DISPATCHED").values(status="DELIVERED"))
 
 
 # ------------------------------------------------------------------ courier booking (NO network call inside a transaction)
@@ -261,22 +340,33 @@ def handle_courier_event(db: Session, provider: str, event: dict) -> dict:
         s.status = et
         if et == "DELIVERED":
             s.delivered_at = event["occurred_at"]
-            db.execute(update(SalesOrder).where(SalesOrder.id == s.so_id, SalesOrder.status == "DISPATCHED").values(status="DELIVERED"))
+            _maybe_deliver_order(db, s.so_id)
+            _courier_attempt(db, s, "DELIVERED", event, None)
     elif et in ("FAILED_DELIVERY", "RTO") and s.status != "DELIVERED":
         s.status = et
+        if et == "FAILED_DELIVERY":
+            _courier_attempt(db, s, "FAILED", event, str(event.get("reason") or "Reported by courier"))
+        if et == "RTO":
+            _maybe_deliver_order(db, s.so_id)
     db.execute(update(WebhookEvent).where(WebhookEvent.id == ins).values(status="PROCESSED"))
     return {"result": "processed", "shipment_status": s.status}
+
+
+def _courier_attempt(db: Session, s: Shipment, outcome: str, event: dict, reason: str | None) -> None:
+    n = (db.scalar(text("SELECT COALESCE(max(attempt_no),0) FROM delivery_attempts WHERE shipment_id = :s"), {"s": s.id}) or 0) + 1
+    db.add(DeliveryAttempt(shipment_id=s.id, attempt_no=n, outcome=outcome, reason=reason, attempted_at=event["occurred_at"], source="COURIER"))
 
 
 # ------------------------------------------------------------------ returns
 def create_return(db: Session, cu: CurrentUser, *, order_id: int, reason: str, lines: list[dict]) -> dict:
     o = _lock_order(db, order_id)
-    if o.status not in ("DISPATCHED", "DELIVERED"):
+    if o.status not in ("PARTIALLY_DISPATCHED", "DISPATCHED", "DELIVERED"):
         raise BusinessConflict("not_shipped", "Only shipped orders can be returned")
     n = db.execute(text("SELECT nextval('sales_return_seq')")).scalar_one()
     r = SalesReturn(number=f"RET/{business_today():%y}/{n:06d}", so_id=o.id, reason=reason, created_by=cu.id)
     if len({l["shipment_line_id"] for l in lines}) != len(lines):
         raise Unprocessable("A shipment line may appear once per return")
+    ship_ids: set[int] = set()
     for l in lines:
         sl = db.get(ShipmentLine, l["shipment_line_id"])
         so_item = db.get(SalesOrderItem, sl.so_item_id) if sl else None
@@ -287,6 +377,10 @@ def create_return(db: Session, cu: CurrentUser, *, order_id: int, reason: str, l
             raise BusinessConflict("return_exceeds_shipped", "Return quantity exceeds what was shipped on this line", shipped=str(sl.qty), already_returned=str(prior))
         so_item.qty_returned = so_item.qty_returned + Decimal(str(l["qty"]))
         r.lines.append(SalesReturnLine(shipment_line_id=sl.id, qty=l["qty"]))
+        ship_ids.add(sl.shipment_id)
+    if len(ship_ids) != 1:
+        raise Unprocessable("A return may cover lines of one shipment only (each shipment has its own invoice); raise one return per shipment")
+    r.shipment_id = next(iter(ship_ids))
     db.add(r)
     db.flush()
     audit.record(db, user=cu, action="create", entity="sales_return", entity_id=r.id, after={"number": r.number}, reason=reason)
@@ -316,7 +410,9 @@ def decide_return(db: Session, cu: CurrentUser, return_id: int, decision: str) -
     if r.status != "RECEIVED":
         raise BusinessConflict("invalid_status", "Only received returns can be decided")
     o = db.get(SalesOrder, r.so_id)
-    invoice = db.scalar(select(SalesInvoice).where(SalesInvoice.so_id == o.id).with_for_update())
+    invoice = db.scalar(select(SalesInvoice).where(SalesInvoice.shipment_id == r.shipment_id).with_for_update()) if r.shipment_id else None
+    if invoice is None:                                                             # legacy rows: one invoice per order
+        invoice = db.scalar(select(SalesInvoice).where(SalesInvoice.so_id == o.id).with_for_update())
     sub = tax = cost = Decimal(0)
     units: list[tuple[ShipmentLine, Decimal]] = []
     for l in sorted(r.lines, key=lambda x: x.shipment_line_id):

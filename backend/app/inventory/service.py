@@ -93,10 +93,11 @@ def release_reservations(db: Session, reservation_ids: list[int]) -> int:
 
 
 def issue(db: Session, *, item_id: int, warehouse_id: int, qty, source_type: str, source_id: int, source_line: int = 0, actor_id: int,
-          reservation_ids: list[int] | None = None, batch_id: int | None = None, movement: str = "ISSUE") -> list[dict]:
-    """Issue stock out. With reservations: consumes exactly those (they must cover `qty`). Without: FEFO over available stock."""
+          reservation_ids: list[int] | None = None, batch_id: int | None = None, movement: str = "ISSUE", allow_split: bool = False) -> list[dict]:
+    """Issue stock out. With reservations: consumes exactly those (they must cover `qty`). Without: FEFO over available stock.
+    allow_split=True lets the last reservation be consumed only in part (partial dispatch): its remaining quantity stays reserved and ACTIVE."""
     need = _positive(qty)
-    legs: list[tuple[dict, Decimal, int | None]] = []   # (balance row, qty, reservation id)
+    legs: list[tuple[dict, Decimal, int | None, Decimal | None]] = []   # (balance row, qty, reservation id, that reservation's qty)
     if reservation_ids:
         bids = repo.get_balance_ids_for_reservations(db, reservation_ids)
         bal = repo.lock_balances(db, bids)
@@ -107,9 +108,9 @@ def issue(db: Session, *, item_id: int, warehouse_id: int, qty, source_type: str
         left = need
         for r in res:
             take = min(r["qty"], left)
-            if take < r["qty"]:
+            if take < r["qty"] and not allow_split:
                 raise BusinessConflict("partial_reservation_issue", "Issue quantity must consume whole reservations; release or split first")
-            legs.append((bal[r["balance_id"]], take, r["id"]))
+            legs.append((bal[r["balance_id"]], take, r["id"], r["qty"]))
             left -= take
             if left <= 0:
                 break
@@ -124,14 +125,16 @@ def issue(db: Session, *, item_id: int, warehouse_id: int, qty, source_type: str
             if left <= 0:
                 break
             take = min(c["qty_available"], left)
-            legs.append((bal[c["id"]], take, None))
+            legs.append((bal[c["id"]], take, None, None))
             left -= take
     out = []
-    for leg, (b, take, rid) in enumerate(legs):
+    for leg, (b, take, rid, res_qty) in enumerate(legs):
         repo.add_ledger(db, balance=b, qty_delta=-take, movement_type=movement, source_type=source_type, source_id=source_id,
                         source_line=source_line, leg=leg, actor_id=actor_id)
         repo.apply_delta(db, b["id"], physical=-take, reserved=-take if rid else Decimal(0))
-        if rid:
+        if rid and take < res_qty:
+            repo.shrink_reservation(db, rid, take)                       # partial: the rest stays reserved for the next shipment
+        elif rid:
             repo.close_reservation(db, rid, "CONSUMED")
         out.append({"balance_id": b["id"], "batch_id": b["batch_id"], "qty": str(take)})
     return out

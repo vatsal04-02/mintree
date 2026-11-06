@@ -106,7 +106,7 @@ def request_reverse_pickup(return_id: int, session_factory=SessionLocal) -> str:
         stale = r.reverse_pickup_status == "REQUESTING" and r.reverse_claimed_at and (datetime.now(timezone.utc) - r.reverse_claimed_at).total_seconds() > lease
         if r.reverse_pickup_status in ("REQUESTED", "REQUESTING") and not stale:
             return None
-        s = db.scalar(select(Shipment).where(Shipment.so_id == r.so_id))
+        s = db.get(Shipment, r.shipment_id) if r.shipment_id else db.scalar(select(Shipment).where(Shipment.so_id == r.so_id).order_by(Shipment.shipment_no))
         o = db.get(SalesOrder, r.so_id)
         r.reverse_pickup_status, r.reverse_claimed_at = "REQUESTING", datetime.now(timezone.utc)
         return {"courier": s.courier, "address": o.shipping_address}
@@ -165,8 +165,8 @@ def invoice_pdf(db: Session, iid: int) -> tuple[str, bytes]:
     cust = db.execute(text("SELECT name, gstin, state, billing_address, shipping_address FROM customers WHERE id = :c"), {"c": inv.customer_id}).mappings().one()
     o = db.get(SalesOrder, inv.so_id)
     lines = db.execute(text("""SELECT it.name, it.hsn_code, soi.tax_rate, soi.unit_price, sum(sl.qty) AS qty FROM shipment_lines sl JOIN shipments s ON s.id = sl.shipment_id
-                                 JOIN sales_order_items soi ON soi.id = sl.so_item_id JOIN items it ON it.id = sl.item_id WHERE s.so_id = :o
-                                GROUP BY it.name, it.hsn_code, soi.tax_rate, soi.unit_price, soi.line_no ORDER BY soi.line_no"""), {"o": inv.so_id}).mappings().all()
+                                 JOIN sales_order_items soi ON soi.id = sl.so_item_id JOIN items it ON it.id = sl.item_id WHERE s.id = :sid OR (CAST(:sid AS bigint) IS NULL AND s.so_id = :o)
+                                GROUP BY it.name, it.hsn_code, soi.tax_rate, soi.unit_price, soi.line_no ORDER BY soi.line_no"""), {"o": inv.so_id, "sid": inv.shipment_id}).mappings().all()
     company = {k: get_setting(db, f"company.{k}") for k in ("name", "gstin", "address", "state_code")}
     intra = (state_code(cust["gstin"], cust["state"]) or str(company["state_code"])) == str(company["state_code"])
     st = getSampleStyleSheet()

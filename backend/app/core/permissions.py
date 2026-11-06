@@ -46,7 +46,7 @@ RESOURCES: dict[str, list[str]] = {
     "procurement.rfq": ["read", "create", "send", "quote", "award"],
     # Dispatch
     "dispatch.order": ["read", "create", "confirm", "allocate", "pack", "dispatch", "cancel"],
-    "dispatch.shipment": ["read", "book"],
+    "dispatch.shipment": ["read", "book", "record"],
     "dispatch.return": ["read", "create", "receive", "decide"],
     "accounts.sales_invoice": ["read"],
     # Production

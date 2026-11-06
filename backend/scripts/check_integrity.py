@@ -167,16 +167,29 @@ CHECKS: list[tuple[str, str, str]] = [
      """SELECT 'sales_invoice', fy, count(*), max(n) FROM (SELECT substring(number from 'SI/([0-9]+-[0-9]+)/') fy, substring(number from '/([0-9]+)$')::int n FROM sales_invoices) x GROUP BY fy HAVING count(*) <> max(n)
         UNION ALL SELECT 'credit_note', fy, count(*), max(n) FROM (SELECT substring(number from 'CN/([0-9]+-[0-9]+)/') fy, substring(number from '/([0-9]+)$')::int n FROM credit_notes) x GROUP BY fy HAVING count(*) <> max(n)"""),
     ("dispatch_documents_are_complete_and_consistent",
-     "Each dispatched/delivered order has exactly one shipment and one invoice (equal total, with a journal); shipped qty equals ledger DISPATCH; returned qty equals return lines",
-     """SELECT 'shipment', o.id FROM sales_orders o WHERE o.status IN ('DISPATCHED','DELIVERED') AND (SELECT count(*) FROM shipments s WHERE s.so_id = o.id) <> 1
-        UNION ALL SELECT 'invoice', o.id FROM sales_orders o WHERE o.status IN ('DISPATCHED','DELIVERED') AND NOT EXISTS
-              (SELECT 1 FROM sales_invoices i WHERE i.so_id = o.id AND i.total = o.total AND i.journal_entry_id IS NOT NULL)
-        UNION ALL SELECT 'shipped', i.id FROM sales_order_items i LEFT JOIN (SELECT source_id, source_line, -sum(qty_delta) s FROM stock_ledger WHERE source_type='sales_order' AND movement_type='DISPATCH' GROUP BY 1,2) l
-              ON l.source_id = i.so_id AND l.source_line = i.line_no WHERE i.qty_shipped <> COALESCE(l.s,0)
+     "Every shipment has exactly one invoice (journal-backed, equal to the sum of its line amounts); an order's invoices sum to what it shipped; shipped qty equals ledger DISPATCH; returned qty equals return lines",
+     """SELECT 'shipment_invoice' AS kind, s.id AS ref FROM shipments s WHERE (SELECT count(*) FROM sales_invoices i WHERE i.shipment_id = s.id) <> 1
+              AND NOT EXISTS (SELECT 1 FROM sales_invoices i WHERE i.shipment_id IS NULL AND i.so_id = s.so_id)
+        UNION ALL SELECT 'invoice_journal', i.id FROM sales_invoices i WHERE i.journal_entry_id IS NULL
+        UNION ALL SELECT 'invoice_vs_lines', i.id FROM sales_invoices i JOIN (SELECT shipment_id, sum(net_amount) n, sum(tax_amount) t, count(*) FILTER (WHERE net_amount IS NULL) nulls FROM shipment_lines GROUP BY 1) l
+              ON l.shipment_id = i.shipment_id WHERE l.nulls = 0 AND (i.subtotal <> l.n OR i.tax_total <> l.t)
+        UNION ALL SELECT 'order_complete_invoiced', o.id FROM sales_orders o WHERE o.status IN ('DISPATCHED','DELIVERED') AND o.short_closed_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM sales_invoices i WHERE i.so_id = o.id) OR (o.status IN ('DISPATCHED','DELIVERED') AND o.short_closed_at IS NULL
+              AND (SELECT COALESCE(sum(i.total),0) FROM sales_invoices i WHERE i.so_id = o.id) <> o.total)
+        UNION ALL SELECT 'partial_status', o.id FROM sales_orders o WHERE o.status = 'PARTIALLY_DISPATCHED'
+              AND (NOT EXISTS (SELECT 1 FROM sales_order_items i WHERE i.so_id = o.id AND i.qty_shipped > 0) OR NOT EXISTS (SELECT 1 FROM sales_order_items i WHERE i.so_id = o.id AND i.qty_shipped < i.qty))
+        UNION ALL SELECT 'shipped', i.id FROM sales_order_items i LEFT JOIN (
+                 SELECT so_id, line_no, sum(s) s FROM (
+                   SELECT source_id AS so_id, source_line AS line_no, -sum(qty_delta) s FROM stock_ledger WHERE source_type='sales_order' AND movement_type='DISPATCH' GROUP BY 1,2
+                   UNION ALL SELECT sh.so_id, l.source_line, -sum(l.qty_delta) FROM stock_ledger l JOIN shipments sh ON sh.id = l.source_id WHERE l.source_type='shipment' AND l.movement_type='DISPATCH' GROUP BY 1,2) u GROUP BY 1,2) l
+              ON l.so_id = i.so_id AND l.line_no = i.line_no WHERE i.qty_shipped <> COALESCE(l.s,0)
+        UNION ALL SELECT 'shipment_lines_vs_item', i.id FROM sales_order_items i WHERE i.qty_shipped <> (SELECT COALESCE(sum(sl.qty),0) FROM shipment_lines sl WHERE sl.so_item_id = i.id)
         UNION ALL SELECT 'returned', i.id FROM sales_order_items i LEFT JOIN (SELECT sl.so_item_id, sum(rl.qty) s FROM sales_return_lines rl JOIN shipment_lines sl ON sl.id = rl.shipment_line_id GROUP BY 1) r
               ON r.so_item_id = i.id WHERE i.qty_returned <> COALESCE(r.s,0)
         UNION ALL SELECT 'payments', i.id FROM sales_invoices i LEFT JOIN (SELECT invoice_id, sum(amount) s FROM payment_allocations WHERE invoice_type='sales_invoice' GROUP BY 1) a
-              ON a.invoice_id = i.id WHERE i.amount_paid <> COALESCE(a.s,0)"""),
+              ON a.invoice_id = i.id WHERE i.amount_paid <> COALESCE(a.s,0)
+        UNION ALL SELECT 'delivered_without_attempt', s.id FROM shipments s WHERE s.status = 'DELIVERED' AND s.delivered_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM delivery_attempts a WHERE a.shipment_id = s.id AND a.outcome = 'DELIVERED')
+              AND EXISTS (SELECT 1 FROM delivery_attempts a2 WHERE a2.shipment_id = s.id)"""),
     ("marketplace_orders_and_sales_orders_agree",
      "Every SO_CREATED marketplace order points to exactly one MARKETPLACE sales order with its external ref; every MARKETPLACE sales order from an account has one external order; EXCEPTION orders have no sales order",
      """SELECT 'so_missing', e.id FROM external_orders e LEFT JOIN sales_orders o ON o.id = e.sales_order_id WHERE e.status = 'SO_CREATED' AND (o.id IS NULL OR o.channel <> 'MARKETPLACE')

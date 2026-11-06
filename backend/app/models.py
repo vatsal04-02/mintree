@@ -42,3 +42,4 @@ from app.procurement.ext_models import PoAmendment, PoAmendmentLine, PurchaseRet
 from app.masters.models import CourierPartner, PaymentMethod, TaxClass, UnitConversion  # noqa: E402,F401
 from app.crm.ext_models import CrmActivity, LeadSource, Opportunity, OpportunityStageHistory  # noqa: E402,F401
 from app.crm.models import Complaint, Lead  # noqa: E402,F401
+from app.dispatch.ext_models import DeliveryAttempt, ProofOfDelivery, ShipmentPackage  # noqa: E402,F401

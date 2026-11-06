@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -53,9 +53,24 @@ class PackIn(_In):
     weight_kg: Annotated[Decimal, Field(gt=0, max_digits=10, decimal_places=3)]
 
 
+class ShipLine(_In):
+    so_item_id: int
+    qty: Decimal = Field(gt=0, max_digits=18, decimal_places=3)
+
+
+class PackageIn(_In):
+    weight_kg: Decimal | None = Field(None, gt=0, max_digits=10, decimal_places=3)
+    length_cm: Decimal | None = Field(None, gt=0, max_digits=8, decimal_places=1)
+    width_cm: Decimal | None = Field(None, gt=0, max_digits=8, decimal_places=1)
+    height_cm: Decimal | None = Field(None, gt=0, max_digits=8, decimal_places=1)
+    contents: str | None = Field(None, max_length=200)
+
+
 class DispatchIn(_In):
     expected_version: int = Field(ge=1)
     courier: str | None = Field(None, max_length=30)
+    lines: list[ShipLine] | None = Field(None, min_length=1, description="omit to ship everything still unshipped; give lines for a partial shipment")
+    packages: list[PackageIn] | None = None
 
 
 class Reason(_In):
@@ -120,7 +135,9 @@ def pack(oid: int, body: PackIn, db: Session = DB, cu: CurrentUser = Depends(req
 @router.post("/orders/{oid}/dispatch")
 def dispatch(oid: int, body: DispatchIn, key: str = Depends(require_idempotency_key), db: Session = DB, cu: CurrentUser = Depends(require("dispatch.order:dispatch"))):
     return idempotent_post(db, cu, scope="dispatch.order.dispatch", key=key, payload={"id": oid, **body.model_dump()},
-                           effect=lambda d: (200, svc.dispatch_order(d, cu, oid, body.expected_version, body.courier), "sales_order", oid))
+                           effect=lambda d: (200, svc.dispatch_order(d, cu, oid, body.expected_version, body.courier,
+                                                                     [l.model_dump() for l in body.lines] if body.lines else None,
+                                                                     [p.model_dump() for p in body.packages] if body.packages else None), "sales_order", oid))
 
 
 @router.post("/orders/{oid}/cancel")
@@ -185,3 +202,20 @@ def receive_return(rid: int, key: str = Depends(require_idempotency_key), db: Se
 def decide_return(rid: int, body: Decision, key: str = Depends(require_idempotency_key), db: Session = DB, cu: CurrentUser = Depends(require("dispatch.return:decide"))):
     return idempotent_post(db, cu, scope="dispatch.return.decide", key=key, payload={"id": rid, **body.model_dump()},
                            effect=lambda d: (200, svc.decide_return(d, cu, rid, body.decision), "sales_return", rid))
+
+
+@router.post("/orders/{oid}/close-short")
+def close_short(oid: int, body: Reason, key: str = Depends(require_idempotency_key), db: Session = DB, cu: CurrentUser = Depends(require("dispatch.order:dispatch"))):
+    return idempotent_post(db, cu, scope="dispatch.order.close_short", key=key, payload={"id": oid, **body.model_dump()},
+                           effect=lambda d: (200, svc.close_short(d, cu, oid, body.reason), "sales_order", oid))
+
+
+@router.get("/orders/{oid}/shipments")
+def order_shipments(oid: int, db: Session = DB, _: CurrentUser = Depends(require("dispatch.shipment:read"))):
+    o = db.get(SalesOrder, oid)
+    if not o:
+        raise NotFound("Sales order")
+    rows = db.execute(text("""SELECT s.id, s.shipment_no, s.status, s.courier, s.awb, s.delivered_at, i.number AS invoice_number, i.total AS invoice_total,
+                                     (SELECT COALESCE(sum(qty),0) FROM shipment_lines WHERE shipment_id = s.id) AS qty
+                                FROM shipments s LEFT JOIN sales_invoices i ON i.shipment_id = s.id WHERE s.so_id = :o ORDER BY s.shipment_no"""), {"o": oid}).mappings().all()
+    return {"order": o.number, "order_status": o.status, "shipments": [{**dict(r), "qty": str(r["qty"]), "invoice_total": None if r["invoice_total"] is None else str(r["invoice_total"])} for r in rows]}

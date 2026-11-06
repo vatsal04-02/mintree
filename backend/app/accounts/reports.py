@@ -104,7 +104,7 @@ def gst_summary(db: Session, start: date, end: date) -> dict:
     rows = db.execute(text("""
         SELECT i.id AS invoice_id, i.number, i.invoice_date, c.id AS customer_id, c.name, c.gstin, c.state, it.hsn_code, soi.tax_rate,
                sum(sl.qty * soi.unit_price) AS taxable, sum(sl.qty) AS qty
-          FROM sales_invoices i JOIN customers c ON c.id = i.customer_id JOIN shipments sh ON sh.so_id = i.so_id
+          FROM sales_invoices i JOIN customers c ON c.id = i.customer_id JOIN shipments sh ON sh.id = i.shipment_id OR (i.shipment_id IS NULL AND sh.so_id = i.so_id)
           JOIN shipment_lines sl ON sl.shipment_id = sh.id JOIN sales_order_items soi ON soi.id = sl.so_item_id JOIN items it ON it.id = sl.item_id
          WHERE i.invoice_date BETWEEN :s AND :e GROUP BY i.id, c.id, it.hsn_code, soi.tax_rate ORDER BY i.id"""), {"s": start, "e": end}).mappings().all()
     by_rate: dict[str, dict] = {}
@@ -193,7 +193,7 @@ def product_costing(db: Session, start: date, end: date) -> dict:
           FROM items it LEFT JOIN item_valuation v ON v.item_id = it.id
           LEFT JOIN (SELECT sl.item_id, sum(sl.qty) qty, sum(sl.qty * soi.unit_price) revenue, sum(sl.qty * sl.unit_cost) cogs
                        FROM shipment_lines sl JOIN shipments sh ON sh.id = sl.shipment_id JOIN sales_order_items soi ON soi.id = sl.so_item_id
-                       JOIN sales_invoices i ON i.so_id = sh.so_id WHERE i.invoice_date BETWEEN :s AND :e GROUP BY sl.item_id) s ON s.item_id = it.id
+                       JOIN sales_invoices i ON i.shipment_id = sh.id OR (i.shipment_id IS NULL AND i.so_id = sh.so_id) WHERE i.invoice_date BETWEEN :s AND :e GROUP BY sl.item_id) s ON s.item_id = it.id
          WHERE it.kind = 'FG' AND (s.qty IS NOT NULL OR v.qty > 0 OR EXISTS (SELECT 1 FROM production_orders po WHERE po.output_item_id = it.id)) ORDER BY it.item_code"""), {"s": start, "e": end}).mappings().all()
     waste = db.execute(text("""SELECT po.output_item_id AS item_id, sum(w.qty) AS qty, sum(w.qty * COALESCE(po.unit_cost, 0)) AS value_at_cost
                                  FROM wastage_records w JOIN production_orders po ON po.id = w.order_id GROUP BY po.output_item_id""")).mappings().all()
