@@ -87,6 +87,9 @@ class Shipment(Base):
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))   # booking lease (a dead worker's claim expires)
     last_error: Mapped[str | None] = mapped_column(Text)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    shipping_charge: Mapped[Decimal | None] = mapped_column(MONEY)              # courier freight actually charged (recorded for margin; not posted)
+    pickup_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    manifest_no: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     lines: Mapped[list["ShipmentLine"]] = relationship(lazy="selectin")
     __table_args__ = (CheckConstraint("status IN ('PENDING_BOOKING','BOOKING','BOOKED','PICKED_UP','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','FAILED_DELIVERY','RTO')", name="status_valid"),)
@@ -129,6 +132,9 @@ class SalesReturn(Base):
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     credit_note_id: Mapped[int | None] = mapped_column(BigInteger)
+    reverse_pickup_status: Mapped[str | None] = mapped_column(String(12))        # REQUESTING | REQUESTED | FAILED
+    reverse_awb: Mapped[str | None] = mapped_column(String(60))
+    reverse_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lines: Mapped[list["SalesReturnLine"]] = relationship(lazy="selectin")
     __table_args__ = (CheckConstraint("status IN ('REQUESTED','RECEIVED','DECIDED')", name="status_valid"),
                       CheckConstraint("decision IS NULL OR decision IN ('RESTOCK','REJECT')", name="decision_valid"))

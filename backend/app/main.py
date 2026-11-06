@@ -11,6 +11,8 @@ from sqlalchemy import text
 from app.administration.router import router as admin_router
 from app.accounts.ext_router import router as accounts_ext_router
 from app.analytics.router import router as analytics_router
+from app.dispatch.extras_router import router as dispatch_extras_router
+from app.sales.router import router as sales_router
 from app.approvals.router import router as approvals_router
 from app.notifications.router import router as notifications_router
 from app.procurement.rfq_router import router as rfq_router
@@ -93,5 +95,5 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
-for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router, maintenance_router, ecommerce_router, crm_router, branding_router, analytics_router, approvals_router, notifications_router, rfq_router, accounts_ext_router):
+for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router, maintenance_router, ecommerce_router, crm_router, branding_router, analytics_router, approvals_router, notifications_router, rfq_router, accounts_ext_router, dispatch_extras_router, sales_router):
     app.include_router(r, prefix="/api")

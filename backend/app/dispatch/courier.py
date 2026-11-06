@@ -15,6 +15,8 @@ class CourierAdapter(Protocol):
 
     def book(self, *, client_ref: str, address: str | None, weight_kg: float | None, cartons: int | None) -> Booking: ...
 
+    def reverse_pickup(self, *, client_ref: str, address: str | None) -> Booking: ...
+
 
 class FakeCourier:
     """Deterministic stand-in used until Mintree confirms its logistics providers (PRD §12). Same client_ref => same AWB."""
@@ -23,6 +25,10 @@ class FakeCourier:
 
     def book(self, *, client_ref, address, weight_kg, cartons) -> Booking:
         return Booking(awb=f"FAKE{int(client_ref):010d}", tracking_url=f"https://track.example.com/FAKE{int(client_ref):010d}")
+
+
+    def reverse_pickup(self, *, client_ref, address) -> Booking:
+        return Booking(awb=f"FAKER{int(client_ref):09d}", tracking_url=f"https://track.example.com/FAKER{int(client_ref):09d}")
 
 
 _ADAPTERS: dict[str, CourierAdapter] = {"fake": FakeCourier()}
