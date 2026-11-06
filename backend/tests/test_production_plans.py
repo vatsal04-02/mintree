@@ -177,3 +177,18 @@ def test_stage_work_centre_assignment(plant, db):
     assert plant["pm"].put(f"/api/production/orders/{o['id']}/stages/1/work-centre", json={"work_centre_id": 99999999}).status_code == 422
     assert plant["pm"].put(f"/api/production/orders/{o['id']}/stages/99/work-centre", json={"work_centre_id": c}).status_code == 404
     assert plant["op"].put(f"/api/production/orders/{o['id']}/stages/1/work-centre", json={"work_centre_id": c}).status_code == 403
+
+
+def test_convert_next_walks_the_lines_in_order(plant, db):
+    m = mk_master("CNX")
+    bom, _ = active_bom(plant, m)
+    p = mk_plan(plant["pm"], [line(bom, m["wh1"], "10", 1), line(bom, m["wh1"], "20", 2)]).json()
+    assert plant["pm"].post(f"/api/production/plans/{p['id']}/convert-next").json()["detail"]["code"] == "plan_not_confirmed"
+    plant["pm"].post(f"/api/production/plans/{p['id']}/confirm", json={"expected_version": p["version"]})
+    a = plant["pm"].post(f"/api/production/plans/{p['id']}/convert-next")
+    b = plant["pm"].post(f"/api/production/plans/{p['id']}/convert-next")
+    assert (a.status_code, b.status_code) == (201, 201)
+    assert [N(db.scalar(text("SELECT planned_qty FROM production_orders WHERE id=:i"), {"i": r.json()["order"]["id"]})) for r in (a, b)] == [N("10"), N("20")]
+    done = plant["pm"].post(f"/api/production/plans/{p['id']}/convert-next")
+    assert done.status_code == 409 and done.json()["detail"]["code"] == "nothing_to_convert"
+    assert plant["op"].post(f"/api/production/plans/{p['id']}/convert-next").status_code == 403

@@ -130,6 +130,17 @@ def convert_line(db: Session, cu: CurrentUser, pid: int, line_no: int) -> dict:
     return plan_dict(p) | {"order": o}
 
 
+def convert_next(db: Session, cu: CurrentUser, pid: int) -> dict:
+    """Convert the first plan line that has no production order yet (what a 'Convert next line' button needs)."""
+    p = db.get(ProductionPlan, pid)
+    if not p:
+        raise NotFound("Production plan")
+    nxt = next((l.line_no for l in p.lines if not l.order_id), None)
+    if nxt is None:
+        raise BusinessConflict("nothing_to_convert", "Every line of this plan already has a production order")
+    return convert_line(db, cu, pid, nxt)
+
+
 def close_plan(db: Session, cu: CurrentUser, pid: int, cancel: bool, reason: str | None) -> dict:
     p = _lock(db, pid)
     if cancel:

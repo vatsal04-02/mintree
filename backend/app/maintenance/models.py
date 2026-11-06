@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import date, datetime
 
 from sqlalchemy.dialects.postgresql import JSONB
@@ -100,7 +101,7 @@ class SparePartUsage(Base):
     work_order_id: Mapped[int] = mapped_column(ForeignKey("maintenance_work_orders.id"))
     part_name: Mapped[str] = mapped_column(String(160))
     qty: Mapped[int] = mapped_column(Integer)
-    unit_cost: Mapped[float | None] = mapped_column(Numeric(18, 2))
+    unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"),)

@@ -1,4 +1,4 @@
-.venv/
+.venv
 __pycache__/
 *.pyc
 node_modules/
@@ -6,7 +6,7 @@ node_modules/
 .env
 storage/
 .pytest_cache/
-.next-e2e/
+.next-e2e*/
 *.whl
 
 # Redis snapshots (created when redis-server is started from a project folder)

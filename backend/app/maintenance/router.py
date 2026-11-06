@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -151,7 +152,7 @@ class ChecklistIn(_In):
 class SpareIn(_In):
     part_name: str = Field(min_length=1, max_length=160)
     qty: int = Field(gt=0, le=10000)
-    unit_cost: float | None = Field(default=None, ge=0)
+    unit_cost: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
 
 
 @router.post("/work-orders/{wid}/checklist")

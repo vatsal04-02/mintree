@@ -74,3 +74,22 @@ def test_permissions_enforced(admin, login, anon):
     mgmt = login("management")
     assert mgmt.get("/api/masters/payment-methods").status_code == 200       # read-only visibility
     assert mgmt.post("/api/masters/payment-methods", json={"code": "q", "name": "q", "kind": "CASH"}).status_code == 403
+
+
+def test_spare_part_cost_is_exact_decimal_not_float(login):
+    """Money must never pass through a float: 0.1 + 0.2 style values round-trip exactly and sub-paisa precision is refused."""
+    m = login("maintenance_manager")
+    eq = m.post("/api/maintenance/equipment", json={"asset_id": f"EQ-{uuid_hex()}", "name": "Test mixer"}).json()
+    wo = m.post("/api/maintenance/breakdowns", json={"equipment_id": eq["id"], "description": "Gearbox noise"}).json()
+    assert m.post(f"/api/maintenance/work-orders/{wo['id']}/assign", json={"assignee_id": m.user.id}).status_code == 200
+    assert m.post(f"/api/maintenance/work-orders/{wo['id']}/start").status_code == 200
+    ok = m.post(f"/api/maintenance/work-orders/{wo['id']}/spare-parts", json={"part_name": "Seal", "qty": 3, "unit_cost": "1234.56"})
+    assert ok.status_code == 201 and ok.json()["unit_cost"] == "1234.56"
+    assert m.get(f"/api/maintenance/work-orders/{wo['id']}/spare-parts").json()[0]["unit_cost"] == "1234.56"
+    assert m.post(f"/api/maintenance/work-orders/{wo['id']}/spare-parts", json={"part_name": "Seal", "qty": 1, "unit_cost": "1.005"}).status_code == 422
+    assert m.post(f"/api/maintenance/work-orders/{wo['id']}/spare-parts", json={"part_name": "Seal", "qty": 1, "unit_cost": "-1"}).status_code == 422
+
+
+def uuid_hex():
+    import uuid
+    return uuid.uuid4().hex[:8].upper()

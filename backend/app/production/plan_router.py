@@ -126,6 +126,11 @@ def convert(pid: int, line_no: int, db: Session = DB, cu: CurrentUser = Depends(
     return run_tx(db, lambda d: svc.convert_line(d, cu, pid, line_no), name="production.plan.convert")
 
 
+@router.post("/plans/{pid}/convert-next", status_code=201)
+def convert_next(pid: int, db: Session = DB, cu: CurrentUser = Depends(require("production.order:create"))):
+    return run_tx(db, lambda d: svc.convert_next(d, cu, pid), name="production.plan.convert_next")
+
+
 @router.post("/plans/{pid}/close")
 def close(pid: int, body: CloseIn, db: Session = DB, cu: CurrentUser = Depends(require("production.plan:confirm"))):
     return run_tx(db, lambda d: svc.close_plan(d, cu, pid, body.cancel, body.reason), name="production.plan.close")

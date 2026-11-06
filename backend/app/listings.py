@@ -25,7 +25,7 @@ QUERIES = {
         """SELECT r.id, r.number, r.status, r.decision, r.reason, r.reverse_pickup_status, r.reverse_awb, o.number AS order_number FROM sales_returns r JOIN sales_orders o ON o.id = r.so_id
             ORDER BY r.id DESC LIMIT :n OFFSET :o""", "returns"),
     "shipments": ("/dispatch/shipments", "dispatch.shipment:read",
-        """SELECT s.id, s.status, s.courier, s.awb, s.manifest_no, s.shipping_charge, s.created_at, o.number AS order_number FROM shipments s JOIN sales_orders o ON o.id = s.so_id
+        """SELECT s.id, s.shipment_no, s.status, s.courier, s.awb, s.manifest_no, s.shipping_charge, s.created_at, o.number AS order_number FROM shipments s JOIN sales_orders o ON o.id = s.so_id
             ORDER BY s.id DESC LIMIT :n OFFSET :o""", "shipments"),
     "stocktakes": ("/inventory/stocktakes", "inventory.stocktake:count",
         """SELECT s.id, s.number, s.status, s.warehouse_id, w.code AS warehouse, s.created_at FROM stocktakes s JOIN warehouses w ON w.id = s.warehouse_id ORDER BY s.id DESC LIMIT :n OFFSET :o""", "stocktakes"),

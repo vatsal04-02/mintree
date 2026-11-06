@@ -727,7 +727,7 @@ def maintenance(c: Ctx) -> dict:
     c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/start"))
     for i in range(3):
         c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/checklist", json={"index": i, "done": True}))
-    c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/spare-parts", json={"part_name": "Gearbox oil 5 L", "qty": 2, "unit_cost": 1250}))
+    c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/spare-parts", json={"part_name": "Gearbox oil 5 L", "qty": 2, "unit_cost": "1250.00"}))
     c.ok(mm.post(f"/api/maintenance/work-orders/{mix_wo['id']}/complete", json={"root_cause": None, "repair_notes": "Oil changed; seals intact."}))
     c.ok(c.u("admin").post(f"/api/maintenance/work-orders/{mix_wo['id']}/verify"))
     # breakdown on the homogeniser: downtime starts, repair uses spare parts, closes the downtime
@@ -735,7 +735,7 @@ def maintenance(c: Ctx) -> dict:
         bd = c.ok(mm.post("/api/maintenance/breakdowns", json={"equipment_id": eq["EQ-HOMOG-01"], "description": "Mechanical seal leaking; machine stopped", "priority": "HIGH", "production_impact": "Bulk batches delayed by a day"}))
         c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/assign", json={"assignee_id": tech}))
         c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/start"))
-        c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/spare-parts", json={"part_name": "Mechanical seal kit", "qty": 1, "unit_cost": 8400}))
+        c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/spare-parts", json={"part_name": "Mechanical seal kit", "qty": 1, "unit_cost": "8400.00"}))
         c.ok(mm.post(f"/api/maintenance/work-orders/{bd['id']}/complete", json={"root_cause": "Seal face worn after 14 months", "repair_notes": "Seal kit replaced; pressure-tested."}))
         c.ok(c.u("admin").post(f"/api/maintenance/work-orders/{bd['id']}/verify"))
     out.update(mixer_wo=mix_wo["id"], breakdown_wo=bd["id"], overdue_schedule=s2["id"], generated=gen)
