@@ -41,7 +41,7 @@ def _set_cookie(response: Response, token: str) -> None:
 
 
 @router.post("/login", response_model=MeOut)
-def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db, scope="function")):
     s = get_settings()
     now = datetime.now(timezone.utc)
     email = body.email.lower()
@@ -92,7 +92,7 @@ def me(cu: CurrentUser = Depends(current_user_allow_pw_change)):
 
 
 @router.post("/logout", status_code=204)
-def logout(response: Response, db: Session = Depends(get_db), cu: CurrentUser = Depends(current_user_allow_pw_change)):
+def logout(response: Response, db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(current_user_allow_pw_change)):
     cu.session.revoked_at = datetime.now(timezone.utc)
     audit.record(db, user=cu.user, action="logout", entity="user", entity_id=cu.user.id)
     response.delete_cookie(get_settings().session_cookie_name, path="/")
@@ -100,7 +100,7 @@ def logout(response: Response, db: Session = Depends(get_db), cu: CurrentUser = 
 
 @router.post("/change-password", status_code=204)
 def change_password(
-    body: ChangePasswordIn, db: Session = Depends(get_db), cu: CurrentUser = Depends(current_user_allow_pw_change)
+    body: ChangePasswordIn, db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(current_user_allow_pw_change)
 ):
     if not verify_password(body.current_password, cu.user.password_hash):
         raise Unprocessable("Current password is incorrect")

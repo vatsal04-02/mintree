@@ -73,7 +73,7 @@ def _store(upload: UploadFile, storage: Storage) -> tuple[str, str, int, str, st
 def list_documents(
     q: str | None = None, doc_type: str | None = None, entity_type: str | None = None, entity_id: str | None = None,
     page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db), _: CurrentUser = Depends(require("documents.document:read")),
+    db: Session = Depends(get_db, scope="function"), _: CurrentUser = Depends(require("documents.document:read")),
 ):
     stmt = select(Document).where(Document.is_deleted.is_(False))
     if doc_type:
@@ -96,7 +96,7 @@ def upload_document(
     file: UploadFile = File(...), title: str = Form(..., min_length=1, max_length=200),
     doc_type: str = Form("OTHER"), description: str | None = Form(None),
     entity_type: str | None = Form(None), entity_id: str | None = Form(None),
-    db: Session = Depends(get_db), cu: CurrentUser = Depends(require("documents.document:create")),
+    db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(require("documents.document:create")),
     storage: Storage = Depends(get_storage),
 ):
     if doc_type not in s.DOC_TYPES:
@@ -126,12 +126,12 @@ def upload_document(
 
 
 @router.get("/{doc_id}", response_model=s.DocumentOut)
-def get_document(doc_id: int, db: Session = Depends(get_db), _: CurrentUser = Depends(require("documents.document:read"))):
+def get_document(doc_id: int, db: Session = Depends(get_db, scope="function"), _: CurrentUser = Depends(require("documents.document:read"))):
     return _get(db, doc_id)
 
 
 @router.patch("/{doc_id}", response_model=s.DocumentOut)
-def update_document(doc_id: int, body: s.DocumentUpdate, db: Session = Depends(get_db),
+def update_document(doc_id: int, body: s.DocumentUpdate, db: Session = Depends(get_db, scope="function"),
                     cu: CurrentUser = Depends(require("documents.document:update"))):
     d = _get(db, doc_id)
     data = body.model_dump(exclude_unset=True)
@@ -149,7 +149,7 @@ def update_document(doc_id: int, body: s.DocumentUpdate, db: Session = Depends(g
 @router.post("/{doc_id}/versions", response_model=s.DocumentOut, status_code=201)
 def upload_version(
     doc_id: int, file: UploadFile = File(...), note: str | None = Form(None, max_length=300),
-    db: Session = Depends(get_db), cu: CurrentUser = Depends(require("documents.document:update")),
+    db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(require("documents.document:update")),
     storage: Storage = Depends(get_storage),
 ):
     d = db.scalar(select(Document).where(Document.id == doc_id, Document.is_deleted.is_(False)).with_for_update())
@@ -172,7 +172,7 @@ def upload_version(
 
 
 @router.get("/{doc_id}/download")
-def download(doc_id: int, version: int | None = None, db: Session = Depends(get_db),
+def download(doc_id: int, version: int | None = None, db: Session = Depends(get_db, scope="function"),
              cu: CurrentUser = Depends(require("documents.document:download")),
              storage: Storage = Depends(get_storage)):
     d = _get(db, doc_id)
@@ -196,7 +196,7 @@ def download(doc_id: int, version: int | None = None, db: Session = Depends(get_
 
 
 @router.post("/{doc_id}/links", response_model=s.DocumentOut, status_code=201)
-def add_link(doc_id: int, body: s.LinkIn, db: Session = Depends(get_db),
+def add_link(doc_id: int, body: s.LinkIn, db: Session = Depends(get_db, scope="function"),
              cu: CurrentUser = Depends(require("documents.document:update"))):
     d = _get(db, doc_id)
     if any(l.entity_type == body.entity_type and l.entity_id == body.entity_id for l in d.links):
@@ -211,7 +211,7 @@ def add_link(doc_id: int, body: s.LinkIn, db: Session = Depends(get_db),
 
 
 @router.delete("/{doc_id}/links/{link_id}", status_code=204)
-def remove_link(doc_id: int, link_id: int, db: Session = Depends(get_db),
+def remove_link(doc_id: int, link_id: int, db: Session = Depends(get_db, scope="function"),
                 cu: CurrentUser = Depends(require("documents.document:update"))):
     d = _get(db, doc_id)
     link = next((l for l in d.links if l.id == link_id), None)
@@ -223,7 +223,7 @@ def remove_link(doc_id: int, link_id: int, db: Session = Depends(get_db),
 
 
 @router.delete("/{doc_id}", status_code=204)
-def delete_document(doc_id: int, db: Session = Depends(get_db),
+def delete_document(doc_id: int, db: Session = Depends(get_db, scope="function"),
                     cu: CurrentUser = Depends(require("documents.document:delete"))):
     """Soft delete only: files and version history are retained for traceability."""
     d = _get(db, doc_id)

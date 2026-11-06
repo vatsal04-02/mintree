@@ -65,7 +65,7 @@ def _user_snap(u: User) -> dict:
 
 @router.get("/users", response_model=Page[s.UserOut])
 def list_users(q: str | None = None, is_active: bool | None = None, page: int = Query(1, ge=1),
-               page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db),
+               page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db, scope="function"),
                _: CurrentUser = Depends(require("admin.user:read"))):
     stmt = select(User)
     if is_active is not None:
@@ -79,7 +79,7 @@ def list_users(q: str | None = None, is_active: bool | None = None, page: int = 
 
 
 @router.get("/users/{user_id}", response_model=s.UserOut)
-def get_user(user_id: int, db: Session = Depends(get_db), _: CurrentUser = Depends(require("admin.user:read"))):
+def get_user(user_id: int, db: Session = Depends(get_db, scope="function"), _: CurrentUser = Depends(require("admin.user:read"))):
     u = db.get(User, user_id)
     if not u:
         raise NotFound("User")
@@ -87,7 +87,7 @@ def get_user(user_id: int, db: Session = Depends(get_db), _: CurrentUser = Depen
 
 
 @router.post("/users", response_model=s.UserOut, status_code=201)
-def create_user(body: s.UserCreate, db: Session = Depends(get_db), cu: CurrentUser = Depends(require("admin.user:create"))):
+def create_user(body: s.UserCreate, db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(require("admin.user:create"))):
     if err := validate_password_strength(body.temporary_password):
         raise Unprocessable(err)
     roles = _roles_by_ids(db, body.role_ids)
@@ -101,7 +101,7 @@ def create_user(body: s.UserCreate, db: Session = Depends(get_db), cu: CurrentUs
 
 
 @router.patch("/users/{user_id}", response_model=s.UserOut)
-def update_user(user_id: int, body: s.UserUpdate, db: Session = Depends(get_db),
+def update_user(user_id: int, body: s.UserUpdate, db: Session = Depends(get_db, scope="function"),
                 cu: CurrentUser = Depends(require("admin.user:update"))):
     u = db.get(User, user_id)
     if not u:
@@ -136,7 +136,7 @@ def update_user(user_id: int, body: s.UserUpdate, db: Session = Depends(get_db),
 
 
 @router.post("/users/{user_id}/reset-password", status_code=204)
-def reset_password(user_id: int, body: s.ResetPasswordIn, db: Session = Depends(get_db),
+def reset_password(user_id: int, body: s.ResetPasswordIn, db: Session = Depends(get_db, scope="function"),
                    cu: CurrentUser = Depends(require("admin.user:update"))):
     u = db.get(User, user_id)
     if not u:
@@ -172,18 +172,18 @@ def _perms_by_codes(db: Session, codes: list[str]) -> list[Permission]:
 
 
 @router.get("/permissions", response_model=list[s.PermissionOut])
-def list_permissions(db: Session = Depends(get_db), _: CurrentUser = Depends(require("admin.role:read"))):
+def list_permissions(db: Session = Depends(get_db, scope="function"), _: CurrentUser = Depends(require("admin.role:read"))):
     return db.scalars(select(Permission).order_by(Permission.resource, Permission.action)).all()
 
 
 @router.get("/roles", response_model=list[s.RoleOut])
-def list_roles(db: Session = Depends(get_db), _: CurrentUser = Depends(require("admin.role:read"))):
+def list_roles(db: Session = Depends(get_db, scope="function"), _: CurrentUser = Depends(require("admin.role:read"))):
     counts = _counts(db)
     return [_role_out(r, counts) for r in db.scalars(select(Role).order_by(Role.name))]
 
 
 @router.post("/roles", response_model=s.RoleOut, status_code=201)
-def create_role(body: s.RoleCreate, db: Session = Depends(get_db), cu: CurrentUser = Depends(require("admin.role:create"))):
+def create_role(body: s.RoleCreate, db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(require("admin.role:create"))):
     perms = _perms_by_codes(db, body.permission_codes)
     if not {p.code for p in perms} <= cu.permissions:
         raise Forbidden("You cannot grant permissions you do not hold yourself")
@@ -196,7 +196,7 @@ def create_role(body: s.RoleCreate, db: Session = Depends(get_db), cu: CurrentUs
 
 
 @router.patch("/roles/{role_id}", response_model=s.RoleOut)
-def update_role(role_id: int, body: s.RoleUpdate, db: Session = Depends(get_db),
+def update_role(role_id: int, body: s.RoleUpdate, db: Session = Depends(get_db, scope="function"),
                 cu: CurrentUser = Depends(require("admin.role:update"))):
     r = db.get(Role, role_id)
     if not r:
@@ -236,7 +236,7 @@ def list_audit(
     entity: str | None = None, entity_id: str | None = None, action: str | None = None, user_id: int | None = None,
     date_from: datetime | None = None, date_to: datetime | None = None, q: str | None = None,
     page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db), _: CurrentUser = Depends(require("admin.audit:read")),
+    db: Session = Depends(get_db, scope="function"), _: CurrentUser = Depends(require("admin.audit:read")),
 ):
     stmt = select(AuditLog)
     for col, val in (("entity", entity), ("entity_id", entity_id), ("action", action), ("user_id", user_id)):

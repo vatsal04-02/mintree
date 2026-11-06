@@ -139,7 +139,7 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
         page: int = Query(1, ge=1),
         page_size: int = Query(50, ge=1, le=500),
         filters: dict = Depends(filter_deps()),
-        db: Session = Depends(get_db),
+        db: Session = Depends(get_db, scope="function"),
         cu: CurrentUser = Depends(require(f"{r.perm}:read")),
     ):
         stmt = base_query(q, is_active, include_inactive, filters)
@@ -154,7 +154,7 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
             is_active: bool | None = None,
             include_inactive: bool = False,
             filters: dict = Depends(filter_deps()),
-            db: Session = Depends(get_db),
+            db: Session = Depends(get_db, scope="function"),
             cu: CurrentUser = Depends(require(f"{r.perm}:export")),
         ):
             rows = db.scalars(sorted_stmt(base_query(q, is_active, include_inactive, filters), r.default_sort)).unique().all()
@@ -172,13 +172,13 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
             )
 
     @router.get("/{id_}", response_model=Read)
-    def get_(id_: int, db: Session = Depends(get_db), cu: CurrentUser = Depends(require(f"{r.perm}:read"))):
+    def get_(id_: int, db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(require(f"{r.perm}:read"))):
         return to_out(get_or_404(db, id_), cu)
 
     @router.post("", response_model=Read, status_code=201)
     def create(
         body: r.create_schema,  # type: ignore[valid-type]
-        db: Session = Depends(get_db),
+        db: Session = Depends(get_db, scope="function"),
         cu: CurrentUser = Depends(require(f"{r.perm}:create")),
     ):
         data = body.model_dump()
@@ -197,7 +197,7 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
     def update(
         id_: int,
         body: r.update_schema,  # type: ignore[valid-type]
-        db: Session = Depends(get_db),
+        db: Session = Depends(get_db, scope="function"),
         cu: CurrentUser = Depends(require(f"{r.perm}:update")),
     ):
         obj = get_or_404(db, id_)
@@ -218,7 +218,7 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
 
     if r.has_active_flag:
         @router.delete("/{id_}", status_code=204)
-        def deactivate(id_: int, db: Session = Depends(get_db), cu: CurrentUser = Depends(require(f"{r.perm}:delete"))):
+        def deactivate(id_: int, db: Session = Depends(get_db, scope="function"), cu: CurrentUser = Depends(require(f"{r.perm}:delete"))):
             obj = get_or_404(db, id_)
             if obj.is_active:
                 obj.is_active = False

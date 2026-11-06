@@ -1,5 +1,8 @@
 import logging
 import uuid
+from contextlib import asynccontextmanager
+
+import anyio.to_thread
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -10,27 +13,30 @@ from app.auth.router import router as auth_router
 from app.core.config import get_settings
 from app.core.context import client_ip_var, request_id_var
 from app.core.db import SessionLocal
+from app.core.middleware import AdmissionControl, RequestContextMiddleware
 from app.documents.router import router as documents_router
 from app.masters.router import router as masters_router
 
 log = logging.getLogger("mintree")
 
-app = FastAPI(title="Mintree Factory OS", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    s = get_settings()
+    anyio.to_thread.current_default_thread_limiter().total_tokens = s.threadpool_size or (slots() + 4)
+    yield
 
 
-@app.middleware("http")
-async def request_context(request: Request, call_next):
-    rid = request.headers.get("x-request-id") or uuid.uuid4().hex
-    request_id_var.set(rid[:64])
-    client_ip_var.set(request.client.host if request.client else None)
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = rid[:64]
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "same-origin"
-    if request.url.path.startswith("/api") and "cache-control" not in response.headers:
-        response.headers["Cache-Control"] = "no-store"
-    return response
+def slots() -> int:
+    s = get_settings()
+    return s.max_in_flight or (s.db_pool_size + s.db_max_overflow)
+
+
+app = FastAPI(title="Mintree Factory OS", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json",
+              lifespan=lifespan)
+# Order: last added runs first. Request context must wrap admission control so shed requests still get an ID.
+app.add_middleware(AdmissionControl, slots=slots(), timeout_s=get_settings().admission_timeout_s,
+                   exempt_prefixes=("/api/metrics",))
+app.add_middleware(RequestContextMiddleware)
 
 
 @app.exception_handler(Exception)

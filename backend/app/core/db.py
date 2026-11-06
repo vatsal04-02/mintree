@@ -19,7 +19,30 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING)
 
 
-engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+def _connect_options() -> str:
+    s = get_settings()
+    opts = []
+    for name, val in (("statement_timeout", s.db_statement_timeout_ms), ("lock_timeout", s.db_lock_timeout_ms),
+                      ("idle_in_transaction_session_timeout", s.db_idle_in_tx_timeout_ms)):
+        if val:
+            opts.append(f"-c {name}={val}")
+    return " ".join(opts)
+
+
+def _make_engine():
+    s = get_settings()
+    return create_engine(
+        s.database_url,
+        pool_size=s.db_pool_size,
+        max_overflow=s.db_max_overflow,
+        pool_timeout=s.db_pool_timeout_s,
+        pool_recycle=s.db_pool_recycle_s,
+        pool_pre_ping=True,
+        connect_args={"options": _connect_options(), "application_name": "mintree-api"},
+    )
+
+
+engine = _make_engine()
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
 

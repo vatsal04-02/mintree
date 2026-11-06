@@ -59,13 +59,13 @@ def _load(request: Request, db: Session, *, allow_password_change: bool) -> Curr
     return CurrentUser(user=user, session=sess, permissions=perms)
 
 
-def current_user(request: Request, db: Session = Depends(get_db)) -> CurrentUser:
+def current_user(request: Request, db: Session = Depends(get_db, scope="function")) -> CurrentUser:
     cu = _load(request, db, allow_password_change=False)
     request.state.current_user = cu
     return cu
 
 
-def current_user_allow_pw_change(request: Request, db: Session = Depends(get_db)) -> CurrentUser:
+def current_user_allow_pw_change(request: Request, db: Session = Depends(get_db, scope="function")) -> CurrentUser:
     return _load(request, db, allow_password_change=True)
 
 
