@@ -9,10 +9,10 @@ export function Badge({ tone = "neutral", children }: { tone?: Tone; children: R
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+    <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
       <div className="min-w-0">
-        <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.01em]">{title}</h1>
-        {description && <p className="text-muted text-[13px] mt-0.5 max-w-2xl">{description}</p>}
+        <h1 className="t-page">{title}</h1>
+        {description && <p className="t-label mt-1 max-w-2xl">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -80,7 +80,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
         className="anim-slide relative bg-surface border-l border-line h-full flex flex-col w-full outline-none shadow-2xl" style={{ maxWidth: width }}>
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-line">
           <div className="min-w-0">
-            <h2 id={id} className="text-[17px] font-semibold leading-6">{title}</h2>
+            <h2 id={id} className="t-section">{title}</h2>
             {subtitle && <p className="text-muted text-[12px] mt-0.5">{subtitle}</p>}
           </div>
           <button className="btn btn-ghost btn-sm !px-1.5" onClick={onClose} aria-label="Close"><X size={16} /></button>
@@ -106,7 +106,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel, danger, busy, o
     <div className="fixed inset-0 z-[70] grid place-items-center p-4">
       <div className="absolute inset-0 bg-black/40 anim-fade" onClick={onCancel} />
       <div role="alertdialog" aria-modal="true" className="anim-fade relative panel w-full max-w-sm p-5 shadow-2xl">
-        <h2 className="font-semibold text-[15px]">{title}</h2>
+        <h2 className="t-section">{title}</h2>
         <p className="text-muted mt-1.5 text-[13px]">{body}</p>
         <div className="flex justify-end gap-2 mt-5">
           <button className="btn" onClick={onCancel}>Cancel</button>

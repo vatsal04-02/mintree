@@ -87,14 +87,15 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: 13.5px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 20px;
   font-feature-settings: "cv11", "ss01";
+  font-variant-numeric: tabular-nums lining-nums;      /* every digit in the product is tabular and lining, so columns and cards line up without per-component rules */
   -webkit-font-smoothing: antialiased;
 }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
-.tnum { font-variant-numeric: tabular-nums; }
+.tnum { font-variant-numeric: tabular-nums lining-nums; }
 
 /* ---- Component classes ---- */
 .btn {
@@ -141,10 +142,15 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
   background-image: radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 1.2px); background-size: 22px 22px;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%); mask-image: linear-gradient(180deg, #000 0%, transparent 75%); }
 
-/* Display figures: large, tight, tabular; currency symbol and decimals step back so the amount reads first. */
-.fig { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum", "cv11"; letter-spacing: -0.035em; line-height: 1; font-weight: 600; }
-.fig .cur { font-size: 0.56em; font-weight: 500; letter-spacing: 0; color: var(--muted); margin-right: 0.12em; vertical-align: 0.5em; }
-.fig .dec { font-size: 0.56em; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+/* Type scale. These are the maximum desktop sizes; nothing in the dashboards or modules sets a number's size on its own.
+   page title 26/32 600 · section title 16/24 600 · KPI value 28/34 500 · label 13/18 400 · supporting 12/18 400 · value (tables, lists) 13/20 500 */
+.t-page { font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: 0; }
+.t-section { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: 0; }
+.t-kpi { font-size: 28px; line-height: 34px; font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.t-label { font-size: 13px; line-height: 18px; font-weight: 400; color: var(--muted); }
+.t-support { font-size: 12px; line-height: 18px; font-weight: 400; color: var(--muted); }
+.t-value { font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums lining-nums; }
+@media (max-width: 639px) { .t-kpi { font-size: 24px; line-height: 30px; } .t-page { font-size: 22px; line-height: 28px; } }
 .eyebrow { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 
 .badge {
@@ -157,7 +163,7 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
 .tone-danger { --tone: var(--danger); } .tone-info { --tone: var(--info); } .tone-neutral { --tone: var(--muted); }
 
 /* Data tables */
-.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 20px; }
 .dt th {
   position: sticky; top: 0; z-index: 1; background: var(--surface-2); text-align: left; font-weight: 600;
   font-size: 11.5px; letter-spacing: 0.02em; color: var(--muted); padding: 0 12px; height: 34px;
@@ -166,7 +172,7 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
 .dt td { padding: 0 12px; height: 38px; border-bottom: 1px solid var(--line); white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
 .dt tbody tr:hover td { background: color-mix(in srgb, var(--fg) 4%, transparent); }
 .dt tbody tr:last-child td { border-bottom: 0; }
-.dt .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dt .num { text-align: right; font-variant-numeric: tabular-nums lining-nums; }
 
 .skeleton { background: linear-gradient(90deg, var(--surface-2), color-mix(in srgb, var(--surface-2) 60%, var(--surface)), var(--surface-2)); background-size: 200% 100%; animation: sk 1.4s linear infinite; border-radius: 4px; }
 @keyframes sk { to { background-position: -200% 0; } }

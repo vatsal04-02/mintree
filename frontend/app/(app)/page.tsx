@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtAgo, fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from "@/lib/format";
+import { fmtAgo, fmtDate, fmtDateTime, fmtNum, fmtPct, fmtRupees, titleCase } from "@/lib/format";
 import { KIND, num, plural, screenHref, SHIPMENT_FINAL, statusItems, sumStatus, useSummary } from "@/lib/summary";
 import { PageHeader } from "@/components/ui";
 import { BarRows, Flow, InlineNotice, Section, SectionLink, SkeletonRows, StackRow, StatStrip, StockWatch, Timeline, WorkQueue, type Cell, type QueueItem, type Stage } from "@/components/dash";
@@ -41,14 +41,14 @@ export default function Overview() {
     const held = q.batches_on_hold + q.batches_quarantined;
     const shipmentsOpen = sumStatus(s.shipments_by_status, (st) => !SHIPMENT_FINAL.includes(st));
     const stages: Stage[] = [
-      { label: "Procurement", count: pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval, unit: "awaiting approval", href: to("procurement", "orders"), flags: [] },
-      { label: "Goods receipt", count: pr.open_purchase_orders, unit: "POs awaiting delivery", href: to("procurement", "receipts"), flags: [{ label: "late", n: pr.late_deliveries, tone: "danger" }] },
-      { label: "Inventory", count: inv.below_reorder_level, unit: "below reorder", href: to("inventory", "reorder"),
+      { label: "Procurement", count: fmtNum(pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval), unit: "awaiting approval", href: to("procurement", "orders"), flags: [] },
+      { label: "Goods receipt", count: fmtNum(pr.open_purchase_orders), unit: "POs awaiting delivery", href: to("procurement", "receipts"), flags: [{ label: "late", n: pr.late_deliveries, tone: "danger" }] },
+      { label: "Inventory", count: fmtNum(inv.below_reorder_level), unit: "below reorder", href: to("inventory", "reorder"),
         flags: [{ label: "expired in stock", n: inv.expired_with_stock, tone: "danger" }, { label: "held", n: held, tone: "warning" }, { label: "expiring in 90 days", n: inv.expiring_within_90_days, tone: "warning" }] },
-      { label: "Production", count: p.active_orders, unit: "in progress", href: to("production", "orders"), flags: [{ label: "past planned date", n: p.delayed_work_orders, tone: "danger" }] },
-      { label: "Quality", count: q.open_inspections, unit: "inspections open", href: to("quality", "inspections"),
+      { label: "Production", count: fmtNum(p.active_orders), unit: "in progress", href: to("production", "orders"), flags: [{ label: "past planned date", n: p.delayed_work_orders, tone: "danger" }] },
+      { label: "Quality", count: fmtNum(q.open_inspections), unit: "inspections open", href: to("quality", "inspections"),
         flags: [{ label: "deviations", n: q.open_deviations, tone: "warning" }, { label: "CAPA open", n: q.open_capa, tone: "warning" }] },
-      { label: "Dispatch", count: shipmentsOpen, unit: "shipments open", href: to("dispatch", "shipments"),
+      { label: "Dispatch", count: fmtNum(shipmentsOpen), unit: "shipments open", href: to("dispatch", "shipments"),
         flags: [{ label: "over 5 days", n: d.delayed_shipments, tone: "danger" }, { label: "failed or RTO", n: d.failed_or_rto, tone: "danger" }, { label: "returns open", n: d.returns_open, tone: "warning" }] },
     ];
     const queue: QueueItem[] = ([
@@ -64,7 +64,7 @@ export default function Overview() {
       { key: "po", label: "Purchase orders awaiting approval", count: pr.purchase_orders_awaiting_approval, tone: "warning", href: to("procurement", "orders") },
       { key: "returns", label: "Customer returns awaiting action", count: d.returns_open, tone: "warning", href: to("dispatch", "returns") },
     ] as QueueItem[]).filter((i) => (i.count ?? 0) > 0);
-    const stock = s.low_stock.map((l) => ({ code: l.item_code, name: l.name, available: num(l.available), reorder: num(l.reorder_level) }));
+    const stock = s.low_stock.map((l) => ({ code: l.item_code, name: l.name, available: fmtNum(l.available, 1), reorder: fmtNum(l.reorder_level, 1), ratio: num(l.reorder_level) > 0 ? num(l.available) / num(l.reorder_level) : 0 }));
     return { stages, queue, stock, held, shipmentsOpen, planned: num(p.planned_qty_30d), actual: num(p.actual_qty_30d) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summary, can]);
@@ -74,18 +74,18 @@ export default function Overview() {
   const s = summary ?? null;
 
   const money: Cell[] = s ? [
-    { label: "Receivables outstanding", value: fmtMoney(s.sales.receivable_outstanding), hint: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices"), href: to("accounts", "ageing-r") },
-    { label: "Revenue, last 30 days", value: fmtMoney(s.finance_extended.revenue_30d), hint: s.finance_extended.gross_margin_pct_30d === null ? "No posted revenue yet" : `${s.finance_extended.gross_margin_pct_30d}% gross margin`, href: to("accounts", "pnl") },
-    { label: "Purchases, last 30 days", value: fmtMoney(s.procurement.purchase_value_30d), hint: plural(s.procurement.open_purchase_orders, "open order", "open orders"), href: to("procurement", "orders") },
-    { label: "Inventory value", value: fmtMoney(s.inventory.total_value), hint: `${s.inventory.value_by_kind.length} stock classes`, href: to("inventory", "valuation") },
+    { label: "Receivables outstanding", value: fmtRupees(s.sales.receivable_outstanding), hint: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices"), href: to("accounts", "ageing-r") },
+    { label: "Revenue, last 30 days", value: fmtRupees(s.finance_extended.revenue_30d), hint: s.finance_extended.gross_margin_pct_30d === null ? "No posted revenue yet" : `${fmtPct(s.finance_extended.gross_margin_pct_30d)} gross margin`, href: to("accounts", "pnl") },
+    { label: "Purchases, last 30 days", value: fmtRupees(s.procurement.purchase_value_30d), hint: plural(s.procurement.open_purchase_orders, "open order", "open orders"), href: to("procurement", "orders") },
+    { label: "Inventory value", value: fmtRupees(s.inventory.total_value), hint: `${s.inventory.value_by_kind.length} stock classes`, href: to("inventory", "valuation") },
   ] : [];
   const ops: Cell[] = [
-    { label: "Awaiting your approval", value: approvals === null ? "—" : mine, loading: approvals === null, tone: mine ? "warning" : "neutral", hint: mine ? `Oldest ${fmtDate(approvals![0].since)}` : "Nothing waiting", href: "/approvals" },
+    { label: "Awaiting your approval", value: approvals === null ? "—" : fmtNum(mine), loading: approvals === null, tone: mine ? "warning" : "neutral", hint: mine ? `Oldest ${fmtDate(approvals![0].since)}` : "Nothing waiting", href: "/approvals" },
     ...(canSummary ? [
-      { label: "Production in progress", value: s?.production.active_orders ?? "—", loading, tone: s?.production.delayed_work_orders ? "danger" : "neutral", hint: s ? (s.production.delayed_work_orders ? `${s.production.delayed_work_orders} past planned date` : "On schedule") : undefined, href: to("production", "orders") },
-      { label: "Inventory alerts", value: s ? s.inventory.below_reorder_level + s.inventory.expired_with_stock : "—", loading, tone: s?.inventory.expired_with_stock ? "danger" : s?.inventory.below_reorder_level ? "warning" : "neutral", hint: s ? `${s.inventory.below_reorder_level} below reorder, ${s.inventory.expired_with_stock} expired` : undefined, href: to("inventory", "reorder") },
-      { label: "QC inspections open", value: s?.quality.open_inspections ?? "—", loading, tone: view?.held ? "warning" : "neutral", hint: s ? `${plural(view?.held ?? 0, "batch", "batches")} held` : undefined, href: to("quality", "inspections") },
-      { label: "Shipments open", value: view?.shipmentsOpen ?? "—", loading, tone: s?.dispatch.delayed_shipments ? "danger" : "neutral", hint: s ? (s.dispatch.delayed_shipments ? `${s.dispatch.delayed_shipments} over 5 days` : "None over 5 days") : undefined, href: to("dispatch", "shipments") },
+      { label: "Production in progress", value: s ? fmtNum(s.production.active_orders) : "—", loading, tone: s?.production.delayed_work_orders ? "danger" : "neutral", hint: s ? (s.production.delayed_work_orders ? `${s.production.delayed_work_orders} past planned date` : "On schedule") : undefined, href: to("production", "orders") },
+      { label: "Inventory alerts", value: s ? fmtNum(s.inventory.below_reorder_level + s.inventory.expired_with_stock) : "—", loading, tone: s?.inventory.expired_with_stock ? "danger" : s?.inventory.below_reorder_level ? "warning" : "neutral", hint: s ? `${s.inventory.below_reorder_level} below reorder, ${s.inventory.expired_with_stock} expired` : undefined, href: to("inventory", "reorder") },
+      { label: "QC inspections open", value: s ? fmtNum(s.quality.open_inspections) : "—", loading, tone: view?.held ? "warning" : "neutral", hint: s ? `${plural(view?.held ?? 0, "batch", "batches")} held` : undefined, href: to("quality", "inspections") },
+      { label: "Shipments open", value: view ? fmtNum(view.shipmentsOpen) : "—", loading, tone: s?.dispatch.delayed_shipments ? "danger" : "neutral", hint: s ? (s.dispatch.delayed_shipments ? `${s.dispatch.delayed_shipments} over 5 days` : "None over 5 days") : undefined, href: to("dispatch", "shipments") },
     ] as Cell[] : []),
   ];
 
@@ -97,7 +97,7 @@ export default function Overview() {
       {!canSummary && <div className="mb-4"><InlineNotice>Company-wide figures need the management summary permission, which your role does not include.</InlineNotice></div>}
 
       <div className="space-y-5">
-        {canSummary && (loading ? <div className="panel h-[112px] skeleton" /> : s && <StatStrip label="Finance" cells={money} size="text-[22px] sm:text-[32px]" />)}
+        {canSummary && (loading ? <div className="panel h-[112px] skeleton" /> : s && <StatStrip label="Finance" cells={money} />)}
         <StatStrip label="Operations" cells={ops} />
 
         {canSummary && <Section title="Order to dispatch">{loading || !view ? <div className="skeleton h-24" /> : <Flow stages={view.stages} />}</Section>}
@@ -105,7 +105,7 @@ export default function Overview() {
         <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
           <div className="space-y-5 min-w-0">
             <Section title="Pending actions" flush action={mine > 0 ? <SectionLink href="/approvals">{mine} for your approval</SectionLink> : undefined}>
-              {!canSummary ? <p className="px-5 pb-5 text-[13px] text-muted">{mine ? `${plural(mine, "item", "items")} waiting for your decision.` : "Nothing is waiting for your decision."}</p>
+              {!canSummary ? <p className="px-5 pb-5 t-label">{mine ? `${plural(mine, "item", "items")} waiting for your decision.` : "Nothing is waiting for your decision."}</p>
                 : loading ? <SkeletonRows n={5} /> : <WorkQueue items={view?.queue ?? []} empty="No exceptions or approvals outstanding." />}
             </Section>
             {view && view.stock.length > 0 && (
@@ -125,17 +125,17 @@ export default function Overview() {
                     </>
                   )}
                 </Section>
-                <Section title="Inventory value" description={s ? `By class, total ${fmtMoney(s.inventory.total_value)}` : undefined} action={to("inventory", "valuation") ? <SectionLink href={to("inventory", "valuation")!}>Valuation</SectionLink> : undefined}>
-                  {loading ? <SkeletonRows n={2} /> : <BarRows rows={(s?.inventory.value_by_kind ?? []).map((k) => ({ label: KIND[String(k.kind).toUpperCase()] ?? titleCase(k.kind), value: num(k.value), display: fmtMoney(k.value) }))} />}
+                <Section title="Inventory value" description={s ? `By class, total ${fmtRupees(s.inventory.total_value)}` : undefined} action={to("inventory", "valuation") ? <SectionLink href={to("inventory", "valuation")!}>Valuation</SectionLink> : undefined}>
+                  {loading ? <SkeletonRows n={2} /> : <BarRows rows={(s?.inventory.value_by_kind ?? []).map((k) => ({ label: KIND[String(k.kind).toUpperCase()] ?? titleCase(k.kind), value: num(k.value), display: fmtRupees(k.value) }))} />}
                 </Section>
               </>
             )}
           </div>
           <div className="space-y-5 min-w-0">
             <Section title="Recent activity" flush action={canAudit ? <SectionLink href="/admin/audit">Audit log</SectionLink> : undefined}>
-              {!canAudit ? <p className="px-5 pb-5 text-[13px] text-muted">Activity is read from the audit log, which is limited to auditors and administrators.</p>
+              {!canAudit ? <p className="px-5 pb-5 t-label">Activity is read from the audit log, which is limited to auditors and administrators.</p>
                 : activity === null ? <SkeletonRows n={5} />
-                : activity.length === 0 ? <p className="px-5 pb-5 text-[13px] text-muted">No business actions recorded yet.</p>
+                : activity.length === 0 ? <p className="px-5 pb-5 t-label">No business actions recorded yet.</p>
                 : <Timeline items={activity.map((a) => {
                     const screen = RECORD_SCREEN[a.entity];
                     return { id: a.id, action: titleCase(a.action), record: `${titleCase(a.entity)}${a.entity_id ? ` #${a.entity_id}` : ""}`, user: a.user_email?.split("@")[0] ?? "system", ago: fmtAgo(a.occurred_at), at: fmtDateTime(a.occurred_at),
@@ -144,10 +144,10 @@ export default function Overview() {
             </Section>
             {canSummary && (
               <Section title="Production output" description="Completed orders, last 30 days">
-                {loading ? <SkeletonRows n={2} /> : !view || (view.planned === 0 && view.actual === 0) ? <p className="text-muted text-[12.5px]">No production order was completed in the last 30 days.</p> : (
+                {loading ? <SkeletonRows n={2} /> : !view || (view.planned === 0 && view.actual === 0) ? <p className="t-support">No production order was completed in the last 30 days.</p> : (
                   <>
                     <BarRows rows={[{ label: "Planned", value: view.planned, display: fmtNum(view.planned, 0) }, { label: "Actual", value: view.actual, display: fmtNum(view.actual, 0), tone: view.actual >= view.planned ? "success" : "warning" }]} />
-                    <p className="mt-4 text-[12px] text-muted tnum">{s?.production.completed_30d} orders · yield {s?.production.average_yield_pct == null ? "—" : `${fmtNum(s.production.average_yield_pct, 1)}%`} · wastage {fmtNum(s?.production.wastage_qty_30d, 1)}</p>
+                    <p className="mt-4 t-support">{fmtNum(s?.production.completed_30d)} orders · yield {fmtPct(s?.production.average_yield_pct)} · wastage {fmtNum(s?.production.wastage_qty_30d, 1)}</p>
                   </>
                 )}
               </Section>

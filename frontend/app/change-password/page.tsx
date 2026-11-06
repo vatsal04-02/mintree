@@ -26,7 +26,7 @@ export default function ChangePasswordPage() {
   return (
     <div className="min-h-screen grid place-items-center p-6">
       <form onSubmit={submit} className="w-full max-w-sm panel p-6" noValidate>
-        <h1 className="text-[20px] font-semibold">{forced ? "Set a new password" : "Change password"}</h1>
+        <h1 className="t-page">{forced ? "Set a new password" : "Change password"}</h1>
         <p className="text-muted text-[13px] mt-1 mb-5">{forced ? "Your password was set by an administrator. Choose your own to continue." : "Other sessions will be signed out."}</p>
         {error && <div role="alert" className="mb-4 px-3 py-2 rounded-md text-[13px] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{error}</div>}
         <label htmlFor="cur" className="field-label">Current password</label>

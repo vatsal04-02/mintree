@@ -67,7 +67,7 @@ export default function RolesPage() {
         {sel && (
           <section className="panel overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
-              <div className="min-w-0"><h2 className="text-[15px] font-semibold flex items-center gap-2">{sel.name}{sel.code === "system_admin" && <Badge tone="info">Always full access</Badge>}</h2>
+              <div className="min-w-0"><h2 className="t-section flex items-center gap-2">{sel.name}{sel.code === "system_admin" && <Badge tone="info">Always full access</Badge>}</h2>
                 <p className="text-muted text-[12px] truncate">{sel.description}</p></div>
               {!locked && <button className="btn btn-primary" disabled={!dirty || busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</button>}
             </div>

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Download, FileText, Link2, Plus, Search, Upload, X } from "lucide-react";
 import { api, ApiError, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtDateTime, titleCase } from "@/lib/format";
+import { fmtDateTime, titleCase, fmtBytes } from "@/lib/format";
 import { DataTable, type Col } from "@/components/DataTable";
 import { Badge, ConfirmDialog, Drawer, EmptyState, PageHeader, useDebounced, useToast } from "@/components/ui";
 
@@ -13,7 +13,7 @@ type Doc = { id: number; title: string; doc_type: string; description: string | 
 
 const TYPES = ["COA", "SUPPLIER_INVOICE", "SUPPLIER_DOCUMENT", "QUALITY_CERTIFICATE", "FORMULATION", "BATCH_RECORD", "INSPECTION_RECORD", "PRODUCT_IMAGE", "MARKETING_ASSET", "COURIER_LABEL", "CUSTOMER_DOCUMENT", "OTHER"];
 const ENTITY_TYPES = ["supplier", "customer", "item", "brand", "warehouse"];
-const size = (n: number) => n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const size = fmtBytes;
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,.xlsx,.xls,.docx,.doc,.pptx";
 
 export default function DocumentsPage() {

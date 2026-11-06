@@ -25,7 +25,7 @@ export default function ModulePage({ params }: { params: Promise<{ module: strin
   const kpis = dash ? Object.fromEntries(Object.entries(dash).filter(([, v]) => v === null || typeof v !== "object")) : null;
   return (
     <>
-      {isManagement ? <><ManagementDashboard /><h2 className="text-[14px] font-semibold mt-8 mb-3">Full reports</h2></> : <PageHeader title={mod.label} description={mod.description} />}
+      {isManagement ? <><ManagementDashboard /><h2 className="t-section mt-8 mb-3">Full reports</h2></> : <PageHeader title={mod.label} description={mod.description} />}
       {kpis && Object.keys(kpis).length > 0 && <div className="mb-6"><ReportView data={kpis} /></div>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {allowed.map((s) => (

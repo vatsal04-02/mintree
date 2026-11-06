@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
 import { MODULE_BY_ID, toneFor } from "./modules";
-import { titleCase } from "./format";
+import { fmtNum, titleCase } from "./format";
 import type { Tone } from "@/components/dash";
 
 export type Count = { status: string; n: number; value?: string | number };
@@ -48,6 +48,6 @@ export const screenHref = (can: (p: string) => boolean, moduleId: string, screen
 export const SHIPMENT_FINAL = ["DELIVERED", "RTO", "FAILED_DELIVERY", "CANCELLED"];
 export const KIND: Record<string, string> = { RM: "Raw materials", PM: "Packaging", FG: "Finished goods", BULK: "Bulk", SFG: "Semi-finished goods" };
 export const num = (v: unknown) => (v === null || v === undefined || v === "" ? 0 : Number(v));
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+export const plural = (n: number, one: string, many: string) => `${fmtNum(n)} ${n === 1 ? one : many}`;
 export const sumStatus = (rows: Count[] | undefined, pick: (s: string) => boolean) => (rows ?? []).filter((r) => pick(r.status)).reduce((a, r) => a + r.n, 0);
 export const statusItems = (rows: Count[] | undefined) => (rows ?? []).map((r) => ({ label: titleCase(r.status), value: r.n, tone: toneFor(r.status) as Tone }));

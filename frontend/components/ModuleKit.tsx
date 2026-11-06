@@ -272,7 +272,7 @@ function show(k: string, v: any): React.ReactNode {
 export function ReportView({ data, depth = 0 }: { data: any; depth?: number }) {
   if (data === null || data === undefined) return null;
   if (Array.isArray(data)) {
-    if (data.length === 0) return <p className="text-muted text-[12.5px]">None.</p>;
+    if (data.length === 0) return <p className="t-support">None.</p>;
     if (typeof data[0] !== "object" || data[0] === null) return <p className="text-[13px]">{data.map(String).join(", ")}</p>;
     const keys = Array.from(new Set(data.slice(0, 20).flatMap((r: Row) => Object.keys(r)))).filter((k) => typeof data.find((r: Row) => r[k] !== undefined && r[k] !== null)?.[k] !== "object").slice(0, 10);
     return (
@@ -286,13 +286,16 @@ export function ReportView({ data, depth = 0 }: { data: any; depth?: number }) {
   return (
     <div className={depth ? "space-y-3" : "space-y-5"}>
       {scalars.length > 0 && (
-        <dl className={`grid gap-2.5 ${depth === 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3"}`}>
-          {scalars.map(([k, v]) => (
-            <div key={k} className="panel px-3 py-2.5 min-w-0">
-              <dt className="text-[11.5px] text-muted truncate">{titleCase(k)}</dt>
-              <dd className="text-[15px] font-semibold mt-0.5 tabular-nums break-words">{show(k, v)}</dd>
-            </div>
-          ))}
+        <dl className={`grid gap-x-2.5 gap-y-0 ${depth === 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3"} [&>*]:mb-2.5`}>
+          {scalars.map(([k, v]) => {
+            const numeric = typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18);
+            return (
+              <div key={k} className="panel p-4 min-w-0 grid grid-rows-subgrid row-span-2 gap-y-0 content-start">
+                <dt className="t-label line-clamp-2" title={titleCase(k)}>{titleCase(k)}</dt>
+                <dd className={`${numeric ? "t-kpi" : "t-value"} mt-2 break-words`}>{show(k, v)}</dd>
+              </div>
+            );
+          })}
         </dl>
       )}
       {nested.map(([k, v]) => (
