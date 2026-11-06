@@ -1,0 +1,19 @@
+# Reverse proxy with automatic HTTPS. Set MINTREE_DOMAIN in .env (a public DNS name pointing at this host).
+{$MINTREE_DOMAIN:localhost} {
+	encode zstd gzip
+	# The API (including inbound courier / marketplace webhooks) goes straight to FastAPI; everything else to the web app.
+	@api path /api/*
+	handle @api {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	# Metrics are for Prometheus on the internal network only.
+	@metrics path /api/metrics
+	respond @metrics 404
+}

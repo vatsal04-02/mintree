@@ -276,7 +276,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
       const params: Record<string, string> = { ...(def.params ?? {}) };
       if (def.paged !== false && !params.page_size && !params.limit) params.page_size = "100";
       if (status && def.status?.param) params[def.status.param] = status;
-      setRows(asRows(await api<any>(def.api, { params })));
+      setRows(asRows(await api<any>(def.api, { params })).map((r, i) => (r.id === undefined ? { id: i + 1, ...r } : r)));
       setError(null);
     } catch (e) { setError(e instanceof ApiError ? e.message : "Failed to load"); }
     finally { setLoading(false); }

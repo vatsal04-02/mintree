@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://mintree:mintree@localhost:5433/mintree"
     environment: str = "development"  # development | test | production
 
+    # --- Rate limiting (per client IP, fixed one-minute windows; Redis-backed with an in-process fallback) ---
+    rate_limit_enabled: bool = False          # enable in production (docker-compose sets it); off in development and tests so suites are not throttled
+    rate_limit_login_per_min: int = 20        # /api/auth/login attempts per IP per minute (credential stuffing guard; the account lockout still applies)
+    rate_limit_webhook_per_min: int = 600     # inbound courier/marketplace webhooks per IP per minute
+    trust_forwarded_for: bool = False         # behind Caddy/Nginx: take the client IP from X-Forwarded-For (only enable when a trusted proxy sets it)
+
     # --- Connection pool & concurrency (per API process; see docs/SCALABILITY_STRATEGY.md for the capacity maths) ---
     # Total DB connections one process may hold = db_pool_size + db_max_overflow.
     db_pool_size: int = 10

@@ -168,6 +168,25 @@ CHECKS: list[tuple[str, str, str]] = [
      """SELECT 'published_without_record', c.id FROM content_calendar c WHERE c.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM publishing_records p WHERE p.content_id = c.id)
         UNION ALL SELECT 'record_without_published', p.content_id FROM publishing_records p JOIN content_calendar c ON c.id = p.content_id WHERE c.status <> 'PUBLISHED'
         UNION ALL SELECT 'self_approved', c.id FROM content_calendar c WHERE c.approved_by = c.created_by"""),
+    ("supplier_debit_notes_reconcile_with_invoices",
+     "Each supplier invoice's credited amount equals the sum of its debit notes; debit-note totals are subtotal + tax and gapless per fiscal year",
+     """SELECT 'credited', i.id FROM supplier_invoices i LEFT JOIN (SELECT supplier_invoice_id, sum(total) s FROM debit_notes GROUP BY 1) d ON d.supplier_invoice_id = i.id
+          WHERE i.credited_amount <> COALESCE(d.s, 0)
+        UNION ALL SELECT 'debit_note_numbers', n FROM (SELECT substring(number from 'DN/([0-9]+-[0-9]+)/') fy, count(*) n, max(substring(number from '/([0-9]+)$')::int) mx FROM debit_notes GROUP BY 1) x WHERE n <> mx"""),
+    ("bank_matches_are_consistent",
+     "A matched bank transaction points to a journal line on the bank account's own ledger account with exactly the statement amount",
+     """SELECT t.id FROM bank_transactions t JOIN bank_accounts b ON b.id = t.bank_account_id JOIN journal_lines l ON l.id = t.journal_line_id JOIN accounts a ON a.id = l.account_id
+          WHERE t.status = 'MATCHED' AND (a.code <> b.ledger_account_code OR l.debit - l.credit <> t.amount)"""),
+    ("sales_quotation_conversions_are_consistent",
+     "A converted quotation links exactly one sales order; no other quotation does",
+     """SELECT id FROM sales_quotations WHERE (status = 'CONVERTED') <> (sales_order_id IS NOT NULL)"""),
+    ("completed_stages_have_no_failing_latest_process_check",
+     "No production stage is DONE while the latest in-process reading of any of its parameters failed",
+     """SELECT s.order_id, s.seq FROM production_stages s WHERE s.status = 'DONE' AND EXISTS
+          (SELECT 1 FROM (SELECT DISTINCT ON (parameter) parameter, passed FROM process_checks c WHERE c.order_id = s.order_id AND c.stage_seq = s.seq ORDER BY parameter, id DESC) x WHERE NOT x.passed)"""),
+    ("posted_marketplace_settlements_have_a_recorded_receipt",
+     "A settlement posted to the ledger has its receipt amount recorded, and its payment when cash was received",
+     """SELECT id FROM marketplace_settlements WHERE posted_at IS NOT NULL AND (received_amount IS NULL OR (received_amount > 0 AND payment_id IS NULL))"""),
     ("ledger_is_append_only_by_construction",
      "Ledger rows carry the reversal link only once (a movement is reversed at most once)",
      """SELECT reverses_ledger_id, count(*) FROM stock_ledger WHERE reverses_ledger_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1"""),

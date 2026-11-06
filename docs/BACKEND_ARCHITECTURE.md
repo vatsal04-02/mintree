@@ -118,7 +118,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⬜ not started.
 | Layering route → validation → service → repository → tx | 🟡 | Inventory has a real repository; procurement's service uses the ORM directly (no separate repository); Phase 0 master data uses a generic CRUD factory |
 | Modules: identity, master data, audit | ✅ | Phase 0, kept intact (all 51 original tests + 16 browser tests still pass) |
 | Module: inventory & warehouse | ✅ | ledger, balances, reservations, FEFO, QC-aware batches, transfers, adjustments, reversals |
-| Module: procurement | 🟡 | PR → PO (approval limits, optimistic version) → goods receipt (now with valuation, GRNI journal and automatic incoming inspection) → supplier invoice (three-way match, PPV) → payment. **Not built:** RFQ, quotations & comparison, delivery tracking |
+| Module: procurement | ✅ | PR → RFQ → quotations → comparison (landed cost) → award → PO (approval limits, optional second approver, delegation) → goods receipt (valuation, GRNI, incoming inspection) → supplier invoice (three-way match, PPV) → debit notes → payment; delivery tracking; supplier performance. **Not built:** supplier portal for quotations |
 | Module: accounts | ✅ | double-entry journals (balance enforced by a DEFERRED DB trigger; entries immutable), periods, moving-average valuation, AP/AR, payments with allocations, gapless invoice/credit-note numbering, trial balance. **Not built:** bank reconciliation, GST return filing, fixed assets, payroll |
 | Modules: R&D, quality | ✅ | approved formulation versions immutable (DB triggers), handover needs a passed trial + second approver; specs, server-side pass/fail, append-only results, release by someone other than the tester, auto-HOLD on critical deviation, CAPA verification |
 | Module: production | ✅ | BOM pinned to an approved formulation version, all-or-nothing reservation, issue to WIP at moving-average cost, ordered stages, yield/wastage rules, quarantined output batch, cost absorption, genealogy both ways. Equipment/calibration guard via maintenance |
@@ -127,7 +127,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⬜ not started.
 | Module: e-commerce | 🟡 | accounts (credential *reference* only), SKU mapping with pack multiplier, idempotent CSV/JSON/signed-webhook ingestion, exception queue with retry, read-only stock-sync preview, settlement reconciliation. **Not built:** live Amazon/Flipkart/Myntra/Nykaa APIs (need seller credentials/approvals); nothing is pushed to marketplaces |
 | Modules: CRM, branding | 🟡 | leads and complaints (batch-linked); campaigns, content approval by a different user, once-only publishing record. **Publishing is MANUAL** — no Meta API integration |
 | Module: reporting | 🟡 | `GET /analytics/management-summary` computed live from the records (no stored summaries). No report builder / exports / materialised views |
-| Notifications & approvals | 🟡 | Approval *policy* for POs + a notification consumer/table. No notification API/UI, no generic approval engine |
+| Notifications & approvals | 🟡 | Per-user notification centre (API + bell + page), cross-module approvals inbox, delegation, per-cycle approval history, two-level PO approval. **No** email/WhatsApp delivery and no configurable multi-step workflow designer |
 | Short transactions, explicit boundaries, bounded retries | ✅ | `run_tx`; commit-before-response bug fixed |
 | Row locks, consistent ordering, optimistic version checks | ✅ | global order documented; two real lock-order bugs found and fixed |
 | No network call inside a DB transaction | ✅ | publisher publishes between two short transactions; handlers make no external calls |
@@ -140,9 +140,9 @@ Legend: ✅ implemented and tested · 🟡 partial · ⬜ not started.
 | Bounded pools, connection-budget maths | ✅ | `SCALABILITY_STRATEGY.md §2`; admission control makes pool exhaustion unreachable |
 | PgBouncer | ⬜ | not evaluated: only 1–3 PG backends active under load; revisit if connections, not CPU, bind. Note psycopg prepare must be disabled first (switch exists) |
 | N+1 / pagination / cursor pagination | ✅ | auth path 4 → 1 queries; ledger uses cursor pagination; lists paginated |
-| Precomputed reporting tables / materialised views | ⬜ | one live-query summary exists; no measured need yet |
+| Precomputed reporting tables / materialised views | ⬜ | live-query summaries and reports only (ageing, GST, P&L, costing, analytics); revisit when report latency is measured on real data volumes |
 | Observability (metrics, correlation ID, slow-tx logs) | ✅ | Prometheus + Grafana definition; correlation ID in audit, ledger, outbox, jobs, notifications. **Distributed tracing (OpenTelemetry) not added** |
 | k6 scenarios A–H | ✅ | all written and run — **at reduced duration/size in the sandbox** |
 | Acceptance criteria demonstrated at 1,000 concurrent clients on staging | ⬜ | **not demonstrated** — see `PERFORMANCE_BASELINE.md` |
-| "No unbalanced accounting postings" check | ✅ | real: `journal_entries_are_balanced_and_nonempty`, `trial_balance_balances`, AP/AR control and inventory-GL-vs-valuation reconciliations (29 checks, none skipped). Passes in the functional/E2E suites; **not yet re-run under load** (the perf database predates the Accounts tables and must be re-migrated) |
+| "No unbalanced accounting postings" check | ✅ | real: `journal_entries_are_balanced_and_nonempty`, `trial_balance_balances`, AP/AR control and inventory-GL-vs-valuation reconciliations (34 checks, none skipped). Passes in the functional/E2E suites; **not yet re-run under load** (the perf database predates the Accounts tables and must be re-migrated) |
 | Load mix includes the Milestone H modules | ⬜ | scenarios still use inventory-endpoint *proxies* for production/dispatch; posting an invoice + journal per dispatch makes each real write heavier, so earlier throughput figures do **not** carry over |

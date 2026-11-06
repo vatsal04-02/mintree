@@ -33,7 +33,7 @@ from app.dispatch.router import router as dispatch_router
 from app.core.errors import BusinessConflict
 from app.core.context import client_ip_var, request_id_var
 from app.core.db import SessionLocal, engine
-from app.core.middleware import AdmissionControl, MetricsMiddleware, RequestContextMiddleware
+from app.core.middleware import AdmissionControl, MetricsMiddleware, RateLimit, RequestContextMiddleware
 from app.core.logging import configure_logging
 from app.core import observability as obs
 from app.documents.router import router as documents_router
@@ -67,6 +67,7 @@ app.add_middleware(AdmissionControl, slots=slots(), timeout_s=get_settings().adm
                    exempt_prefixes=("/api/metrics",))
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(RateLimit)                      # outermost: rejects abusive login/webhook traffic before anything else runs
 
 
 @app.exception_handler(Exception)

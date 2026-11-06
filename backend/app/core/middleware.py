@@ -171,3 +171,69 @@ class MetricsMiddleware:
                     "admission_wait_ms": round(st.admission_wait_s * 1000, 1), "pool_wait_ms": round(st.pool_wait_s * 1000, 1),
                     "db_ms": round(st.db_time_s * 1000, 1), "queries": st.n_queries,
                     "slowest_queries": [(round(x * 1000, 1), q) for x, q in st.slowest]}})
+
+
+# ------------------------------------------------------------------ rate limiting
+from prometheus_client import Counter  # noqa: E402
+
+RATE_LIMITED = Counter("mintree_rate_limited_total", "Requests rejected by the rate limiter", ["rule"])
+_local: dict[str, tuple[int, int]] = {}
+_redis = None
+
+
+def _rl_client():
+    global _redis
+    if _redis is None:
+        import redis
+        _redis = redis.Redis.from_url(get_settings().redis_url, socket_timeout=0.05, socket_connect_timeout=0.05)
+    return _redis
+
+
+def _hit(key: str, window: int) -> int:
+    """Increment this window's counter. Redis is shared across replicas; if it is unreachable each process counts on its own (limits become per-process, never off)."""
+    try:
+        r = _rl_client()
+        n = r.incr(key)
+        if n == 1:
+            r.expire(key, 70)
+        return int(n)
+    except Exception:
+        w, n = _local.get(key, (window, 0))
+        n = n + 1
+        if len(_local) > 10_000:
+            _local.clear()
+        _local[key] = (window, n)
+        return n
+
+
+class RateLimit:
+    """Per-IP fixed-window limits on the endpoints worth attacking: login and inbound webhooks. Everything else is bounded by admission control."""
+
+    def __init__(self, app):
+        self.app = app
+
+    def _rule(self, path: str, s):
+        if path == "/api/auth/login":
+            return "login", s.rate_limit_login_per_min
+        if path.startswith("/api/dispatch/webhooks/") or (path.startswith("/api/ecommerce/accounts/") and path.endswith("/webhook")):
+            return "webhook", s.rate_limit_webhook_per_min
+        return None
+
+    async def __call__(self, scope, receive, send):
+        s = get_settings()
+        rule = self._rule(scope["path"], s) if scope["type"] == "http" and s.rate_limit_enabled else None
+        if rule:
+            name, limit = rule
+            hdrs = dict(scope["headers"])
+            ip = (scope.get("client") or ("unknown",))[0]
+            if s.trust_forwarded_for and b"x-forwarded-for" in hdrs:
+                ip = hdrs[b"x-forwarded-for"].decode("latin1").split(",")[0].strip() or ip
+            window = int(time.time() // 60)
+            if _hit(f"mintree:rl:{name}:{ip}:{window}", window) > limit:
+                RATE_LIMITED.labels(name).inc()
+                retry = 60 - int(time.time()) % 60
+                body = json.dumps({"detail": "Too many requests. Try again shortly."}).encode()
+                await send({"type": "http.response.start", "status": 429, "headers": [(b"content-type", b"application/json"), (b"retry-after", str(retry).encode()), (b"content-length", str(len(body)).encode())]})
+                await send({"type": "http.response.body", "body": body})
+                return
+        await self.app(scope, receive, send)

@@ -124,6 +124,15 @@ and content-publishing records internally consistent**. Nothing is skipped. Bala
 to commit: a DEFERRED constraint trigger rejects an unbalanced entry at COMMIT, and journal rows are immutable (corrections
 are reversing entries).
 
+## 10b. Added after the PRD gap review
+* **Stock adjustments now carry their accounting.** A loss consumes valuation at moving-average cost (Dr 5200 / Cr inventory); a gain enters at the same average (Dr inventory / Cr 5200) and is flagged `unvalued` when no cost exists. Quantity, valuation and journal commit together (lock order: balance → valuation → journal). Previously an adjustment changed quantity only, so a later dispatch of gained stock would have carried zero cost.
+* **Ledger reversal is limited to adjustments.** Receipts, dispatches and returns must be reversed through their own documents so valuation and the GL follow; the endpoint refuses other movement types with `document_reversal_required`.
+* **Stocktake**: variances post as valued adjustments in balance-id order, one audit row each; the approver must differ from the person who started the count.
+* **Idempotent scopes added**: debit notes, marketplace settlement posting, adjustments (via stocktake line ids). Bank statement import is idempotent by `(account, statement hash, line)`; marketplace returns by `(account, platform return ref)`; the preventive-maintenance generator by `(schedule, due date)`.
+* **Approvals**: every approval/rejection is recorded per submission cycle with the user and, when borrowed, the delegator; a second approval must come from a different person (unique constraint), and expired/revoked delegations stop working immediately.
+* **New integrity checks (34 total)**: debit notes reconcile with supplier invoices and are gapless; bank matches point to the right ledger account and amount; quotation conversions are one-to-one; no stage is DONE while its latest in-process reading failed; posted settlements have their receipt.
+* **Rate limiting** protects login (per-IP, default 20/min) and inbound webhooks (600/min); it is Redis-backed with a per-process fallback and is off in development.
+
 ## 11. Known limitations (stated, not hidden)
 * Holding a RELEASED batch blocks only its *available* quantity; existing reservations stay reserved but flagged by batch status.
 * Document numbers use PostgreSQL sequences (gaps on rollback) for non-statutory documents. **Sales invoices and credit notes

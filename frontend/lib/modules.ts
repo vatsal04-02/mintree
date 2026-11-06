@@ -2,7 +2,7 @@
 /** Declarative definition of every business module's screens. The generic components (components/ModuleKit.tsx) render lists, row actions,
  *  create forms and report views from this; every permission shown here is ALSO enforced by the backend (the UI only hides what you cannot use). */
 import {
-  Boxes, Briefcase, Calculator, ClipboardCheck, FlaskConical, Factory, Megaphone, PackageCheck, ShoppingCart, ShoppingBag, Wrench, BarChart3, Users, type LucideIcon,
+  Boxes, Briefcase, Calculator, ClipboardCheck, FlaskConical, Factory, Megaphone, PackageCheck, ShoppingCart, ShoppingBag, Wrench, BarChart3, Users, Settings2, type LucideIcon,
 } from "lucide-react";
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
@@ -320,6 +320,24 @@ export const MODULES: Module[] = [
     screens: [{ id: "summary", label: "Management summary", description: "Production, inventory, procurement, quality, dispatch and finance.", perm: "analytics.dashboard:read", report: { api: "/analytics/management-summary" } }],
   },
 ];
+
+const parseValue = (v: string) => { const t = String(v ?? "").trim(); if (t === "") return null; try { return JSON.parse(t); } catch { return t; } };
+MODULES.push({
+  id: "admin", label: "Administration tools", icon: Settings2, description: "Company settings, approval delegation and background-job inspection (users, roles, departments and the audit log are under Administration).",
+  screens: [
+    { id: "settings", label: "Company settings", description: "Company identity, fiscal year, approval thresholds and stock rotation policy. Changes are audited.", perm: "admin.settings:read",
+      list: { api: "/admin/settings", paged: false, cols: [{ key: "key", label: "Setting", kind: "mono" }, { key: "value", label: "Value" }, { key: "default", label: "Default" }, { key: "customised", label: "Customised", kind: "bool" }, { key: "description", label: "What it does" }],
+        actions: [{ label: "Edit", path: (r) => `/admin/settings/${r.key}`, method: "PUT", perm: "admin.settings:update", fields: [{ name: "value", label: "Value (JSON or text; empty clears)", type: "text" }], body: (_r, v) => ({ value: parseValue(v.value) }) }] } },
+    { id: "delegations", label: "Approval delegation", description: "Lend your approval authority to a colleague for a period (e.g. leave). Self-approval rules still apply.", perm: "approvals.delegation:create",
+      list: { api: "/approvals/delegations", paged: false, cols: [{ key: "doc_type", label: "Document type", kind: "mono" }, { key: "from_user_id", label: "From user", kind: "number" }, { key: "to_user_id", label: "To user", kind: "number" }, { key: "valid_from", label: "From", kind: "date" }, { key: "valid_to", label: "To", kind: "date" }, { key: "revoked", label: "Revoked", kind: "bool" }],
+        actions: [{ label: "Revoke", path: (r) => `/approvals/delegations/${r.id}/revoke`, when: (r) => !r.revoked, danger: true, confirm: "Revoke this delegation now?" }] },
+      create: { label: "New delegation", perm: "approvals.delegation:create", path: "/approvals/delegations", fields: [{ name: "doc_type", label: "Document type (purchase_order, or * for all)", type: "text", required: true, default: "purchase_order" }, { name: "to_user_id", label: "Delegate to", type: "ref", ref: "users", required: true }, { name: "valid_from", label: "From", type: "date", required: true }, { name: "valid_to", label: "To", type: "date", required: true }, { name: "reason", label: "Reason", type: "text" }] } },
+    { id: "outbox", label: "Event outbox", description: "Counts by status, oldest unpublished age, and dead events needing attention.", perm: "admin.jobs:read", report: { api: "/admin/outbox" } },
+    { id: "job-failures", label: "Failed jobs", description: "Background-job failures kept for inspection (dead-letter view).", perm: "admin.jobs:read",
+      list: { api: "/admin/job-failures", cols: [{ key: "task", label: "Task", kind: "mono" }, { key: "attempts", label: "Attempts", kind: "number" }, { key: "error", label: "Error" }, { key: "failed_at", label: "Failed at", kind: "datetime" }],
+        actions: [{ label: "Mark resolved", path: (r) => `/admin/job-failures/${r.id}/resolve`, perm: "admin.jobs:update", confirm: "Mark this failure as resolved?" }] } },
+  ],
+});
 
 export const MODULE_BY_ID = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 export const moduleIcon = (id: string): LucideIcon => MODULE_BY_ID[id]?.icon ?? Briefcase;

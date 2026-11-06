@@ -6,8 +6,8 @@ Modular monolith: **FastAPI + PostgreSQL** backend, **Next.js + TypeScript + Tai
 > Status: **Phase 0 — Foundation**, the **Inventory + Procurement** slice (on a scalable transactional backend: idempotent
 > postings, append-only stock ledger, transactional outbox, workers) and the **Milestone H backend modules** — accounts,
 > R&D, quality, production, dispatch/invoicing/returns, maintenance, e-commerce ingestion, CRM, branding and a management
-> summary — are implemented and tested (136 backend tests, 16 browser tests). **Frontend screens exist only for Phase 0**;
-> the new modules are API-only so far. Not built: live marketplace/Meta/courier integrations (adapters and file/webhook
+> summary — are implemented and tested, **with config-driven screens for every module** (60+ screens, approvals inbox, notification bell). See
+> `docs/PRD_COVERAGE.md` for the module-by-module statement of what is built, partial and not built. Not built: live marketplace/Meta/courier integrations (adapters and file/webhook
 > ingestion only), RFQ, bank reconciliation, partial shipments, report builder.
 > **The 1,000-concurrent-operation target is NOT yet demonstrated** — see `docs/PERFORMANCE_BASELINE.md` for what has
 > and has not been measured, and `docs/BACKEND_ARCHITECTURE.md` for the assessment that drove the changes.
@@ -75,8 +75,8 @@ backend/.venv/bin/python backend/scripts/check_integrity.py   # (python -m scrip
 ## Tests
 
 ```bash
-cd backend && .venv/bin/pytest            # 95 tests, real Postgres + RabbitMQ + a live 2-process server for concurrency tests
-cd frontend && npm run lint && ./e2e/run.sh   # 16 browser tests (Playwright) against a hermetic DB + API + production build
+cd backend && .venv/bin/pytest            # 173 tests, real Postgres + RabbitMQ + a live 2-process server for concurrency tests
+cd frontend && npm run lint && ./e2e/run.sh   # 27 browser tests (Playwright: Phase 0 + every module screen) against a hermetic DB + API + production build
 ```
 
 The backend suite includes permission-matrix, escalation, audit-immutability, document-integrity tests and a
@@ -91,13 +91,22 @@ The backend suite includes permission-matrix, escalation, audit-immutability, do
 - **Storage**: local filesystem backend behind a `Storage` protocol. The PRD's S3-compatible backend is a drop-in implementation of the same three methods; not yet written/tested.
 - **Frontend data fetching** is plain `fetch` + local state. Fine for Phase 0; consider TanStack Query when screens share data.
 - Document links are free-form `(entity_type, entity_id)` pairs and are not yet validated against the target record.
-- No Redis/Celery/n8n yet — nothing in Phase 0 needs background work.
+- Redis (permission-cache epoch, rate limits) and RabbitMQ/Celery (outbox consumers, scheduled maintenance generation) are in use; **n8n and the AI features are not built**.
 
-## Roadmap
+## Operations
 
-Phase 1 Inventory & Procurement → 2 R&D & Quality foundation → 3 Production → 4 Quality completion →
-5 CRM/Dispatch → 6 Accounts → 7 E-commerce → 8 Maintenance & Branding → 9 AI. Each phase is done when its
-cross-module workflow passes end-to-end (see PRD §14).
+```bash
+MINTREE_DATABASE_URL=postgresql://… ops/backup.sh ./backups 14        # custom-format dump + checksum + retention
+MINTREE_DATABASE_URL=postgresql://… ops/restore_check.sh ./backups/mintree-<stamp>.dump   # restores to a scratch DB, compares row counts, runs the integrity checker, drops it
+```
+
+`docker-compose.yml`, the two Dockerfiles, `ops/Caddyfile` and `.env.example` describe a single-host deployment (API, worker, beat, outbox publisher, web, Postgres, Redis, RabbitMQ, Caddy with automatic HTTPS).
+**They have not been built or run** (the development sandbox has no Docker daemon) — validate on a staging host. Uploaded documents live in a volume and need their own backup.
+
+## What is left
+
+`docs/PRD_COVERAGE.md` lists, per module, what is built, what is partial and what is not — chiefly live marketplace/courier/Meta connectors, GST e-invoice/e-way bill, partial shipments,
+AI features, S3 storage, and the 1,000-concurrent-operation load demonstration — and which of those wait on business decisions from Mintree (PRD §17).
 
 ## Open items needing Mintree input (PRD §17)
 
