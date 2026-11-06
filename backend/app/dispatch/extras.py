@@ -16,6 +16,7 @@ from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.core.uow import run_tx
 from app.dispatch import courier
 from app.dispatch.models import PickScan, SalesInvoice, SalesOrder, SalesReturn, Shipment
+from app.core.clock import business_today
 
 DELAY_DAYS = 5
 
@@ -74,7 +75,7 @@ def create_manifest(db: Session, cu: CurrentUser, courier_name: str) -> dict:
     if not ships:
         raise BusinessConflict("nothing_to_manifest", "No booked, un-manifested shipments for that courier")
     n = db.execute(text("SELECT nextval('manifest_seq')")).scalar_one()
-    no = f"MF/{date.today():%y%m%d}/{n:05d}"
+    no = f"MF/{business_today():%y%m%d}/{n:05d}"
     for s in ships:
         s.manifest_no, s.pickup_requested_at = no, datetime.now(timezone.utc)
     audit.record(db, user=cu, action="manifest", entity="shipment", entity_id=no, after={"courier": courier_name, "shipments": [s.id for s in ships]})
@@ -138,7 +139,7 @@ def request_reverse_pickup(return_id: int, session_factory=SessionLocal) -> str:
 def dashboard(db: Session) -> dict:
     so = {r[0]: r[1] for r in db.execute(text("SELECT status, count(*) FROM sales_orders GROUP BY status"))}
     sh = {r[0]: r[1] for r in db.execute(text("SELECT status, count(*) FROM shipments GROUP BY status"))}
-    today = db.scalar(text("SELECT count(*) FROM sales_invoices WHERE invoice_date = current_date"))
+    today = db.scalar(text("SELECT count(*) FROM sales_invoices WHERE invoice_date = business_today()"))
     delayed = db.scalar(text("""SELECT count(*) FROM shipments s WHERE s.status NOT IN ('DELIVERED','RTO','FAILED_DELIVERY') AND s.created_at < now() - make_interval(days => :d)"""), {"d": DELAY_DAYS})
     ret = {r[0]: r[1] for r in db.execute(text("SELECT status, count(*) FROM sales_returns GROUP BY status"))}
     charges = db.execute(text("SELECT COALESCE(sum(shipping_charge),0), count(*) FILTER (WHERE shipping_charge IS NULL AND status NOT IN ('PENDING_BOOKING','BOOKING')) FROM shipments")).one()

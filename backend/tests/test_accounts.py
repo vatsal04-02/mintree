@@ -12,6 +12,7 @@ from app.core.uow import run_tx
 from scripts.check_integrity import run_checks
 from tests.conftest import mk_master
 from tests.test_inventory_procurement import N, po_to_approved, receive
+from app.core.clock import business_today  # noqa: E402
 
 
 def integrity(db):
@@ -30,7 +31,7 @@ def tb(client):
 
 def test_unbalanced_journal_is_rejected_by_the_service(fin):
     r = fin["acct"].post("/api/accounts/journals", headers={"Idempotency-Key": "key-jv-unbal-0001"}, json={
-        "entry_date": str(date.today()), "description": "unbalanced test", "lines": [
+        "entry_date": str(business_today()), "description": "unbalanced test", "lines": [
             {"account_code": "1000", "debit": "100"}, {"account_code": "3000", "credit": "99.99"}]})
     assert r.status_code == 409 and r.json()["detail"]["code"] == "unbalanced_journal"
 
@@ -39,7 +40,7 @@ def test_database_refuses_an_unbalanced_journal_even_if_application_code_is_wron
     """Bypass the service entirely: raw SQL inserts an unbalanced entry. The deferred trigger must stop the COMMIT."""
     with engine.connect() as c:
         c.execute(text("INSERT INTO journal_entries(number, entry_date, period_id, description, source_type, source_id, total_debit, total_credit) "
-                       "SELECT 'JV/RAW/1', current_date, id, 'raw', 'raw', 1, 100, 100 FROM accounting_periods WHERE current_date BETWEEN start_date AND end_date"))
+                       "SELECT 'JV/RAW/1', business_today(), id, 'raw', 'raw', 1, 100, 100 FROM accounting_periods WHERE business_today() BETWEEN start_date AND end_date"))
         c.execute(text("INSERT INTO journal_lines(entry_id, line_no, account_id, debit, credit) SELECT currval(pg_get_serial_sequence('journal_entries','id')), 1, id, 100, 0 FROM accounts WHERE code='1000'"))
         c.execute(text("INSERT INTO journal_lines(entry_id, line_no, account_id, debit, credit) SELECT currval(pg_get_serial_sequence('journal_entries','id')), 2, id, 0, 90 FROM accounts WHERE code='3000'"))
         with pytest.raises(DBAPIError, match="unbalanced"):
@@ -50,7 +51,7 @@ def test_database_refuses_an_unbalanced_journal_even_if_application_code_is_wron
 
 def test_journals_are_immutable(fin, db):
     r = fin["acct"].post("/api/accounts/journals", headers={"Idempotency-Key": "key-jv-imm-0001"}, json={
-        "entry_date": str(date.today()), "description": "immutable test", "lines": [{"account_code": "1000", "debit": "50"}, {"account_code": "3000", "credit": "50"}]})
+        "entry_date": str(business_today()), "description": "immutable test", "lines": [{"account_code": "1000", "debit": "50"}, {"account_code": "3000", "credit": "50"}]})
     assert r.status_code == 201
     for sql in ("UPDATE journal_entries SET description='x'", "DELETE FROM journal_lines"):
         with pytest.raises(DBAPIError, match="append-only"):
@@ -77,7 +78,7 @@ def test_supplier_invoice_three_way_match_variance_and_duplicates(fin, db):
     m = mk_master("ACC")
     po = po_to_approved(fin["buyer"], fin["admin"], m, qty="100", price="10")
     receive(fin["stores"], po, m["wh1"], "60", "DN-AC-2", "key-acc-gr-0002")
-    li = lambda q, p: {"po_id": po["id"], "supplier_invoice_no": "SUP-INV-77", "invoice_date": str(date.today()),
+    li = lambda q, p: {"po_id": po["id"], "supplier_invoice_no": "SUP-INV-77", "invoice_date": str(business_today()),
                        "lines": [{"po_item_id": po["items"][0]["id"], "qty": q, "unit_price": p, "tax_rate": "18"}]}
     over = fin["acct"].post("/api/accounts/supplier-invoices", headers={"Idempotency-Key": "key-acc-si-0001"}, json=li("61", "10"))
     assert over.status_code == 409 and over.json()["detail"]["code"] == "invoice_exceeds_receipt"          # received 60, billed 61
@@ -102,10 +103,10 @@ def test_payments_allocate_partially_then_fully_and_cannot_overpay(fin, db):
     po = po_to_approved(fin["buyer"], fin["admin"], m, qty="10", price="100")
     receive(fin["stores"], po, m["wh1"], "10", "DN-AC-3", "key-acc-gr-0003")
     inv = fin["acct"].post("/api/accounts/supplier-invoices", headers={"Idempotency-Key": "key-acc-si-0010"}, json={
-        "po_id": po["id"], "supplier_invoice_no": "SUP-INV-90", "invoice_date": str(date.today()),
+        "po_id": po["id"], "supplier_invoice_no": "SUP-INV-90", "invoice_date": str(business_today()),
         "lines": [{"po_item_id": po["items"][0]["id"], "qty": "10", "unit_price": "100", "tax_rate": "0"}]}).json()
     pay = lambda amt, k, alloc=None: fin["acct"].post("/api/accounts/payments", headers={"Idempotency-Key": k}, json={
-        "direction": "PAID", "party_id": m["supplier_id"], "amount": amt, "payment_date": str(date.today()), "method": "BANK_TRANSFER", "bank_account_code": "1100",
+        "direction": "PAID", "party_id": m["supplier_id"], "amount": amt, "payment_date": str(business_today()), "method": "BANK_TRANSFER", "bank_account_code": "1100",
         "allocations": [{"invoice_id": inv["id"], "amount": alloc or amt}]})
     assert pay("400", "key-acc-pay-0001", "300").json()["detail"]["code"] == "allocation_mismatch"
     assert pay("400", "key-acc-pay-0002").status_code == 201
@@ -123,7 +124,7 @@ def test_closed_period_blocks_postings_and_rolls_everything_back(fin, db):
     m = mk_master("ACC")
     po = po_to_approved(fin["buyer"], fin["admin"], m, qty="10", price="5")
     pid = next(p["id"] for p in fin["acct"].get("/api/accounts/periods").json()
-               if p["start_date"] <= str(date.today()) <= p["end_date"])
+               if p["start_date"] <= str(business_today()) <= p["end_date"])
     assert fin["acct"].post(f"/api/accounts/periods/{pid}/close").status_code == 200
     stock_before = db.execute(text("SELECT count(*) FROM stock_ledger")).scalar()
     r = receive(fin["stores"], po, m["wh1"], "10", "DN-AC-4", "key-acc-gr-0004")
@@ -133,7 +134,7 @@ def test_closed_period_blocks_postings_and_rolls_everything_back(fin, db):
 
 
 def test_manual_journal_permissions_and_reversal_once(fin, db):
-    body = {"entry_date": str(date.today()), "description": "owner contribution", "lines": [{"account_code": "1100", "debit": "1000"}, {"account_code": "3000", "credit": "1000"}]}
+    body = {"entry_date": str(business_today()), "description": "owner contribution", "lines": [{"account_code": "1100", "debit": "1000"}, {"account_code": "3000", "credit": "1000"}]}
     assert fin["buyer"].post("/api/accounts/journals", headers={"Idempotency-Key": "key-jv-perm-0001"}, json=body).status_code == 403
     j = fin["acct"].post("/api/accounts/journals", headers={"Idempotency-Key": "key-jv-perm-0002"}, json=body)
     assert j.status_code == 201

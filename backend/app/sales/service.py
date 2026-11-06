@@ -15,6 +15,7 @@ from app.dispatch import service as dispatch
 from app.masters.models import Customer, Item
 from app.notifications.service import notify
 from app.sales.models import CustomerContact, CustomerPrice, FollowUp, SalesQuotation, SalesQuotationItem
+from app.core.clock import business_today
 
 CHANNEL_BY_TYPE = {"DISTRIBUTOR": "DISTRIBUTOR", "BRAND": "BRAND"}
 
@@ -62,7 +63,7 @@ def set_price(db: Session, cu: CurrentUser, *, customer_id: int, item_id: int, p
 
 
 def resolve_price(db: Session, customer_id: int, item_id: int, on: date | None = None) -> Decimal | None:
-    on = on or date.today()
+    on = on or business_today()
     return db.scalar(select(CustomerPrice.price).where(CustomerPrice.customer_id == customer_id, CustomerPrice.item_id == item_id, CustomerPrice.valid_from <= on,
                                                        (CustomerPrice.valid_to.is_(None)) | (CustomerPrice.valid_to >= on)).order_by(CustomerPrice.valid_from.desc()).limit(1))
 
@@ -104,7 +105,7 @@ def complete_followup(db: Session, cu: CurrentUser, fid: int, outcome: str | Non
 
 def followup_dict(f: FollowUp) -> dict:
     return {"id": f.id, "subject": f.subject, "due_date": f.due_date, "status": f.status, "lead_id": f.lead_id, "customer_id": f.customer_id, "assigned_to": f.assigned_to,
-            "overdue": f.status == "OPEN" and f.due_date < date.today(), "outcome": f.outcome}
+            "overdue": f.status == "OPEN" and f.due_date < business_today(), "outcome": f.outcome}
 
 
 # ------------------------------------------------------------------ quotations
@@ -118,7 +119,7 @@ def _q(db: Session, qid: int, lock: bool = False) -> SalesQuotation:
 
 def create_quotation(db: Session, cu: CurrentUser, *, customer_id: int, valid_until: date, notes: str | None, lines: list[dict]) -> dict:
     cust = _customer(db, customer_id)
-    if valid_until < date.today():
+    if valid_until < business_today():
         raise Unprocessable("valid_until is in the past")
     if len({l["item_id"] for l in lines}) != len(lines):
         raise Unprocessable("An item may appear once per quotation")
@@ -141,7 +142,7 @@ def create_quotation(db: Session, cu: CurrentUser, *, customer_id: int, valid_un
         tax += acct.money(line * rate / 100)
         rows.append(SalesQuotationItem(line_no=n, item_id=it.id, qty=l["qty"], unit_price=price, tax_rate=rate, price_source=src))
     seq = db.execute(text("SELECT nextval('sales_quotation_seq')")).scalar_one()
-    q = SalesQuotation(number=f"SQ/{date.today():%y}/{seq:06d}", customer_id=customer_id, valid_until=valid_until, notes=notes, subtotal=sub, tax_total=tax, total=sub + tax, created_by=cu.id)
+    q = SalesQuotation(number=f"SQ/{business_today():%y}/{seq:06d}", customer_id=customer_id, valid_until=valid_until, notes=notes, subtotal=sub, tax_total=tax, total=sub + tax, created_by=cu.id)
     q.items = rows
     db.add(q)
     db.flush()
@@ -157,7 +158,7 @@ def quotation_action(db: Session, cu: CurrentUser, qid: int, action: str, *, exp
     frm, to = flow[action]
     if q.status not in frm:
         raise BusinessConflict("invalid_status", f"Cannot {action} a quotation in status {q.status}")
-    if action in ("accept", "convert") and q.valid_until < date.today():
+    if action in ("accept", "convert") and q.valid_until < business_today():
         raise BusinessConflict("quotation_expired", "This quotation has expired; create a new one", valid_until=str(q.valid_until))
     if action == "convert":
         if not warehouse_id:
@@ -172,7 +173,7 @@ def quotation_action(db: Session, cu: CurrentUser, qid: int, action: str, *, exp
 
 
 def quotation_dict(q: SalesQuotation) -> dict:
-    return {"id": q.id, "number": q.number, "customer_id": q.customer_id, "status": q.status, "version": q.version, "valid_until": q.valid_until, "expired": q.status in ("DRAFT", "SENT") and q.valid_until < date.today(),
+    return {"id": q.id, "number": q.number, "customer_id": q.customer_id, "status": q.status, "version": q.version, "valid_until": q.valid_until, "expired": q.status in ("DRAFT", "SENT") and q.valid_until < business_today(),
             "subtotal": str(q.subtotal), "tax_total": str(q.tax_total), "total": str(q.total), "sales_order_id": q.sales_order_id,
             "items": [{"line_no": i.line_no, "item_id": i.item_id, "qty": str(i.qty), "unit_price": str(i.unit_price), "tax_rate": str(i.tax_rate), "price_source": i.price_source} for i in q.items]}
 
@@ -184,7 +185,7 @@ def pipeline(db: Session) -> dict:
     quotes = {r[0]: {"count": r[1], "value": str(r[2])} for r in db.execute(text("SELECT status, count(*), COALESCE(sum(total),0) FROM sales_quotations GROUP BY status"))}
     by_owner = [dict(r) for r in db.execute(text("""SELECT COALESCE(u.full_name, 'Unassigned') AS owner, count(*) FILTER (WHERE l.status IN ('NEW','CONTACTED','QUALIFIED')) AS open_leads,
                                                            count(*) FILTER (WHERE l.status = 'WON') AS won FROM leads l LEFT JOIN users u ON u.id = l.owner_id GROUP BY u.full_name ORDER BY 1""")).mappings()]
-    overdue = db.scalar(text("SELECT count(*) FROM followups WHERE status = 'OPEN' AND due_date < current_date"))
+    overdue = db.scalar(text("SELECT count(*) FROM followups WHERE status = 'OPEN' AND due_date < business_today()"))
     return {"leads_by_status": by_status, "lead_win_rate_pct": round(100 * won / (won + lost), 1) if won + lost else None, "quotations_by_status": quotes,
             "by_owner": by_owner, "overdue_followups": overdue}
 

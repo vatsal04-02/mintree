@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 
 def _connect_options() -> str:
     s = get_settings()
-    opts = []
+    opts = ["-c timezone=UTC"]  # explicit: never inherit the server/OS timezone
     for name, val in (("statement_timeout", s.db_statement_timeout_ms), ("lock_timeout", s.db_lock_timeout_ms),
                       ("idle_in_transaction_session_timeout", s.db_idle_in_tx_timeout_ms)):
         if val:

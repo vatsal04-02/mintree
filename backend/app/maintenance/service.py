@@ -13,6 +13,7 @@ from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.maintenance.models import CalibrationRecord, DowntimeRecord, Equipment, MaintenanceSchedule, MaintenanceWorkOrder, SparePartUsage
 from app.production import service as production
+from app.core.clock import business_today
 
 
 def _eq(db: Session, eid: int, lock: bool = False) -> Equipment:
@@ -27,7 +28,7 @@ def equipment_guard(db: Session, equipment_id: int) -> None:
     e = _eq(db, equipment_id)
     if e.status != "OPERATIONAL":
         raise BusinessConflict("equipment_unavailable", f"Equipment {e.asset_id} is {e.status} and cannot be used for production")
-    if e.calibration_required and (e.calibration_due is None or e.calibration_due < date.today()):
+    if e.calibration_required and (e.calibration_due is None or e.calibration_due < business_today()):
         raise BusinessConflict("calibration_overdue", f"Equipment {e.asset_id} has no valid calibration", due=str(e.calibration_due))
 
 
@@ -59,7 +60,7 @@ def create_schedule(db: Session, cu: CurrentUser, equipment_id: int, title: str,
 
 def _wo_number(db: Session) -> str:
     n = db.execute(text("SELECT nextval('maintenance_wo_seq')")).scalar_one()
-    return f"MWO/{date.today():%y}/{n:06d}"
+    return f"MWO/{business_today():%y}/{n:06d}"
 
 
 def generate_due(db: Session, as_of: date, actor_id: int | None = None) -> dict:
@@ -185,7 +186,7 @@ def equipment_dict(e: Equipment) -> dict:
     return {"id": e.id, "asset_id": e.asset_id, "name": e.name, "category": e.category, "location": e.location, "status": e.status,
             "calibration_required": e.calibration_required, "calibration_due": e.calibration_due, "manufacturer": e.manufacturer, "model": e.model, "serial_no": e.serial_no,
             "purchase_date": e.purchase_date, "installation_date": e.installation_date, "capacity": e.capacity, "warranty_until": e.warranty_until,
-            "under_warranty": bool(e.warranty_until and e.warranty_until >= date.today())}
+            "under_warranty": bool(e.warranty_until and e.warranty_until >= business_today())}
 
 
 def wo_dict(w: MaintenanceWorkOrder) -> dict:

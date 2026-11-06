@@ -13,6 +13,7 @@ from app.accounts import service as acct
 from app.core.errors import BusinessConflict, NotFound
 from app.inventory import service as svc
 from app.masters.models import Item
+from app.core.clock import business_today
 
 
 def _kind_account(db: Session, item_id: int) -> str:
@@ -35,7 +36,7 @@ def post_adjustment(db: Session, *, balance_id: int, delta, reason: str, source_
         acct.val_receive(db, vrows, row["item_id"], d, value)
         lines = [(inv_acct, value, Decimal(0)), ("5200", Decimal(0), value)]
     if value:
-        acct.post_journal(db, entry_date=date.today(), description=f"Stock adjustment: {reason[:120]}", source_type="stock_adjustment", source_id=row["id"], lines=lines, actor_id=actor_id)
+        acct.post_journal(db, entry_date=business_today(), description=f"Stock adjustment: {reason[:120]}", source_type="stock_adjustment", source_id=row["id"], lines=lines, actor_id=actor_id)
     return r | {"value": str(value), "unvalued": d > 0 and value == 0}
 
 
@@ -73,7 +74,7 @@ def post_opening_stock(db: Session, cu, *, warehouse_id: int, qc_status: str, no
         raise Unprocessable("An item may appear once per posting")
     items = {i.id: i for i in db.scalars(select(Item).where(Item.id.in_([l["item_id"] for l in lines])))}
     n = db.execute(text("SELECT nextval('opening_stock_seq')")).scalar_one()
-    doc = OpeningStock(number=f"OS/{date.today():%y}/{n:05d}", warehouse_id=warehouse_id, qc_status=qc_status, note=note, total_value=Decimal(0), posted_by=cu.id)
+    doc = OpeningStock(number=f"OS/{business_today():%y}/{n:05d}", warehouse_id=warehouse_id, qc_status=qc_status, note=note, total_value=Decimal(0), posted_by=cu.id)
     db.add(doc)
     db.flush()
     out, valued = [], []
@@ -102,7 +103,7 @@ def post_opening_stock(db: Session, cu, *, warehouse_id: int, qc_status: str, no
         by_account[code] = by_account.get(code, Decimal(0)) + value
     total = sum(by_account.values(), Decimal(0))
     if total > 0:
-        acct.post_journal(db, entry_date=date.today(), description=f"Opening stock {doc.number}", source_type="opening_stock", source_id=doc.id,
+        acct.post_journal(db, entry_date=business_today(), description=f"Opening stock {doc.number}", source_type="opening_stock", source_id=doc.id,
                           lines=[(c, v, Decimal(0)) for c, v in sorted(by_account.items())] + [("3000", Decimal(0), total)], actor_id=cu.id)
     doc.total_value = total
     audit.record(db, user=cu, action="post", entity="opening_stock", entity_id=doc.id, after={"number": doc.number, "lines": len(out), "value": str(total), "qc": qc_status})

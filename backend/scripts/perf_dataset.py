@@ -22,6 +22,7 @@ from app.core.db import engine
 from app.core.security import hash_password
 from app.masters.models import Item, Supplier, UnitOfMeasure
 from app.seed import seed
+from app.core.clock import business_today  # noqa: E402
 
 PERF_PASSWORD = "Perf-Load-Passw0rd!"
 KINDS = ["RM", "PM", "BULK", "FG"]
@@ -38,7 +39,7 @@ def _opening_stock(s: Session, start: int, end: int, qty: int, uom_id: int) -> N
         wh AS (SELECT id FROM warehouses WHERE code = 'RM-WH'),
         batches AS (
           INSERT INTO inventory_batches(item_id, batch_no, qc_status, expiry_date, source_type, source_id)
-          SELECT id, 'OB-' || item_code, 'RELEASED', current_date + 365, 'opening_balance', 1 FROM new_items RETURNING id, item_id),
+          SELECT id, 'OB-' || item_code, 'RELEASED', business_today() + 365, 'opening_balance', 1 FROM new_items RETURNING id, item_id),
         bal AS (
           INSERT INTO stock_balances(item_id, warehouse_id, batch_id, qty_physical)
           SELECT b.item_id, (SELECT id FROM wh), b.id, CAST(:q AS numeric) FROM batches b RETURNING id, item_id, warehouse_id, batch_id)
@@ -54,7 +55,7 @@ def _hot_item(s: Session, qty: int, uom_id: int) -> dict:
                    VALUES ('HOT-' || CAST(:t AS text), 'Hot stock item ' || CAST(:t AS text), 'RM', CAST(:uom AS int), true, true, 365) RETURNING id),
         wh AS (SELECT id FROM warehouses WHERE code = 'RM-WH'),
         b AS (INSERT INTO inventory_batches(item_id, batch_no, qc_status, expiry_date, source_type, source_id)
-              SELECT id, 'OB-HOT-' || CAST(:t AS text), 'RELEASED', current_date + 365, 'opening_balance', 1 FROM i RETURNING id, item_id),
+              SELECT id, 'OB-HOT-' || CAST(:t AS text), 'RELEASED', business_today() + 365, 'opening_balance', 1 FROM i RETURNING id, item_id),
         bal AS (INSERT INTO stock_balances(item_id, warehouse_id, batch_id, qty_physical)
                 SELECT b.item_id, (SELECT id FROM wh), b.id, CAST(:q AS numeric) FROM b RETURNING id, item_id, warehouse_id, batch_id),
         l AS (INSERT INTO stock_ledger(balance_id, item_id, warehouse_id, batch_id, qty_delta, movement_type, source_type, source_id, source_line)

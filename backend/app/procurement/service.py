@@ -23,6 +23,7 @@ from app.quality import service as quality
 from app.masters.models import Item, StorageLocation, Supplier, Warehouse
 from app.procurement.models import (ApprovalPolicy, GoodsReceipt, GoodsReceiptItem, PurchaseOrder, PurchaseOrderItem,
                                     PurchaseRequest, PurchaseRequestItem)
+from app.core.clock import business_today
 
 MONEY = Decimal("0.01")
 
@@ -44,7 +45,7 @@ def create_pr(db: Session, cu: CurrentUser, *, items: list[dict], required_by: d
         it = found.get(i["item_id"])
         if not it or not it.is_active or it.kind not in ("RM", "PM"):
             raise Unprocessable(f"Item {i['item_id']} is not an active raw/packaging material")
-    pr = PurchaseRequest(number=f"PR/{date.today():%y}/{_seq(db, 'pr_number_seq'):06d}", requested_by=cu.id,
+    pr = PurchaseRequest(number=f"PR/{business_today():%y}/{_seq(db, 'pr_number_seq'):06d}", requested_by=cu.id,
                          department_id=department_id, required_by=required_by, notes=notes)
     pr.items = [PurchaseRequestItem(line_no=n, item_id=i["item_id"], qty=i["qty"]) for n, i in enumerate(items, 1)]
     db.add(pr)
@@ -91,7 +92,7 @@ def create_po(db: Session, cu: CurrentUser, *, supplier_id: int, items: list[dic
         tax = Decimal(str(i.get("tax_rate") if i.get("tax_rate") is not None else (it.gst_rate or 0)))
         total += (Decimal(str(i["qty"])) * Decimal(str(i["unit_price"])) * (1 + tax / 100))
         lines.append(PurchaseOrderItem(line_no=n, item_id=i["item_id"], qty_ordered=i["qty"], unit_price=i["unit_price"], tax_rate=tax))
-    po = PurchaseOrder(number=f"PO/{date.today():%y}/{_seq(db, 'po_number_seq'):06d}", supplier_id=supplier_id, pr_id=pr_id,
+    po = PurchaseOrder(number=f"PO/{business_today():%y}/{_seq(db, 'po_number_seq'):06d}", supplier_id=supplier_id, pr_id=pr_id,
                        expected_date=expected_date, notes=notes, created_by=cu.id,
                        total_amount=total.quantize(MONEY, rounding=ROUND_HALF_UP))
     po.items = lines
@@ -211,7 +212,7 @@ def post_goods_receipt(db: Session, cu: CurrentUser, *, po_id: int, warehouse_id
         if it.shelf_life_days and it.is_batch_tracked and not l.get("expiry_date"):
             raise Unprocessable(f"Item {it.item_code} has a shelf life: an expiry date is required")
 
-    gr = GoodsReceipt(number=f"GRN/{date.today():%y}/{_seq(db, 'gr_number_seq'):06d}", po_id=po_id, supplier_id=po.supplier_id,
+    gr = GoodsReceipt(number=f"GRN/{business_today():%y}/{_seq(db, 'gr_number_seq'):06d}", po_id=po_id, supplier_id=po.supplier_id,
                       warehouse_id=warehouse_id, delivery_note_no=delivery_note_no, posted_by=cu.id)
     db.add(gr)
     try:
@@ -249,7 +250,7 @@ def post_goods_receipt(db: Session, cu: CurrentUser, *, po_id: int, warehouse_id
         acct.val_receive(db, vrows, it.id, qty, value)
         code = acct.INVENTORY_ACCOUNT[it.kind]
         by_account[code] = by_account.get(code, Decimal(0)) + value
-    acct.post_journal(db, entry_date=date.today(), description=f"Goods receipt {gr.number}", source_type="goods_receipt", source_id=gr.id,
+    acct.post_journal(db, entry_date=business_today(), description=f"Goods receipt {gr.number}", source_type="goods_receipt", source_id=gr.id,
                       lines=[(c, v, Decimal(0)) for c, v in sorted(by_account.items())] + [("2100", Decimal(0), sum(by_account.values()))], actor_id=cu.id)
     full = all(i.qty_received >= i.qty_ordered for i in po_items.values())
     po.status, po.version = ("RECEIVED" if full else "PARTIALLY_RECEIVED"), po.version + 1

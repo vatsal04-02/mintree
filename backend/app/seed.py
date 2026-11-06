@@ -18,6 +18,7 @@ from app.core.permissions import RESOURCES, ROLES, role_permission_codes
 from app.core.security import hash_password
 from app.accounts.models import Account, AccountingPeriod
 from app.masters.models import UnitOfMeasure, Warehouse
+from app.core.clock import business_today
 
 DEPARTMENTS = [("MGMT", "Management"), ("PROD", "Production"), ("PURCH", "Purchase"), ("STORES", "Stores & Warehouse"),
                ("QA", "Quality"), ("RND", "R&D"), ("MAINT", "Maintenance"), ("DISP", "Dispatch"),
@@ -81,7 +82,7 @@ def seed(db: Session) -> str | None:
     db.add_all(Account(code=c, name=n, type=t) for c, n, t in COA if c not in have)
     from datetime import date as _d
     have = {p.name for p in db.scalars(select(AccountingPeriod))}
-    for fy in (_d.today(), _d(_d.today().year - 1, _d.today().month, 1)):   # current and previous fiscal year
+    for fy in (business_today(), _d(business_today().year - 1, business_today().month, 1)):   # current and previous fiscal year
         db.add_all(AccountingPeriod(name=n, start_date=a, end_date=b) for n, a, b in _fiscal_periods(fy) if n not in have and not have.add(n))
     db.flush()
 

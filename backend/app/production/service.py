@@ -17,6 +17,7 @@ from app.masters.models import Item
 from app.production.models import (Bom, BomLine, ProductionConsumption, ProductionMaterial, ProductionOrder, ProductionStage, WastageRecord)
 from app.quality import service as quality
 from app.rnd.models import FormulationVersion, Formulation
+from app.core.clock import business_today
 
 DEFAULT_STAGES = ["MIXING", "PROCESSING", "IN_PROCESS_QC"]
 LOW_YIELD_PCT = Decimal("95")
@@ -102,7 +103,7 @@ def create_order(db: Session, cu: CurrentUser, *, bom_id: int, planned_qty, ware
     pq = Decimal(str(planned_qty))
     scale = pq / bom.output_qty
     n = db.execute(text("SELECT nextval('production_order_seq')")).scalar_one()
-    o = ProductionOrder(number=f"PRD/{date.today():%y}/{n:06d}", bom_id=bom.id, formulation_version_id=bom.formulation_version_id, output_item_id=bom.output_item_id,
+    o = ProductionOrder(number=f"PRD/{business_today():%y}/{n:06d}", bom_id=bom.id, formulation_version_id=bom.formulation_version_id, output_item_id=bom.output_item_id,
                         warehouse_id=warehouse_id, planned_qty=pq, planned_date=planned_date, created_by=cu.id, request_id=request_id_var.get())
     o.materials = [ProductionMaterial(line_no=l.line_no, item_id=l.item_id, required_qty=(l.qty * scale).quantize(Q3, rounding=ROUND_HALF_UP)) for l in bom.lines]
     o.stages = [ProductionStage(seq=i, name=s.upper()) for i, s in enumerate(stages or DEFAULT_STAGES, 1)]
@@ -125,7 +126,7 @@ def availability(db: Session, order_id: int) -> dict:
     o = db.get(ProductionOrder, order_id)
     if not o:
         raise NotFound("Production order")
-    rows = db.execute(text("""SELECT sb.item_id, COALESCE(sum(sb.qty_available) FILTER (WHERE sb.batch_id IS NULL OR (ib.qc_status='RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > current_date))),0) avail
+    rows = db.execute(text("""SELECT sb.item_id, COALESCE(sum(sb.qty_available) FILTER (WHERE sb.batch_id IS NULL OR (ib.qc_status='RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > business_today()))),0) avail
                               FROM stock_balances sb LEFT JOIN inventory_batches ib ON ib.id = sb.batch_id WHERE sb.warehouse_id = :w AND sb.item_id = ANY(:ids) GROUP BY sb.item_id"""),
                       {"w": o.warehouse_id, "ids": [m.item_id for m in o.materials]}).all()
     have = {r[0]: r[1] for r in rows}
@@ -193,7 +194,7 @@ def _post_wip(db: Session, cu: CurrentUser, o: ProductionOrder, debit: str, cred
         net[c] = net.get(c, Decimal(0)) - v
     lines = [(c, v, Decimal(0)) if v > 0 else (c, Decimal(0), -v) for c, v in sorted(net.items()) if v != 0]
     if total and len(lines) >= 2:
-        acct.post_journal(db, entry_date=date.today(), description=f"Production {o.number} {event}", source_type="production_order", source_id=o.id,
+        acct.post_journal(db, entry_date=business_today(), description=f"Production {o.number} {event}", source_type="production_order", source_id=o.id,
                           source_event=event, lines=lines, actor_id=cu.id)
 
 
@@ -242,8 +243,8 @@ def complete_order(db: Session, cu: CurrentUser, order_id: int, expected_version
     for w in wastage:
         db.add(WastageRecord(order_id=o.id, category=w["category"], qty=w["qty"], reason=w["reason"], responsible_department=w.get("department")))
     out = db.get(Item, o.output_item_id)
-    expiry = date.today() + timedelta(days=out.shelf_life_days) if out.shelf_life_days else None
-    batch_id = inv.create_batch(db, item_id=out.id, supplier_id=None, supplier_lot_no=None, mfg_date=date.today(), expiry_date=expiry,
+    expiry = business_today() + timedelta(days=out.shelf_life_days) if out.shelf_life_days else None
+    batch_id = inv.create_batch(db, item_id=out.id, supplier_id=None, supplier_lot_no=None, mfg_date=business_today(), expiry_date=expiry,
                                 source_type="production_order", source_id=o.id)
     inv.receive(db, item_id=out.id, warehouse_id=o.warehouse_id, location_id=None, batch_id=batch_id, qty=actual, source_type="production_order", source_id=o.id,
                 source_line=0, actor_id=cu.id, quarantine=True, movement="PRODUCTION_OUTPUT")      # quarantined until Quality releases it

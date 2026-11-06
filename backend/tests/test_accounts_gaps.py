@@ -11,13 +11,14 @@ from tests.test_accounts import fin, integrity, tb  # noqa: F401
 from tests.test_dispatch import advance, make_customer, make_fg, shop  # noqa: F401
 from tests.test_inventory_procurement import N, po_to_approved, receive
 from tests.test_production import k, plant  # noqa: F401
+from app.core.clock import business_today  # noqa: E402
 
 
 def supplier_invoice(fin, qty="100", price="10", rate="18"):
     m = mk_master("ACX")
     po = po_to_approved(fin["buyer"], fin["admin"], m, qty=qty, price=price)
     assert receive(fin["stores"], po, m["wh1"], qty, f"DN-{uuid.uuid4().hex[:6]}", f"gr-{uuid.uuid4().hex[:10]}").status_code == 201
-    r = fin["acct"].post("/api/accounts/supplier-invoices", headers=k("si"), json={"po_id": po["id"], "supplier_invoice_no": f"SI-{uuid.uuid4().hex[:6]}", "invoice_date": str(date.today()),
+    r = fin["acct"].post("/api/accounts/supplier-invoices", headers=k("si"), json={"po_id": po["id"], "supplier_invoice_no": f"SI-{uuid.uuid4().hex[:6]}", "invoice_date": str(business_today()),
                                                                                   "lines": [{"po_item_id": po["items"][0]["id"], "qty": qty, "unit_price": price, "tax_rate": rate}]})
     assert r.status_code == 201, r.text
     return m, r.json()
@@ -46,7 +47,7 @@ def test_debit_note_reduces_payable_and_is_idempotent(fin, db):
     big = fin["acct"].post(f"/api/accounts/supplier-invoices/{inv['id']}/debit-notes", headers=k("dn"), json={**body, "amount_ex_tax": "1000"})
     assert big.status_code == 409 and big.json()["detail"]["code"] == "exceeds_outstanding"
     # payment can only settle what is left (1180 - 118 = 1062)
-    pay = lambda amt: fin["acct"].post("/api/accounts/payments", headers=k("p"), json={"direction": "PAID", "party_id": m["supplier_id"], "amount": amt, "payment_date": str(date.today()), "method": "BANK_TRANSFER",
+    pay = lambda amt: fin["acct"].post("/api/accounts/payments", headers=k("p"), json={"direction": "PAID", "party_id": m["supplier_id"], "amount": amt, "payment_date": str(business_today()), "method": "BANK_TRANSFER",
                                                                                       "bank_account_code": "1100", "allocations": [{"invoice_id": inv["id"], "amount": amt}]})
     assert pay("1180").status_code == 409
     assert pay("1062").status_code == 201
@@ -56,12 +57,12 @@ def test_debit_note_reduces_payable_and_is_idempotent(fin, db):
 def test_bank_statement_import_matching_booking_and_reconciliation(fin, db):
     bank = new_bank(fin)
     m, inv = supplier_invoice(fin)
-    p = fin["acct"].post("/api/accounts/payments", headers=k("p"), json={"direction": "PAID", "party_id": m["supplier_id"], "amount": "1180", "payment_date": str(date.today()), "method": "BANK_TRANSFER",
+    p = fin["acct"].post("/api/accounts/payments", headers=k("p"), json={"direction": "PAID", "party_id": m["supplier_id"], "amount": "1180", "payment_date": str(business_today()), "method": "BANK_TRANSFER",
                                                                          "bank_account_code": bank["ledger_account_code"], "allocations": [{"invoice_id": inv["id"], "amount": "1180"}]})
     assert p.status_code == 201, p.text                                  # registered bank accounts are valid settlement accounts
-    fin["acct"].post("/api/accounts/journals", headers=k("jv"), json={"entry_date": str(date.today()), "description": "Owner capital in", "lines": [
+    fin["acct"].post("/api/accounts/journals", headers=k("jv"), json={"entry_date": str(business_today()), "description": "Owner capital in", "lines": [
         {"account_code": bank["ledger_account_code"], "debit": "5000"}, {"account_code": "3000", "credit": "5000"}]})
-    csv_ = f"date,description,reference,credit,debit\n{date.today()},NEFT supplier,{p.json()['number']},,1180\n{date.today()},Capital,,5000,\n{date.today()},SMS charges,,,23.60\n"
+    csv_ = f"date,description,reference,credit,debit\n{business_today()},NEFT supplier,{p.json()['number']},,1180\n{business_today()},Capital,,5000,\n{business_today()},SMS charges,,,23.60\n"
     up = lambda c: fin["acct"].post(f"/api/accounts/bank-accounts/{bank['id']}/statements", files={"file": ("s.csv", c, "text/csv")})
     r = up(csv_)
     assert r.json()["imported"] == 3 and up(csv_).json() == {**r.json(), "imported": 0, "duplicates": 3}, "re-importing the same file changes nothing"
@@ -91,15 +92,15 @@ def test_bank_statement_import_matching_booking_and_reconciliation(fin, db):
 def test_ageing_statement_pnl_and_balance_sheet(fin, db):
     m, inv = supplier_invoice(fin)
     db.execute(text("UPDATE suppliers SET payment_terms_days = 30 WHERE id = :i"), {"i": m["supplier_id"]})
-    db.execute(text("UPDATE supplier_invoices SET invoice_date = current_date - 50 WHERE id = :i"), {"i": inv["id"]})
+    db.execute(text("UPDATE supplier_invoices SET invoice_date = business_today() - 50 WHERE id = :i"), {"i": inv["id"]})
     ag = fin["acct"].get("/api/accounts/reports/ageing/payables").json()
     row = next(p for p in ag["parties"] if p["party_id"] == m["supplier_id"])
     assert row["invoices"][0]["days_overdue"] == 20 and row["buckets"]["1-30"] == "1180.00" and row["total"] == "1180.00"
     assert fin["acct"].get("/api/accounts/reports/ageing/receivables").status_code == 200
-    st = fin["acct"].get(f"/api/accounts/reports/statement/supplier/{m['supplier_id']}", params={"start": str(date.today() - timedelta(days=60)), "end": str(date.today())}).json()
+    st = fin["acct"].get(f"/api/accounts/reports/statement/supplier/{m['supplier_id']}", params={"start": str(business_today() - timedelta(days=60)), "end": str(business_today())}).json()
     assert st["lines"][0]["type"] == "INVOICE" and N(st["closing_balance"]) == N("1180.00")
     assert fin["acct"].get("/api/accounts/reports/statement/customer/99999999", params={"start": "2026-01-01", "end": "2026-12-31"}).status_code == 404
-    pl = fin["acct"].get("/api/accounts/reports/profit-and-loss", params={"start": str(date.today() - timedelta(days=400)), "end": str(date.today())}).json()
+    pl = fin["acct"].get("/api/accounts/reports/profit-and-loss", params={"start": str(business_today() - timedelta(days=400)), "end": str(business_today())}).json()
     assert N(pl["net_profit"]) == N(pl["total_revenue"]) - N(pl["total_expenses"])
     bs = fin["acct"].get("/api/accounts/reports/balance-sheet").json()
     assert bs["balanced"] is True and N(bs["total_assets"]) == N(bs["total_liabilities"]) + N(bs["total_equity"])
@@ -116,7 +117,7 @@ def run_dispatch(shop, f, cust, qty="20", price="25"):
 
 def test_gst_summary_costing_and_margin(shop, db):
     f, cust = make_fg(shop, 100, 10), make_customer()
-    today = str(date.today())
+    today = str(business_today())
     before = shop["acct"].get("/api/accounts/reports/gst-summary", params={"start": today, "end": today}).json()
     run_dispatch(shop, f, cust)                                        # 20 x 25 = 500 taxable, 18% = 90 (customer state MH = company state 27 -> CGST+SGST)
     after = shop["acct"].get("/api/accounts/reports/gst-summary", params={"start": today, "end": today}).json()
@@ -147,13 +148,13 @@ def test_marketplace_settlement_posts_cash_and_deductions_and_clears_invoice(sho
     acct = mgr.post("/api/ecommerce/accounts", json={"platform": "AMAZON", "name": "Amazon", "seller_id": f"S{uuid.uuid4().hex[:6]}", "customer_id": cust, "warehouse_id": f["wh"]}).json()
     mgr.put(f"/api/ecommerce/accounts/{acct['id']}/mappings", json={"platform_sku": "SRM", "item_id": f["fg"]})
     oid = f"AMZ-{uuid.uuid4().hex[:6]}"
-    assert mgr.post(f"/api/ecommerce/accounts/{acct['id']}/orders", json={"orders": [{"order_id": oid, "order_date": str(date.today()), "items": [{"sku": "SRM", "qty": "20", "unit_price": "25"}]}]}).json()["created"] == 1
+    assert mgr.post(f"/api/ecommerce/accounts/{acct['id']}/orders", json={"orders": [{"order_id": oid, "order_date": str(business_today()), "items": [{"sku": "SRM", "qty": "20", "unit_price": "25"}]}]}).json()["created"] == 1
     so = db.execute(text("SELECT id FROM sales_orders WHERE external_ref = :r"), {"r": f"AMAZON:{oid}"}).scalar()
     o = shop["disp"].get(f"/api/dispatch/orders/{so}").json()
     p = advance(shop, o)
     inv = shop["disp"].post(f"/api/dispatch/orders/{so}/dispatch", headers=k(), json={"expected_version": p["version"]}).json()["invoice"]
     assert N(inv["total"]) == 590
-    st = mgr.post(f"/api/ecommerce/accounts/{acct['id']}/settlements", json={"reference": f"W-{uuid.uuid4().hex[:5]}", "period_start": str(date.today()), "period_end": str(date.today()),
+    st = mgr.post(f"/api/ecommerce/accounts/{acct['id']}/settlements", json={"reference": f"W-{uuid.uuid4().hex[:5]}", "period_start": str(business_today()), "period_end": str(business_today()),
                                                                            "gross_sales": "590", "commission": "88.50"}).json()
     assert N(st["net_settlement"]) == N("501.50")
     post = lambda: shop["acct"].post(f"/api/accounts/settlements/{st['id']}/post", headers=k("st"), json={"bank_account_code": "1100"})

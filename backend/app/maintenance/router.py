@@ -12,6 +12,7 @@ from app.core.errors import NotFound
 from app.core.uow import run_tx
 from app.maintenance import service as svc
 from app.maintenance.models import Equipment, MaintenanceWorkOrder
+from app.core.clock import business_today
 
 router = APIRouter(prefix="/maintenance", tags=["maintenance"])
 DB = Depends(get_db, scope="function")
@@ -89,7 +90,7 @@ def create_schedule(body: ScheduleIn, db: Session = DB, cu: CurrentUser = Depend
 
 @router.post("/schedules/generate")
 def generate(as_of: date | None = None, db: Session = DB, cu: CurrentUser = Depends(require("maintenance.workorder:create"))):
-    return run_tx(db, lambda d: svc.generate_due(d, as_of or date.today(), cu.id), name="maintenance.schedule.generate")
+    return run_tx(db, lambda d: svc.generate_due(d, as_of or business_today(), cu.id), name="maintenance.schedule.generate")
 
 
 @router.post("/breakdowns", status_code=201)
@@ -174,8 +175,8 @@ def dashboard(db: Session = DB, _: CurrentUser = Depends(require("maintenance.eq
     one = lambda sql: db.scalar(text(sql))
     return {"equipment_by_status": {r[0]: r[1] for r in db.execute(text("SELECT status, count(*) FROM equipment GROUP BY status"))},
             "open_work_orders": one("SELECT count(*) FROM maintenance_work_orders WHERE status <> 'CLOSED'"),
-            "overdue_preventive": one("SELECT count(*) FROM maintenance_work_orders WHERE kind = 'PREVENTIVE' AND status <> 'CLOSED' AND due_date < current_date"),
-            "calibration_overdue": one("SELECT count(*) FROM equipment WHERE calibration_required AND status <> 'RETIRED' AND (calibration_due IS NULL OR calibration_due < current_date)"),
-            "calibration_due_30d": one("SELECT count(*) FROM equipment WHERE calibration_required AND calibration_due BETWEEN current_date AND current_date + 30"),
+            "overdue_preventive": one("SELECT count(*) FROM maintenance_work_orders WHERE kind = 'PREVENTIVE' AND status <> 'CLOSED' AND due_date < business_today()"),
+            "calibration_overdue": one("SELECT count(*) FROM equipment WHERE calibration_required AND status <> 'RETIRED' AND (calibration_due IS NULL OR calibration_due < business_today())"),
+            "calibration_due_30d": one("SELECT count(*) FROM equipment WHERE calibration_required AND calibration_due BETWEEN business_today() AND business_today() + 30"),
             "downtime_hours_30d": float(one("SELECT COALESCE(round(sum(EXTRACT(EPOCH FROM COALESCE(ended_at, now()) - started_at))/3600), 0) FROM downtime_records WHERE started_at > now() - interval '30 days'")),
-            "warranty_expiring_60d": one("SELECT count(*) FROM equipment WHERE warranty_until BETWEEN current_date AND current_date + 60")}
+            "warranty_expiring_60d": one("SELECT count(*) FROM equipment WHERE warranty_until BETWEEN business_today() AND business_today() + 60")}

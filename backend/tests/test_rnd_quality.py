@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from scripts.check_integrity import run_checks
 from tests.conftest import mk_master
 from tests.test_inventory_procurement import N, po_to_approved, receive
+from app.core.clock import business_today  # noqa: E402
 
 
 def integrity(db):
@@ -178,7 +179,7 @@ def test_critical_deviation_holds_batch_and_closure_requires_verified_capa(qa, a
     assert qa["qm"].post(f"/api/quality/deviations/{did}/close").json()["detail"]["code"] == "capa_required"
     owner = login("quality_manager")
     capa = qa["qm"].post(f"/api/quality/deviations/{did}/capa", json={"kind": "CORRECTIVE", "description": "re-inspect supplier", "responsible_id": owner.user.id,
-                                                                    "due_date": str(date.today() + timedelta(days=7))})
+                                                                    "due_date": str(business_today() + timedelta(days=7))})
     cid = capa.json()["actions"][0]["id"]
     assert qa["qm"].post(f"/api/quality/deviations/{did}/close").json()["detail"]["code"] == "capa_not_verified"
     assert qa["qm2"].post(f"/api/quality/capa/{cid}/complete").json()["detail"]["code"] == "not_responsible"

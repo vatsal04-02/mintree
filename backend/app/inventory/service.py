@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import BusinessConflict, InsufficientStock, NotFound
 from app.inventory import repository as repo
+from app.core.clock import business_today
 
 Q = Decimal("0.001")
 
@@ -29,7 +30,7 @@ def _positive(qty) -> Decimal:
 
 def next_batch_no(db: Session) -> str:
     n = db.execute(text("SELECT nextval('batch_number_seq')")).scalar_one()
-    return f"B{date.today():%y}{n:07d}"
+    return f"B{business_today():%y}{n:07d}"
 
 
 def create_batch(db: Session, *, item_id: int, supplier_id: int | None, supplier_lot_no: str | None, mfg_date, expiry_date,

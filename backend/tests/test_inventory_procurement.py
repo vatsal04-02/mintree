@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError
 
 from scripts.check_integrity import run_checks
 from tests.conftest import mk_master
+from app.core.clock import business_today  # noqa: E402
 
 
 def assert_integrity(db):
@@ -34,7 +35,7 @@ def receive(client, po, wh, qty, note, key, expiry_days=300, lot="LOT-1"):
     return client.post("/api/procurement/goods-receipts", headers={"Idempotency-Key": key}, json={
         "po_id": po["id"], "warehouse_id": wh, "delivery_note_no": note,
         "lines": [{"po_item_id": po["items"][0]["id"], "qty": qty, "supplier_lot_no": lot,
-                   "mfg_date": str(date.today() - timedelta(days=10)), "expiry_date": str(date.today() + timedelta(days=expiry_days))}]})
+                   "mfg_date": str(business_today() - timedelta(days=10)), "expiry_date": str(business_today() + timedelta(days=expiry_days))}]})
 
 
 def qc(client, batch_id, decision, key):
@@ -156,7 +157,7 @@ def test_failed_receipt_leaves_nothing_behind(people, db):
     po = p["admin"].post(f"/api/procurement/purchase-orders/{po['id']}/approve", json={"expected_version": 2}).json()
     before = db.execute(text("SELECT (SELECT count(*) FROM stock_ledger),(SELECT count(*) FROM inventory_batches),"
                              "(SELECT count(*) FROM goods_receipts),(SELECT count(*) FROM outbox_events)")).one()
-    exp = {"mfg_date": str(date.today()), "expiry_date": str(date.today() + timedelta(days=100))}
+    exp = {"mfg_date": str(business_today()), "expiry_date": str(business_today() + timedelta(days=100))}
     bad = p["stores"].post("/api/procurement/goods-receipts", headers={"Idempotency-Key": "key-atomic-0001"}, json={
         "po_id": po["id"], "warehouse_id": m["wh1"], "delivery_note_no": "DN-5001",
         "lines": [{"po_item_id": po["items"][0]["id"], "qty": "10", **exp}, {"po_item_id": po["items"][1]["id"], "qty": "11", **exp}]})

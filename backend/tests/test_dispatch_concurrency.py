@@ -15,6 +15,7 @@ from app.core.db import engine
 from scripts.check_integrity import run_checks
 from tests.conftest import mk_master
 from tests.test_dispatch import make_customer
+from app.core.clock import business_today  # noqa: E402
 
 pytestmark = pytest.mark.filterwarnings("ignore")
 key = lambda p="k": f"{p}-{uuid.uuid4().hex}"
@@ -32,7 +33,7 @@ def live_fg(live_users, qty=100):
     buyer.post(f"/api/procurement/purchase-orders/{po['id']}/submit", json={"expected_version": po["version"]})
     po = admin.post(f"/api/procurement/purchase-orders/{po['id']}/approve", json={"expected_version": po["version"] + 1}).json()
     gr = stores.post("/api/procurement/goods-receipts", key=key("gr"), json={"po_id": po["id"], "warehouse_id": m["wh1"], "delivery_note_no": f"DN-{uuid.uuid4().hex[:8]}",
-         "lines": [{"po_item_id": po["items"][0]["id"], "qty": str(qty), "mfg_date": str(date.today()), "expiry_date": str(date.today() + timedelta(days=300))}]}).json()
+         "lines": [{"po_item_id": po["items"][0]["id"], "qty": str(qty), "mfg_date": str(business_today()), "expiry_date": str(business_today() + timedelta(days=300))}]}).json()
     qm.post(f"/api/inventory/batches/{gr['lines'][0]['batch_id']}/qc-decision", key=key("qc"), json={"decision": "RELEASED"})
     with S(engine) as s:
         fg = Item(item_code=f"FG-{uuid.uuid4().hex[:6].upper()}", name="Serum", kind="FG", uom_id=s.scalar(select(UnitOfMeasure).where(UnitOfMeasure.code == "PCS")).id, gst_rate=18, shelf_life_days=700)

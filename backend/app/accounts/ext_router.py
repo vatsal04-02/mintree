@@ -16,6 +16,7 @@ from app.core.deps import CurrentUser, require
 from app.core.idempotency import require_idempotency_key
 from app.core.posting import idempotent_post
 from app.core.uow import run_tx
+from app.core.clock import business_today
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 DB = Depends(get_db, scope="function")
@@ -143,7 +144,7 @@ def post_settlement(sid: int, body: PostSettlementIn, key: str = Depends(require
 # ---- reports
 @router.get("/reports/ageing/{kind}")
 def ageing(kind: Literal["receivables", "payables"], as_of: date | None = None, db: Session = DB, _: CurrentUser = Depends(require("accounts.report:read"))):
-    return reports.ageing(db, kind, as_of or date.today())
+    return reports.ageing(db, kind, as_of or business_today())
 
 
 @router.get("/reports/statement/{party_type}/{party_id}")
@@ -163,7 +164,7 @@ def pnl(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(requi
 
 @router.get("/reports/balance-sheet")
 def bs(as_of: date | None = None, db: Session = DB, _: CurrentUser = Depends(require("accounts.report:read"))):
-    return reports.balance_sheet(db, as_of or date.today())
+    return reports.balance_sheet(db, as_of or business_today())
 
 
 @router.get("/reports/product-costing")

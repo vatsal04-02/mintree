@@ -26,6 +26,7 @@ from app.main import app
 from app.masters.models import Customer, Item, Supplier, UnitOfMeasure, Warehouse
 from app.administration.models import Role, User
 from scripts.check_integrity import run_checks
+from app.core.clock import business_today  # noqa: E402
 
 PASSWORD = "Mintree-Demo#2026"
 GST = Decimal("1.18")
@@ -124,10 +125,10 @@ def main() -> None:
     print("Master data: 12 products, 9 materials, 3 suppliers, 4 customers, 11 demo users")
 
     # ---- procurement: PR, POs, receipts, QC ----
-    pr = ok(u["buyer"].post("/api/procurement/purchase-requests", json={"items": [{"item_id": item["RM-ALOE"], "qty": "60"}], "required_by": str(date.today() + timedelta(days=14)), "notes": "Aloe restock"}))
+    pr = ok(u["buyer"].post("/api/procurement/purchase-requests", json={"items": [{"item_id": item["RM-ALOE"], "qty": "60"}], "required_by": str(business_today() + timedelta(days=14)), "notes": "Aloe restock"}))
     ok(u["buyer"].post(f"/api/procurement/purchase-requests/{pr['id']}/submit", json={"expected_version": pr["version"]}))
     for sup_code, lines, action in POS:
-        po = ok(u["buyer"].post("/api/procurement/purchase-orders", json={"supplier_id": sup[sup_code], "expected_date": str(date.today() + timedelta(days=7)),
+        po = ok(u["buyer"].post("/api/procurement/purchase-orders", json={"supplier_id": sup[sup_code], "expected_date": str(business_today() + timedelta(days=7)),
                                                                           "items": [{"item_id": item[c], "qty": q, "unit_price": p} for c, q, p in lines]}))
         po = ok(u["buyer"].post(f"/api/procurement/purchase-orders/{po['id']}/submit", json={"expected_version": po["version"]}))
         if action == "approval":
@@ -136,7 +137,7 @@ def main() -> None:
         gr = ok(u["stores"].post("/api/procurement/goods-receipts", headers=k(), json={
             "po_id": po["id"], "warehouse_id": W, "delivery_note_no": f"DN-{uuid.uuid4().hex[:6].upper()}",
             "lines": [{"po_item_id": pi["id"], "qty": pi["qty_ordered"], "supplier_lot_no": f"LOT-{uuid.uuid4().hex[:5].upper()}",
-                       "mfg_date": str(date.today() - timedelta(days=12)), "expiry_date": str(date.today() + timedelta(days=500))} for pi in po["items"]]}))
+                       "mfg_date": str(business_today() - timedelta(days=12)), "expiry_date": str(business_today() + timedelta(days=500))} for pi in po["items"]]}))
         if action == "release":
             for ln in gr["lines"]:
                 ok(u["qa"].post(f"/api/inventory/batches/{ln['batch_id']}/qc-decision", headers=k(), json={"decision": "RELEASED"}))
@@ -150,7 +151,7 @@ def main() -> None:
         ok(u["pm2"].post(f"/api/production/boms/{b['id']}/approve"))
         boms[code] = (b["id"], size)
     for code, (bom_id, size) in boms.items():
-        o = ok(u["pm"].post("/api/production/orders", json={"bom_id": bom_id, "planned_qty": str(size), "warehouse_id": W, "planned_date": str(date.today() - timedelta(days=2))}))
+        o = ok(u["pm"].post("/api/production/orders", json={"bom_id": bom_id, "planned_qty": str(size), "warehouse_id": W, "planned_date": str(business_today() - timedelta(days=2))}))
         ok(u["pm"].post(f"/api/production/orders/{o['id']}/release", headers=k(), json={"expected_version": o["version"]}))
         ok(u["pm"].post(f"/api/production/orders/{o['id']}/issue", headers=k()))
         n = len(o["stages"])
@@ -163,11 +164,11 @@ def main() -> None:
         ok(u["qa"].post(f"/api/inventory/batches/{done['output_batch_id']}/qc-decision", headers=k(), json={"decision": "RELEASED"}))
         fg_batch[code] = done["output_batch_id"]
     # one order in progress and one only planned, so the board shows more than finished work
-    o2 = ok(u["pm"].post("/api/production/orders", json={"bom_id": boms["FG-BW-OUD-200"][0], "planned_qty": "200", "warehouse_id": W, "planned_date": str(date.today() - timedelta(days=1))}))
+    o2 = ok(u["pm"].post("/api/production/orders", json={"bom_id": boms["FG-BW-OUD-200"][0], "planned_qty": "200", "warehouse_id": W, "planned_date": str(business_today() - timedelta(days=1))}))
     ok(u["pm"].post(f"/api/production/orders/{o2['id']}/release", headers=k(), json={"expected_version": o2["version"]}))
     ok(u["pm"].post(f"/api/production/orders/{o2['id']}/issue", headers=k()))
     ok(u["op"].post(f"/api/production/orders/{o2['id']}/stages/1/start", json={}))
-    ok(u["pm"].post("/api/production/orders", json={"bom_id": boms["FG-DETAN-60"][0], "planned_qty": "100", "warehouse_id": W, "planned_date": str(date.today() + timedelta(days=5))}))
+    ok(u["pm"].post("/api/production/orders", json={"bom_id": boms["FG-DETAN-60"][0], "planned_qty": "100", "warehouse_id": W, "planned_date": str(business_today() + timedelta(days=5))}))
     print("Production: 4 BOMs approved, 4 orders completed and QC-released, 1 in progress (past planned date), 1 planned")
 
     # ---- sales and dispatch ----
@@ -188,7 +189,7 @@ def main() -> None:
         ok(u["disp"].post(f"/api/dispatch/shipments/{d['shipment_id']}/book"))
         return d
     def pay(d: dict, cust: str, amount: str) -> None:
-        ok(u["acct"].post("/api/accounts/payments", headers=k(), json={"direction": "RECEIVED", "party_id": cus[cust], "amount": amount, "payment_date": str(date.today()), "method": "BANK_TRANSFER",
+        ok(u["acct"].post("/api/accounts/payments", headers=k(), json={"direction": "RECEIVED", "party_id": cus[cust], "amount": amount, "payment_date": str(business_today()), "method": "BANK_TRANSFER",
                                                                        "bank_account_code": "1100", "allocations": [{"invoice_id": d["invoice"]["id"], "amount": amount}]}))
 
     so1 = new_order("DM-CUS-1", [("FG-BW-OUD-200", 100)], True)
@@ -219,7 +220,7 @@ def main() -> None:
     for name, company, src in [("Priya Nair", "Studio Bloom Salon, Kochi", "Salon range enquiry"), ("Arjun Mehta", "Urban Spa Group", "Trade show"), ("Sana Qureshi", "Velvet Wellness, Hyderabad", "Website 'Partner With Us'")]:
         ok(u["sales"].post("/api/crm/leads", json={"name": name, "company": company, "source": src, "notes": "Demo lead"}))
     for aid, name, cat, loc in [("EQ-MIX-500", "Planetary Mixer 500 L", "Mixing", "Plant 1"), ("EQ-FILL-02", "Semi-automatic Filling Line", "Filling", "Plant 1")]:
-        ok(u["admin"].post("/api/maintenance/equipment", json={"asset_id": aid, "name": name, "category": cat, "location": loc, "calibration_required": True, "calibration_due": str(date.today() + timedelta(days=45))}))
+        ok(u["admin"].post("/api/maintenance/equipment", json={"asset_id": aid, "name": name, "category": cat, "location": loc, "calibration_required": True, "calibration_due": str(business_today() + timedelta(days=45))}))
     print(f"Marketplace: Nykaa account, SKU mapping, {imp.get('created', '?')} order imported, unmapped SKU in the exception queue. CRM: 3 leads. Maintenance: 2 machines")
 
     # ---- verify ----

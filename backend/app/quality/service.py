@@ -12,6 +12,7 @@ from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.inventory import service as inv
 from app.quality.models import CapaAction, Deviation, Inspection, InspectionResult, QualitySpec, QualitySpecTest
+from app.core.clock import business_today
 
 DECISION_TO_QC = {"RELEASE": "RELEASED", "REJECT": "REJECTED", "HOLD": "HOLD"}
 
@@ -38,7 +39,7 @@ def active_spec(db: Session, item_id: int, stage: str) -> QualitySpec | None:
 
 def _new_inspection(db: Session, batch_id: int, item_id: int, stage: str, spec: QualitySpec) -> Inspection:
     n = db.execute(text("SELECT nextval('inspection_number_seq')")).scalar_one()
-    ins = Inspection(number=f"QC/{date.today():%y}/{n:06d}", stage=stage, batch_id=batch_id, spec_id=spec.id, request_id=request_id_var.get())
+    ins = Inspection(number=f"QC/{business_today():%y}/{n:06d}", stage=stage, batch_id=batch_id, spec_id=spec.id, request_id=request_id_var.get())
     db.add(ins)
     db.flush()
     return ins
@@ -132,7 +133,7 @@ def decide(db: Session, cu: CurrentUser, inspection_id: int, decision: str, reas
 # ------------------------------------------------------------------ deviations & CAPA
 def raise_deviation(db: Session, cu: CurrentUser, *, title: str, description: str, classification: str, batch_id: int | None) -> dict:
     n = db.execute(text("SELECT nextval('deviation_number_seq')")).scalar_one()
-    d = Deviation(number=f"DEV/{date.today():%y}/{n:05d}", title=title, description=description, classification=classification, batch_id=batch_id, raised_by=cu.id)
+    d = Deviation(number=f"DEV/{business_today():%y}/{n:05d}", title=title, description=description, classification=classification, batch_id=batch_id, raised_by=cu.id)
     db.add(d)
     db.flush()
     held = None

@@ -8,6 +8,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://mintree:mintree@localhost:5433/mintree"
     environment: str = "development"  # development | test | production
+    # Documentation only: the business zone is a code constant (app/core/clock.py + SQL functions from migration 0015)
+    # so it cannot drift per environment. All instants are stored/handled as UTC.
 
     # --- Rate limiting (per client IP, fixed one-minute windows; Redis-backed with an in-process fallback) ---
     rate_limit_enabled: bool = False          # enable in production (docker-compose sets it); off in development and tests so suites are not throttled

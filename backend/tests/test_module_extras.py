@@ -13,6 +13,7 @@ from tests.test_h5_modules import eq, running_order
 from tests.test_inventory_procurement import N, po_to_approved, receive
 from tests.test_production import extra_rm, k, plant, stock_rm  # noqa: F401
 from tests.test_rnd_quality import formulation, incoming_setup, pass_trial, qa, rnd  # noqa: F401
+from app.core.clock import business_today  # noqa: E402
 
 
 # ------------------------------------------------------------------ production
@@ -45,7 +46,7 @@ def test_production_dashboard_batch_record_bom_compare_wastage_and_plan(shop, pl
     assert shop["pm"].get("/api/production/batches/999999999/record").status_code == 404
     dash = shop["pm"].get("/api/production/dashboard").json()
     assert dash["completed_30d"] >= 1 and "machine_availability" in dash and "delayed" in dash
-    t = str(date.today())
+    t = str(business_today())
     assert shop["pm"].get("/api/production/reports/wastage", params={"start": t, "end": t}).status_code == 200
     # BOM comparison: same output, different quantities per unit
     m = mk_master("CMP")
@@ -120,9 +121,9 @@ def test_coa_only_for_released_inspections_and_dispositions(qa, admin, db):
 # ------------------------------------------------------------------ maintenance
 def test_preventive_checklist_gates_completion_and_spares(login, db):
     mm, tech, mm2 = login("maintenance_manager"), login("maintenance_manager"), login("maintenance_manager")
-    e = eq(mm, manufacturer="GEA", model="HX-500", serial_no="SN-1", capacity="500 L", warranty_until=str(date.today() + timedelta(days=30)))
+    e = eq(mm, manufacturer="GEA", model="HX-500", serial_no="SN-1", capacity="500 L", warranty_until=str(business_today() + timedelta(days=30)))
     assert e["manufacturer"] == "GEA" and e["under_warranty"] is True
-    mm.post("/api/maintenance/schedules", json={"equipment_id": e["id"], "title": "Quarterly service", "frequency_days": 90, "first_due": str(date.today()),
+    mm.post("/api/maintenance/schedules", json={"equipment_id": e["id"], "title": "Quarterly service", "frequency_days": 90, "first_due": str(business_today()),
                                                 "checklist": ["Lubricate bearings", "Inspect seals"], "assigned_to": tech.user.id})
     assert mm.post("/api/maintenance/schedules/generate").json()["created"] >= 1
     wo = next(w for w in mm.get("/api/maintenance/work-orders", params={"equipment_id": e["id"]}).json()["items"])
@@ -209,7 +210,7 @@ def test_integration_centre_marketplace_returns_and_analytics(shop, login, db):
     assert h0["state"] == "ATTENTION" and h0["stale_over_24h"] is True
     mgr.put(f"/api/ecommerce/accounts/{acct['id']}/mappings", json={"platform_sku": "SRM", "item_id": f["fg"]})
     oid = f"NYK-{uuid.uuid4().hex[:6]}"
-    body = {"orders": [{"order_id": oid, "order_date": str(date.today()), "items": [{"sku": "SRM", "qty": "10", "unit_price": "25"}]}, {"order_id": oid + "x", "order_date": str(date.today()), "items": [{"sku": "NOPE", "qty": "1", "unit_price": "5"}]}]}
+    body = {"orders": [{"order_id": oid, "order_date": str(business_today()), "items": [{"sku": "SRM", "qty": "10", "unit_price": "25"}]}, {"order_id": oid + "x", "order_date": str(business_today()), "items": [{"sku": "NOPE", "qty": "1", "unit_price": "5"}]}]}
     assert mgr.post(f"/api/ecommerce/accounts/{acct['id']}/orders", json=body).json()["exception"] == 1
     h1 = mgr.get(f"/api/ecommerce/accounts/{acct['id']}/health").json()
     assert h1["state"] == "ATTENTION" and h1["exception_queue"] == 1 and h1["unmapped_skus_waiting"] == 1 and h1["stale_over_24h"] is False
@@ -225,7 +226,7 @@ def test_integration_centre_marketplace_returns_and_analytics(shop, login, db):
     assert ret().json()["duplicate"] is True and db.execute(text("SELECT count(*) FROM sales_returns WHERE so_id = :s"), {"s": so}).scalar() == 1, "same platform return ref is a no-op"
     assert mgr.post(f"/api/ecommerce/returns/{r1.json()['id']}/dispute", json={"status": "WON"}).status_code == 409
     assert mgr.post(f"/api/ecommerce/returns/{r1.json()['id']}/dispute", json={"status": "OPEN", "note": "customer claims defect"}).json()["dispute_status"] == "OPEN"
-    an = mgr.get("/api/ecommerce/analytics", params={"start": str(date.today()), "end": str(date.today())}).json()
+    an = mgr.get("/api/ecommerce/analytics", params={"start": str(business_today()), "end": str(business_today())}).json()
     nyk = next(x for x in an["platforms"] if x["platform"] == "NYKAA")
     assert nyk["orders"] >= 2 and nyk["returned"] >= 1 and nyk["return_rate_pct"] > 0
     integrity(db)
@@ -247,8 +248,8 @@ def test_brand_assets_social_accounts_metrics_and_analytics(login, db):
     sa = mk.post("/api/branding/social-accounts", json={"platform": "INSTAGRAM", "handle": f"@mintree{uuid.uuid4().hex[:4]}", "brand_id": bid, "credentials_ref": "vault://meta/ig"})
     assert sa.status_code == 201 and sa.json()["connection_mode"] == "MANUAL" and "not connected" in sa.json()["api_connection"]
     assert mk.post("/api/branding/social-accounts", json={"platform": "INSTAGRAM", "handle": sa.json()["handle"]}).status_code == 409
-    camp = mk.post("/api/branding/campaigns", json={"name": "Diwali Glow", "brand_id": bid, "budget": "10000", "start_date": str(date.today()), "end_date": str(date.today() + timedelta(days=10))}).json()
-    day = lambda n: str(date.today() - timedelta(days=n))
+    camp = mk.post("/api/branding/campaigns", json={"name": "Diwali Glow", "brand_id": bid, "budget": "10000", "start_date": str(business_today()), "end_date": str(business_today() + timedelta(days=10))}).json()
+    day = lambda n: str(business_today() - timedelta(days=n))
     m = lambda n, **kw: mk.post("/api/branding/metrics", json={"campaign_id": camp["id"], "metric_date": day(n), **kw})
     assert m(0, reach=5000, impressions=8000, clicks=400, engagements=600, results=20, spend="2500").status_code == 201
     assert m(0, reach=1, impressions=1).status_code == 409, "one row per campaign per day"

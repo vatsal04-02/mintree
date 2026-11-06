@@ -22,6 +22,7 @@ from app.core import observability as obs
 from app.core.context import request_id_var
 from app.core.errors import BusinessConflict, InsufficientStock
 from app.inventory.models import StockBalance, StockLedger, StockReservation
+from app.core.clock import business_today
 
 FEFO_ORDER = "ib.expiry_date NULLS LAST, sb.batch_id NULLS LAST, sb.id"
 
@@ -67,7 +68,7 @@ def fefo_candidates(db: Session, *, item_id: int, warehouse_id: int, batch_id: i
           FROM stock_balances sb LEFT JOIN inventory_batches ib ON ib.id = sb.batch_id
          WHERE sb.item_id = :item AND sb.warehouse_id = :wh AND sb.qty_available > 0
            AND (CAST(:batch AS bigint) IS NULL OR sb.batch_id = :batch)
-           AND (sb.batch_id IS NULL OR (ib.qc_status = 'RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > current_date)))
+           AND (sb.batch_id IS NULL OR (ib.qc_status = 'RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > business_today())))
          ORDER BY """ + FEFO_ORDER + " FOR UPDATE OF sb"), {"item": item_id, "wh": warehouse_id, "batch": batch_id}).mappings().all()
     return [dict(r) for r in rows]
 

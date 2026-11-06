@@ -19,6 +19,7 @@ from app.audit import service as audit
 from app.core import outbox
 from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
+from app.core.clock import business_today
 
 M = acct.money
 
@@ -207,9 +208,9 @@ def post_debit_note(db: Session, cu: CurrentUser, *, invoice_id: int, amount_ex_
     if total > outstanding:
         raise BusinessConflict("exceeds_outstanding", "A debit note cannot exceed what is still outstanding on the invoice", outstanding=str(outstanding), requested=str(total))
     lines = [("2000", total, Decimal(0)), ("5300", Decimal(0), sub)] + ([("1500", Decimal(0), tax)] if tax else [])
-    je = acct.post_journal(db, entry_date=date.today(), description=f"Debit note on {inv.number} ({reason_type})", source_type="supplier_invoice", source_id=inv.id,
+    je = acct.post_journal(db, entry_date=business_today(), description=f"Debit note on {inv.number} ({reason_type})", source_type="supplier_invoice", source_id=inv.id,
                            source_event=f"debit_note:{inv.credited_amount}", lines=lines, actor_id=cu.id)
-    fy = acct.fiscal_year(date.today())
+    fy = acct.fiscal_year(business_today())
     seq = acct.next_gapless(db, f"debit_note:{fy}")                                  # counter last
     dn = DebitNote(number=f"DN/{fy}/{seq:06d}", supplier_invoice_id=inv.id, reason_type=reason_type, reason=reason, subtotal=sub, tax_total=tax, total=total,
                    journal_entry_id=je.id, created_by=cu.id)
@@ -266,10 +267,10 @@ def post_settlement(db: Session, cu: CurrentUser, settlement_id: int, bank_accou
             i.credited_amount += ded
     payment = None
     if st.received_amount > 0:
-        payment = acct.post_payment(db, cu, direction="RECEIVED", party_id=acc.customer_id, amount=st.received_amount, payment_date=date.today(), method="MARKETPLACE",
+        payment = acct.post_payment(db, cu, direction="RECEIVED", party_id=acc.customer_id, amount=st.received_amount, payment_date=business_today(), method="MARKETPLACE",
                                     bank_account_code=bank_account_code, reference=st.reference, allocations=allocations)
     if deductions > 0:
-        acct.post_journal(db, entry_date=date.today(), description=f"Marketplace deductions {st.reference}", source_type="marketplace_settlement", source_id=st.id, source_event="deductions",
+        acct.post_journal(db, entry_date=business_today(), description=f"Marketplace deductions {st.reference}", source_type="marketplace_settlement", source_id=st.id, source_event="deductions",
                           lines=[("5500", deductions, Decimal(0)), ("1200", Decimal(0), deductions)], actor_id=cu.id)
     for i in invs:
         i.status = "PAID" if i.amount_paid + i.credited_amount == i.total else ("PARTIAL" if i.amount_paid + i.credited_amount > 0 else i.status)

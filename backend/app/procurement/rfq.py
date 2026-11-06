@@ -18,12 +18,13 @@ from app.masters.models import Item, Supplier
 from app.notifications.service import notify
 from app.procurement import service as proc
 from app.procurement.rfq_models import Quotation, QuotationItem, Rfq, RfqItem, RfqSupplier
+from app.core.clock import business_today
 
 M = Decimal("0.01")
 
 
 def _num(db: Session, seq: str, prefix: str) -> str:
-    return f"{prefix}/{date.today():%y}/{db.execute(text('SELECT nextval(:s)'), {'s': seq}).scalar_one():06d}"
+    return f"{prefix}/{business_today():%y}/{db.execute(text('SELECT nextval(:s)'), {'s': seq}).scalar_one():06d}"
 
 
 def _rfq(db: Session, rid: int, lock: bool = False) -> Rfq:
@@ -85,7 +86,7 @@ def record_quotation(db: Session, cu: CurrentUser, rid: int, *, supplier_id: int
             raise Unprocessable("A line may be quoted once")
         seen.add(ri.id)
         rows.append(QuotationItem(rfq_item_id=ri.id, unit_price=l["unit_price"], tax_rate=l.get("tax_rate") or 0))
-    if valid_until and valid_until < date.today():
+    if valid_until and valid_until < business_today():
         raise Unprocessable("The quotation has already expired")
     q = Quotation(number=_num(db, "quotation_seq", "QT"), rfq_id=r.id, supplier_id=supplier_id, lead_time_days=lead_time_days, valid_until=valid_until,
                   payment_terms_days=payment_terms_days, freight=freight, notes=notes, recorded_by=cu.id)
@@ -119,7 +120,7 @@ def compare(db: Session, rid: int) -> dict:
                 lines.append({"rfq_item_id": ri.id, "item_id": ri.item_id, "unit_price": str(qi.unit_price), "line_total": str(tot)})
             else:
                 lines.append({"rfq_item_id": ri.id, "item_id": ri.item_id, "unit_price": None, "line_total": None})
-        expired = bool(q.valid_until and q.valid_until < date.today())
+        expired = bool(q.valid_until and q.valid_until < business_today())
         rows.append({"quotation_id": q.id, "number": q.number, "supplier_id": q.supplier_id, "complete": len(priced) == len(r.items), "expired": expired,
                      "lead_time_days": q.lead_time_days, "payment_terms_days": q.payment_terms_days, "freight": str(q.freight),
                      "landed_total": str(total + q.freight), "lines": lines, "_t": total + q.freight})
@@ -155,7 +156,7 @@ def award(db: Session, cu: CurrentUser, rid: int, quotation_id: int, reason: str
                         items=[{"item_id": rfq_items[qi.rfq_item_id].item_id, "qty": rfq_items[qi.rfq_item_id].qty, "unit_price": qi.unit_price, "tax_rate": qi.tax_rate} for qi in q.items])
     if q.lead_time_days:
         from datetime import timedelta
-        db.execute(text("UPDATE purchase_orders SET expected_date = :d WHERE id = :i"), {"d": date.today() + timedelta(days=q.lead_time_days), "i": po["id"]})
+        db.execute(text("UPDATE purchase_orders SET expected_date = :d WHERE id = :i"), {"d": business_today() + timedelta(days=q.lead_time_days), "i": po["id"]})
     for other in db.scalars(select(Quotation).where(Quotation.rfq_id == rid)):
         other.status = "AWARDED" if other.id == quotation_id else "REJECTED"
     r.status, r.awarded_quotation_id, r.awarded_po_id, r.award_reason, r.version = "AWARDED", quotation_id, po["id"], reason, r.version + 1
@@ -184,7 +185,7 @@ def delivery_tracking(db: Session, supplier_id: int | None = None) -> list[dict]
     rows = db.execute(text("""
         SELECT p.id, p.number, p.supplier_id, p.status, p.expected_date,
                sum(i.qty_ordered) AS ordered, sum(i.qty_received) AS received,
-               CASE WHEN p.expected_date IS NOT NULL AND p.expected_date < current_date THEN current_date - p.expected_date ELSE 0 END AS days_late
+               CASE WHEN p.expected_date IS NOT NULL AND p.expected_date < business_today() THEN business_today() - p.expected_date ELSE 0 END AS days_late
           FROM purchase_orders p JOIN purchase_order_items i ON i.po_id = p.id
          WHERE p.status IN ('APPROVED','PARTIALLY_RECEIVED') AND (CAST(:s AS bigint) IS NULL OR p.supplier_id = :s)
          GROUP BY p.id ORDER BY days_late DESC, p.expected_date NULLS LAST, p.id"""), {"s": supplier_id}).mappings().all()

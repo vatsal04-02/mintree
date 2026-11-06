@@ -8,6 +8,7 @@ from sqlalchemy import text
 from tests.test_dispatch import advance, make_customer, make_fg, shop  # noqa: F401
 from tests.test_inventory_procurement import N
 from tests.test_production import k, plant  # noqa: F401
+from app.core.clock import business_today  # noqa: E402
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ def test_contacts_have_one_primary(crm, db):
 
 def test_customer_pricing_windows_and_quotation_to_order(crm, db):
     f, cust = make_fg(crm, 100, 10), make_customer()
-    t = date.today()
+    t = business_today()
     price = lambda **kw: crm["mgr"].post("/api/sales/prices", json={"customer_id": cust, "item_id": f["fg"], **kw})
     assert price(price="22.50", valid_from=str(t - timedelta(days=10)), valid_to=str(t + timedelta(days=30))).status_code == 201
     over = price(price="20", valid_from=str(t), valid_to=str(t + timedelta(days=5)))
@@ -58,18 +59,18 @@ def test_customer_pricing_windows_and_quotation_to_order(crm, db):
 
 def test_expired_quotation_cannot_be_accepted(crm, db):
     f, cust = make_fg(crm, 20, 10), make_customer()
-    q = crm["s1"].post("/api/sales/quotations", json={"customer_id": cust, "valid_until": str(date.today() + timedelta(days=1)), "lines": [{"item_id": f["fg"], "qty": "1", "unit_price": "10"}]}).json()
+    q = crm["s1"].post("/api/sales/quotations", json={"customer_id": cust, "valid_until": str(business_today() + timedelta(days=1)), "lines": [{"item_id": f["fg"], "qty": "1", "unit_price": "10"}]}).json()
     sent = crm["s1"].post(f"/api/sales/quotations/{q['id']}/send", json={"expected_version": 1}).json()
-    db.execute(text("UPDATE sales_quotations SET valid_until = current_date - 1 WHERE id = :i"), {"i": q["id"]})
+    db.execute(text("UPDATE sales_quotations SET valid_until = business_today() - 1 WHERE id = :i"), {"i": q["id"]})
     r = crm["s1"].post(f"/api/sales/quotations/{q['id']}/accept", json={"expected_version": sent["version"]})
     assert r.status_code == 409 and r.json()["detail"]["code"] == "quotation_expired"
 
 
 def test_followups_and_pipeline(crm, db):
     lead = crm["s1"].post("/api/crm/leads", json={"name": "Salon Chain"}).json()
-    f = crm["s1"].post("/api/sales/followups", json={"subject": "Call about samples", "due_date": str(date.today() - timedelta(days=1)), "lead_id": lead["id"], "assigned_to": crm["s2"].user.id})
+    f = crm["s1"].post("/api/sales/followups", json={"subject": "Call about samples", "due_date": str(business_today() - timedelta(days=1)), "lead_id": lead["id"], "assigned_to": crm["s2"].user.id})
     assert f.status_code == 201, f.text
-    assert crm["s1"].post("/api/sales/followups", json={"subject": "bad", "due_date": str(date.today()), "assigned_to": crm["s2"].user.id}).status_code == 422, "needs a lead or a customer"
+    assert crm["s1"].post("/api/sales/followups", json={"subject": "bad", "due_date": str(business_today()), "assigned_to": crm["s2"].user.id}).status_code == 422, "needs a lead or a customer"
     mine = crm["s2"].get("/api/sales/followups").json()["items"]
     assert any(x["id"] == f.json()["id"] and x["overdue"] for x in mine)
     assert any(n["kind"] == "followup.assigned" for n in crm["s2"].get("/api/notifications").json()["items"])

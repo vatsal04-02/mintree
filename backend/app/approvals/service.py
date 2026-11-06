@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.approvals.models import ApprovalDelegation, ApprovalRecord, CompanySetting
 from app.core.deps import CurrentUser
+from app.core.clock import business_today
 
 DEFAULT_SETTINGS = {
     "company.name": ("Mintree", "Legal/trading name shown on documents"),
@@ -32,8 +33,8 @@ def effective_roles(db: Session, cu: CurrentUser, doc_type: str) -> tuple[set[st
     roles = set(cu.role_codes)
     via: dict[str, int] = {}
     for d in db.scalars(select(ApprovalDelegation).where(ApprovalDelegation.to_user_id == cu.id, ApprovalDelegation.doc_type.in_([doc_type, "*"]),
-                                                          ApprovalDelegation.revoked_at.is_(None), ApprovalDelegation.valid_from <= date.today(),
-                                                          ApprovalDelegation.valid_to >= date.today())):
+                                                          ApprovalDelegation.revoked_at.is_(None), ApprovalDelegation.valid_from <= business_today(),
+                                                          ApprovalDelegation.valid_to >= business_today())):
         for (code,) in db.execute(text("SELECT r.code FROM roles r JOIN user_roles ur ON ur.role_id = r.id WHERE ur.user_id = :u"), {"u": d.from_user_id}):
             if code not in roles:
                 via[code] = d.from_user_id

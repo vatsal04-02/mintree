@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import CurrentUser, require
+from app.core.clock import business_today
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 DB = Depends(get_db, scope="function")
@@ -20,7 +21,7 @@ def _num(v):
 
 @router.get("/management-summary")
 def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
-    d = as_of or date.today()
+    d = as_of or business_today()
     one = lambda sql, **p: db.execute(text(sql), {"d": d, **p}).mappings().one()
     rows = lambda sql, **p: [dict(r) for r in db.execute(text(sql), {"d": d, **p}).mappings().all()]
 
@@ -56,16 +57,16 @@ def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUs
     prod = one("""SELECT count(*) FILTER (WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days') AS completed_30d,
                          COALESCE(sum(planned_qty) FILTER (WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days'), 0) AS planned_qty_30d,
                          COALESCE(sum(actual_qty) FILTER (WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days'), 0) AS actual_qty_30d,
-                         count(*) FILTER (WHERE planned_date < current_date AND status NOT IN ('COMPLETED','CANCELLED')) AS delayed,
+                         count(*) FILTER (WHERE planned_date < business_today() AND status NOT IN ('COMPLETED','CANCELLED')) AS delayed,
                          count(*) FILTER (WHERE status IN ('RELEASED','IN_PROGRESS')) AS active FROM production_orders""")
     wastage = one("SELECT COALESCE(sum(w.qty), 0) AS qty FROM wastage_records w JOIN production_orders o ON o.id = w.order_id WHERE o.completed_at > now() - interval '30 days'")
-    inv_x = one("""SELECT (SELECT count(*) FROM inventory_batches b WHERE b.expiry_date BETWEEN current_date AND current_date + 90 AND EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.batch_id = b.id AND sb.qty_physical > 0)) AS expiring_90d,
-                          (SELECT count(*) FROM inventory_batches b WHERE b.expiry_date < current_date AND EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.batch_id = b.id AND sb.qty_physical > 0)) AS expired_with_stock,
+    inv_x = one("""SELECT (SELECT count(*) FROM inventory_batches b WHERE b.expiry_date BETWEEN business_today() AND business_today() + 90 AND EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.batch_id = b.id AND sb.qty_physical > 0)) AS expiring_90d,
+                          (SELECT count(*) FROM inventory_batches b WHERE b.expiry_date < business_today() AND EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.batch_id = b.id AND sb.qty_physical > 0)) AS expired_with_stock,
                           (SELECT COALESCE(sum(sb.qty_physical), 0) FROM stock_balances sb JOIN inventory_batches b ON b.id = sb.batch_id WHERE b.qc_status IN ('QUARANTINE','HOLD')) AS quarantined_qty,
                           (SELECT count(*) FROM items i WHERE i.is_active AND i.reorder_level > 0 AND COALESCE((SELECT sum(sb.qty_available) FROM stock_balances sb WHERE sb.item_id = i.id), 0) < i.reorder_level) AS below_reorder""")
     proc = one("""SELECT count(*) FILTER (WHERE status = 'PENDING_APPROVAL') AS pos_pending_approval, count(*) FILTER (WHERE status IN ('APPROVED','PARTIALLY_RECEIVED')) AS open_pos,
                          COALESCE(sum(total_amount) FILTER (WHERE status NOT IN ('DRAFT','CANCELLED') AND created_at > now() - interval '30 days'), 0) AS purchase_value_30d,
-                         count(*) FILTER (WHERE status IN ('APPROVED','PARTIALLY_RECEIVED') AND expected_date < current_date) AS late_deliveries FROM purchase_orders""")
+                         count(*) FILTER (WHERE status IN ('APPROVED','PARTIALLY_RECEIVED') AND expected_date < business_today()) AS late_deliveries FROM purchase_orders""")
     prs = db.scalar(text("SELECT count(*) FROM purchase_requests WHERE status = 'SUBMITTED'"))
     quality_x = one("""SELECT (SELECT count(*) FROM inspections WHERE status = 'DECIDED' AND decision = 'REJECT' AND decided_at > now() - interval '30 days') AS rejections_30d,
                               (SELECT count(*) FROM inventory_batches WHERE qc_status = 'REJECTED') AS rejected_batches""")

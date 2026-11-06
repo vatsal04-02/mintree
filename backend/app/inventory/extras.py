@@ -11,13 +11,14 @@ from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.inventory.adjustments import post_adjustment
 from app.inventory.stocktake_models import Stocktake, StocktakeLine
+from app.core.clock import business_today, business_date
 
 
 def reorder_report(db: Session) -> list[dict]:
     rows = db.execute(text("""
         SELECT i.id, i.item_code, i.name, i.kind, i.reorder_level, COALESCE(a.avail, 0) AS available, COALESCE(po.on_order, 0) AS on_order
           FROM items i
-          LEFT JOIN (SELECT sb.item_id, sum(sb.qty_available) FILTER (WHERE sb.batch_id IS NULL OR (b.qc_status = 'RELEASED' AND (b.expiry_date IS NULL OR b.expiry_date > current_date))) avail
+          LEFT JOIN (SELECT sb.item_id, sum(sb.qty_available) FILTER (WHERE sb.batch_id IS NULL OR (b.qc_status = 'RELEASED' AND (b.expiry_date IS NULL OR b.expiry_date > business_today()))) avail
                        FROM stock_balances sb LEFT JOIN inventory_batches b ON b.id = sb.batch_id GROUP BY sb.item_id) a ON a.item_id = i.id
           LEFT JOIN (SELECT poi.item_id, sum(poi.qty_ordered - poi.qty_received) on_order FROM purchase_order_items poi JOIN purchase_orders p ON p.id = poi.po_id
                       WHERE p.status IN ('APPROVED','PARTIALLY_RECEIVED') GROUP BY poi.item_id) po ON po.item_id = i.id
@@ -28,9 +29,9 @@ def reorder_report(db: Session) -> list[dict]:
 
 def expiring(db: Session, days: int | None) -> dict:
     days = days if days is not None else int(get_setting(db, "quality.near_expiry_days") or 90)
-    rows = db.execute(text("""SELECT b.id, b.batch_no, b.expiry_date, b.qc_status, i.item_code, i.name, sum(sb.qty_physical) AS qty, b.expiry_date - current_date AS days_left
+    rows = db.execute(text("""SELECT b.id, b.batch_no, b.expiry_date, b.qc_status, i.item_code, i.name, sum(sb.qty_physical) AS qty, b.expiry_date - business_today() AS days_left
                                 FROM inventory_batches b JOIN items i ON i.id = b.item_id JOIN stock_balances sb ON sb.batch_id = b.id
-                               WHERE b.expiry_date IS NOT NULL AND b.expiry_date <= current_date + :d GROUP BY b.id, i.id HAVING sum(sb.qty_physical) > 0 ORDER BY b.expiry_date"""), {"d": days}).mappings().all()
+                               WHERE b.expiry_date IS NOT NULL AND b.expiry_date <= business_today() + :d GROUP BY b.id, i.id HAVING sum(sb.qty_physical) > 0 ORDER BY b.expiry_date"""), {"d": days}).mappings().all()
     return {"within_days": days, "expired": [r_ for r_ in map(_exp, rows) if r_["days_left"] < 0], "expiring": [r_ for r_ in map(_exp, rows) if r_["days_left"] >= 0]}
 
 
@@ -53,13 +54,13 @@ def slow_moving(db: Session, days: int) -> list[dict]:
             AND COALESCE(max(l.posted_at) FILTER (WHERE l.qty_delta < 0 AND l.movement_type IN ('ISSUE','DISPATCH','PRODUCTION_ISSUE')), '-infinity') < now() - make_interval(days => :d)
          ORDER BY v.value DESC NULLS LAST, i.item_code LIMIT 200"""), {"d": days}).mappings().all()
     return [{"item_id": r["id"], "item_code": r["item_code"], "name": r["name"], "kind": r["kind"], "qty": str(r["qty"]), "value": None if r["value"] is None else str(r["value"]),
-             "last_outflow": r["last_outflow"], "idle_days": None if r["last_outflow"] is None else (date.today() - r["last_outflow"].date()).days} for r in rows]
+             "last_outflow": r["last_outflow"], "idle_days": None if r["last_outflow"] is None else (business_today() - business_date(r["last_outflow"])).days} for r in rows]
 
 
 # ------------------------------------------------------------------ stocktake
 def start_stocktake(db: Session, cu: CurrentUser, warehouse_id: int, note: str | None) -> dict:
     n = db.execute(text("SELECT nextval('stocktake_seq')")).scalar_one()
-    st = Stocktake(number=f"ST/{date.today():%y}/{n:05d}", warehouse_id=warehouse_id, note=note, created_by=cu.id)
+    st = Stocktake(number=f"ST/{business_today():%y}/{n:05d}", warehouse_id=warehouse_id, note=note, created_by=cu.id)
     db.add(st)
     db.flush()
     rows = db.execute(text("SELECT id, qty_physical FROM stock_balances WHERE warehouse_id = :w AND qty_physical > 0 ORDER BY id"), {"w": warehouse_id}).all()

@@ -13,6 +13,7 @@ from tests.conftest import mk_master
 from tests.test_dispatch import advance, integrity, make_customer, make_fg, new_so, shop  # noqa: F401
 from tests.test_inventory_procurement import N
 from tests.test_production import k, plant, stock_rm  # noqa: F401
+from app.core.clock import business_today  # noqa: E402
 
 
 def eq(c, **kw):
@@ -70,7 +71,7 @@ def test_calibration_gate(plant, login):
     e = eq(mm, calibration_required=True)
     start = lambda: plant["op"].post(f"/api/production/orders/{o['id']}/stages/1/start", json={"equipment_id": e["id"]})
     assert start().status_code == 409, "no calibration on record"
-    today = date.today()
+    today = business_today()
     assert mm.post(f"/api/maintenance/equipment/{e['id']}/calibrations", json={"calibrated_on": str(today - timedelta(days=400)), "due_date": str(today - timedelta(days=35)), "result": "PASS"}).status_code == 201
     assert start().status_code == 409, "calibration expired"
     r = mm.post(f"/api/maintenance/equipment/{e['id']}/calibrations", json={"calibrated_on": str(today), "due_date": str(today + timedelta(days=180)), "result": "FAIL"})
@@ -80,7 +81,7 @@ def test_calibration_gate(plant, login):
 def test_preventive_generator_is_idempotent(login, db):
     mm = login("maintenance_manager")
     e = eq(mm)
-    first = date.today() - timedelta(days=1)
+    first = business_today() - timedelta(days=1)
     assert mm.post("/api/maintenance/schedules", json={"equipment_id": e["id"], "title": "Quarterly service", "frequency_days": 90, "first_due": str(first)}).status_code == 201
     a = mm.post("/api/maintenance/schedules/generate").json()
     b = mm.post("/api/maintenance/schedules/generate").json()
@@ -124,7 +125,7 @@ def fg_item():
 
 
 def order(oid, sku, qty="2", price="500"):
-    return {"order_id": oid, "order_date": str(date.today()), "customer_name": "A Buyer", "shipping_address": "1 Marine Drive, Mumbai",
+    return {"order_id": oid, "order_date": str(business_today()), "customer_name": "A Buyer", "shipping_address": "1 Marine Drive, Mumbai",
             "items": [{"sku": sku, "qty": qty, "unit_price": price}]}
 
 

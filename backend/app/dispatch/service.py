@@ -28,6 +28,7 @@ from app.dispatch import courier
 from app.dispatch.models import (CourierEvent, CreditNote, SalesInvoice, SalesOrder, SalesOrderItem, SalesReturn, SalesReturnLine, Shipment, ShipmentLine)
 from app.inventory import service as inv
 from app.masters.models import Customer, Item
+from app.core.clock import business_today
 
 log = logging.getLogger("mintree.dispatch")
 C = Decimal("0.01")
@@ -63,7 +64,7 @@ def create_order(db: Session, cu: CurrentUser, *, customer_id: int, warehouse_id
         tax += acct.money(s * rate / 100)
         rows.append(SalesOrderItem(line_no=n, item_id=it.id, qty=l["qty"], unit_price=l["unit_price"], tax_rate=rate))
     n = db.execute(text("SELECT nextval('sales_order_seq')")).scalar_one()
-    o = SalesOrder(number=f"SO/{date.today():%y}/{n:06d}", customer_id=customer_id, channel=channel, external_ref=external_ref, warehouse_id=warehouse_id,
+    o = SalesOrder(number=f"SO/{business_today():%y}/{n:06d}", customer_id=customer_id, channel=channel, external_ref=external_ref, warehouse_id=warehouse_id,
                    shipping_address=shipping_address or cust.shipping_address, subtotal=sub, tax_total=tax, total=sub + tax, created_by=cu.id)
     o.items = rows
     db.add(o)
@@ -172,13 +173,13 @@ def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version
             db.add(ShipmentLine(shipment_id=ship.id, so_item_id=by_item[item_id].id, item_id=item_id, batch_id=leg["batch_id"], balance_id=leg["balance_id"], qty=q,
                                 unit_cost=(cost / q).quantize(Decimal("0.0001"))))
     if total_cost:
-        acct.post_journal(db, entry_date=date.today(), description=f"COGS {o.number}", source_type="shipment", source_id=ship.id, source_event="cogs",
+        acct.post_journal(db, entry_date=business_today(), description=f"COGS {o.number}", source_type="shipment", source_id=ship.id, source_event="cogs",
                           lines=[("5000", total_cost, Decimal(0)), ("1320", Decimal(0), total_cost)], actor_id=cu.id)
-    je = acct.post_journal(db, entry_date=date.today(), description=f"Sales invoice for {o.number}", source_type="sales_invoice", source_id=o.id, actor_id=cu.id,
+    je = acct.post_journal(db, entry_date=business_today(), description=f"Sales invoice for {o.number}", source_type="sales_invoice", source_id=o.id, actor_id=cu.id,
                            lines=[("1200", o.total, Decimal(0)), ("4000", Decimal(0), o.subtotal), ("2200", Decimal(0), o.tax_total)])
-    fy = acct.fiscal_year(date.today())
+    fy = acct.fiscal_year(business_today())
     seq = acct.next_gapless(db, f"sales_invoice:{fy}")                 # LAST: the hot counter row is held only until commit
-    inv_row = SalesInvoice(number=f"SI/{fy}/{seq:06d}", customer_id=o.customer_id, so_id=o.id, invoice_date=date.today(), subtotal=o.subtotal, tax_total=o.tax_total,
+    inv_row = SalesInvoice(number=f"SI/{fy}/{seq:06d}", customer_id=o.customer_id, so_id=o.id, invoice_date=business_today(), subtotal=o.subtotal, tax_total=o.tax_total,
                            total=o.total, journal_entry_id=je.id)
     db.add(inv_row)
     for l in o.items:
@@ -273,7 +274,7 @@ def create_return(db: Session, cu: CurrentUser, *, order_id: int, reason: str, l
     if o.status not in ("DISPATCHED", "DELIVERED"):
         raise BusinessConflict("not_shipped", "Only shipped orders can be returned")
     n = db.execute(text("SELECT nextval('sales_return_seq')")).scalar_one()
-    r = SalesReturn(number=f"RET/{date.today():%y}/{n:06d}", so_id=o.id, reason=reason, created_by=cu.id)
+    r = SalesReturn(number=f"RET/{business_today():%y}/{n:06d}", so_id=o.id, reason=reason, created_by=cu.id)
     if len({l["shipment_line_id"] for l in lines}) != len(lines):
         raise Unprocessable("A shipment line may appear once per return")
     for l in lines:
@@ -336,11 +337,11 @@ def decide_return(db: Session, cu: CurrentUser, return_id: int, decision: str) -
         for sl, q in units:
             acct.val_receive(db, vrows, sl.item_id, q, acct.money(q * sl.unit_cost))
         if cost:
-            acct.post_journal(db, entry_date=date.today(), description=f"Return {r.number} restocked", source_type="sales_return", source_id=r.id, source_event="restock",
+            acct.post_journal(db, entry_date=business_today(), description=f"Return {r.number} restocked", source_type="sales_return", source_id=r.id, source_event="restock",
                               lines=[("1320", cost, Decimal(0)), ("5000", Decimal(0), cost)], actor_id=cu.id)
-    je = acct.post_journal(db, entry_date=date.today(), description=f"Credit note for return {r.number}", source_type="sales_return", source_id=r.id, source_event="credit_note",
+    je = acct.post_journal(db, entry_date=business_today(), description=f"Credit note for return {r.number}", source_type="sales_return", source_id=r.id, source_event="credit_note",
                            lines=[("4100", sub, Decimal(0)), ("2200", tax, Decimal(0)), ("1200", Decimal(0), total)], actor_id=cu.id)
-    fy = acct.fiscal_year(date.today())
+    fy = acct.fiscal_year(business_today())
     seq = acct.next_gapless(db, f"credit_note:{fy}")
     cn = CreditNote(number=f"CN/{fy}/{seq:06d}", invoice_id=invoice.id, return_id=r.id, subtotal=sub, tax_total=tax, total=total, journal_entry_id=je.id)
     db.add(cn)

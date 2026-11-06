@@ -19,6 +19,7 @@ from app.core.context import request_id_var
 from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.procurement.models import PurchaseOrder, PurchaseOrderItem
+from app.core.clock import business_today
 
 C = Decimal("0.01")
 INVENTORY_ACCOUNT = {"RM": "1300", "PM": "1300", "BULK": "1310", "FG": "1320"}
@@ -82,7 +83,7 @@ def reverse_journal(db: Session, cu: CurrentUser, entry_id: int, reason: str) ->
         raise NotFound("Journal entry")
     if orig.reverses_entry_id:
         raise BusinessConflict("cannot_reverse_reversal", "A reversal cannot be reversed")
-    rev = post_journal(db, entry_date=date.today(), description=f"Reversal of {orig.number}: {reason}", source_type="journal_reversal",
+    rev = post_journal(db, entry_date=business_today(), description=f"Reversal of {orig.number}: {reason}", source_type="journal_reversal",
                        source_id=orig.id, lines=[(db.get(Account, l.account_id).code, l.credit, l.debit) for l in orig.lines],
                        actor_id=cu.id, reverses_entry_id=orig.id)
     audit.record(db, user=cu, action="journal_reversal", entity="journal_entry", entity_id=orig.id, after={"reversal": rev.number}, reason=reason)

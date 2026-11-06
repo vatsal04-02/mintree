@@ -13,6 +13,7 @@ from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.masters.models import Item
 from app.rnd.models import Formulation, FormulationIngredient, FormulationVersion, LabTrial
+from app.core.clock import business_today
 
 P5 = Decimal("0.00001")
 
@@ -140,7 +141,7 @@ def approve(db: Session, cu: CurrentUser, version_id: int) -> dict:
         raise BusinessConflict("self_approval_not_allowed", "You cannot approve a formulation version you created")
     db.execute(update(FormulationVersion).where(FormulationVersion.formulation_id == v.formulation_id, FormulationVersion.status == "APPROVED")
                .values(status="OBSOLETE"))                       # previous current version steps down first (unique current index)
-    v.status, v.approved_by, v.approved_at, v.effective_date = "APPROVED", cu.id, datetime.now(timezone.utc), date.today()
+    v.status, v.approved_by, v.approved_at, v.effective_date = "APPROVED", cu.id, datetime.now(timezone.utc), business_today()
     db.flush()
     audit.record(db, user=cu, action="approve", entity="formulation_version", entity_id=v.id, after={"version_no": v.version_no})
     outbox.add(db, event_type="rnd.formulation.approved", aggregate_type="formulation_version", aggregate_id=v.id,

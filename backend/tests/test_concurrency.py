@@ -19,6 +19,7 @@ from sqlalchemy import text
 from app.core.db import engine
 from scripts.check_integrity import run_checks
 from tests.conftest import mk_master
+from app.core.clock import business_today  # noqa: E402
 
 pytestmark = pytest.mark.filterwarnings("ignore")
 
@@ -61,8 +62,8 @@ def seed_stock(t, m, qty, *, release=True, note="DN"):
     po = t["admin"].post(f"/api/procurement/purchase-orders/{po['id']}/approve", json={"expected_version": po["version"] + 1}).json()
     gr = t["stores"].post("/api/procurement/goods-receipts", key=key("gr"), json={
         "po_id": po["id"], "warehouse_id": m["wh1"], "delivery_note_no": f"{note}-{uuid.uuid4().hex[:8]}",
-        "lines": [{"po_item_id": po["items"][0]["id"], "qty": str(qty), "supplier_lot_no": "L1", "mfg_date": str(date.today()),
-                   "expiry_date": str(date.today() + timedelta(days=200))}]})
+        "lines": [{"po_item_id": po["items"][0]["id"], "qty": str(qty), "supplier_lot_no": "L1", "mfg_date": str(business_today()),
+                   "expiry_date": str(business_today() + timedelta(days=200))}]})
     assert gr.status_code == 201, gr.text
     line = gr.json()["lines"][0]
     if release:
@@ -112,7 +113,7 @@ def test_concurrent_identical_receipts_post_exactly_once(live_users, team):
     stores = live_users("stores_manager", n=16)
     k, note = key("gr-dup"), f"DN-{uuid.uuid4().hex[:8]}"
     body = {"po_id": po["id"], "warehouse_id": m["wh1"], "delivery_note_no": note, "lines": [{
-        "po_item_id": po["items"][0]["id"], "qty": "40", "mfg_date": str(date.today()), "expiry_date": str(date.today() + timedelta(days=100))}]}
+        "po_item_id": po["items"][0]["id"], "qty": "40", "mfg_date": str(business_today()), "expiry_date": str(business_today() + timedelta(days=100))}]}
     barrier = threading.Barrier(16)
 
     def go(i):
@@ -141,7 +142,7 @@ def test_concurrent_receipts_cannot_over_receive_a_po_line(live_users, team):
     def go(i):
         return stores[i].post("/api/procurement/goods-receipts", key=key("gr"), json={
             "po_id": po["id"], "warehouse_id": m["wh1"], "delivery_note_no": f"DN-{uuid.uuid4().hex[:8]}",
-            "lines": [{"po_item_id": po["items"][0]["id"], "qty": "30", "mfg_date": str(date.today()), "expiry_date": str(date.today() + timedelta(days=100))}]})
+            "lines": [{"po_item_id": po["items"][0]["id"], "qty": "30", "mfg_date": str(business_today()), "expiry_date": str(business_today() + timedelta(days=100))}]})
 
     rs = run_parallel(go, 10, 10)
     out = Counter(classify(r, {201, 409}) for r in rs)

@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from tests.conftest import mk_master
 from tests.test_inventory_procurement import N, po_to_approved, receive
+from app.core.clock import business_today  # noqa: E402
 
 
 @pytest.fixture
@@ -72,7 +73,7 @@ def test_incomplete_and_expired_quotations_are_not_recommended(buy):
     inc = next(q for q in c["quotations"] if q["supplier_id"] == a["supplier_id"])
     assert buy["pm"].post(f"/api/procurement/rfqs/{r['id']}/award", json={"quotation_id": inc["quotation_id"], "reason": "cheaper"}).status_code == 409
     # an already-expired quotation is rejected at entry
-    assert quote(buy, {"id": r["id"]}, a, a["supplier_id"], "1", valid=str(date.today() - timedelta(days=1))).status_code in (409, 422)
+    assert quote(buy, {"id": r["id"]}, a, a["supplier_id"], "1", valid=str(business_today() - timedelta(days=1))).status_code in (409, 422)
 
 
 def test_rfq_rules(buy, login):
@@ -116,9 +117,9 @@ def test_delegation_grants_and_revokes_authority(buy, login, db):
     big = buy["pm"].post(f"/api/procurement/purchase-orders/{big['id']}/submit", json={"expected_version": big["version"]}).json()
     over = buy["pm2"].post(f"/api/procurement/purchase-orders/{big['id']}/approve", json={"expected_version": big["version"]})
     assert over.status_code == 409 and over.json()["detail"]["code"] == "approval_limit_exceeded"
-    d = buy["admin"].post("/api/approvals/delegations", json={"doc_type": "purchase_order", "to_user_id": buy["pm2"].user.id, "valid_from": str(date.today()), "valid_to": str(date.today() + timedelta(days=3)), "reason": "cover"})
+    d = buy["admin"].post("/api/approvals/delegations", json={"doc_type": "purchase_order", "to_user_id": buy["pm2"].user.id, "valid_from": str(business_today()), "valid_to": str(business_today() + timedelta(days=3)), "reason": "cover"})
     assert d.status_code == 201, d.text
-    assert buy["admin"].post("/api/approvals/delegations", json={"doc_type": "x", "to_user_id": buy["admin"].user.id, "valid_from": str(date.today()), "valid_to": str(date.today())}).status_code == 422
+    assert buy["admin"].post("/api/approvals/delegations", json={"doc_type": "x", "to_user_id": buy["admin"].user.id, "valid_from": str(business_today()), "valid_to": str(business_today())}).status_code == 422
     ok = buy["pm2"].post(f"/api/procurement/purchase-orders/{big['id']}/approve", json={"expected_version": big["version"]})
     assert ok.status_code == 200 and ok.json()["status"] == "APPROVED"
     assert db.execute(text("SELECT acting_for_user_id FROM approval_records WHERE doc_id = :i"), {"i": big["id"]}).scalar() == buy["admin"].user.id, "the record shows whose authority was used"
@@ -140,7 +141,7 @@ def test_settings_validation_and_permissions(buy, login):
 
 def test_delivery_tracking_and_supplier_performance(buy, db):
     m = mk_master("TRK")
-    po = buy["pm"].post("/api/procurement/purchase-orders", json={"supplier_id": m["supplier_id"], "expected_date": str(date.today() - timedelta(days=3)),
+    po = buy["pm"].post("/api/procurement/purchase-orders", json={"supplier_id": m["supplier_id"], "expected_date": str(business_today() - timedelta(days=3)),
                                                                   "items": [{"item_id": m["item_id"], "qty": "100", "unit_price": "10"}]}).json()
     po = buy["pm"].post(f"/api/procurement/purchase-orders/{po['id']}/submit", json={"expected_version": po["version"]}).json()
     po = buy["admin"].post(f"/api/procurement/purchase-orders/{po['id']}/approve", json={"expected_version": po["version"]}).json()

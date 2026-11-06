@@ -13,6 +13,7 @@ from app.core.platform_models import JobFailure, ProcessedEvent
 from app.core.uow import run_tx
 from app.workers import consumers as C
 from app.workers.celery_app import celery
+from app.core.clock import business_today
 
 log = logging.getLogger("mintree.worker")
 
@@ -70,4 +71,4 @@ def generate_due_maintenance():
     from datetime import date
     from app.maintenance.service import generate_due
     with SessionLocal() as db:
-        return run_tx(db, lambda d: generate_due(d, date.today()), name="maintenance.generate_due")
+        return run_tx(db, lambda d: generate_due(d, business_today()), name="maintenance.generate_due")

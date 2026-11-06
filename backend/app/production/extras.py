@@ -11,6 +11,7 @@ from app.core.deps import CurrentUser
 from app.core.errors import BusinessConflict, NotFound, Unprocessable
 from app.notifications.service import notify
 from app.production.models import Bom, ProcessCheck, ProductionOrder, ProductionStage
+from app.core.clock import business_today
 
 
 def record_check(db: Session, cu: CurrentUser, order_id: int, seq: int, *, parameter: str, value, min_value, max_value, passed: bool | None, observation: str | None,
@@ -67,11 +68,11 @@ def dashboard(db: Session) -> dict:
     one = lambda sql: db.scalar(text(sql))
     waste = [dict(r) for r in db.execute(text("""SELECT w.category, sum(w.qty) AS qty, count(*) AS records FROM wastage_records w JOIN production_orders o ON o.id = w.order_id
                                                   WHERE o.completed_at > now() - interval '30 days' GROUP BY w.category ORDER BY 2 DESC""")).mappings()]
-    return {"planned_today": one("SELECT count(*) FROM production_orders WHERE planned_date = current_date AND status IN ('PLANNED','RELEASED')"),
+    return {"planned_today": one("SELECT count(*) FROM production_orders WHERE planned_date = business_today() AND status IN ('PLANNED','RELEASED')"),
             "active": by.get("RELEASED", 0) + by.get("IN_PROGRESS", 0), "awaiting_release": by.get("PLANNED", 0), "in_progress": by.get("IN_PROGRESS", 0),
             "awaiting_qc": one("""SELECT count(*) FROM production_orders o JOIN inventory_batches b ON b.id = o.output_batch_id WHERE o.status = 'COMPLETED' AND b.qc_status IN ('QUARANTINE','HOLD')"""),
             "completed_30d": one("SELECT count(*) FROM production_orders WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days'"),
-            "delayed": one("SELECT count(*) FROM production_orders WHERE planned_date < current_date AND status NOT IN ('COMPLETED','CANCELLED')"),
+            "delayed": one("SELECT count(*) FROM production_orders WHERE planned_date < business_today() AND status NOT IN ('COMPLETED','CANCELLED')"),
             "average_yield_pct_30d": None if (y := one("SELECT round(avg(yield_pct),2) FROM production_orders WHERE status = 'COMPLETED' AND completed_at > now() - interval '30 days'")) is None else str(y),
             "wastage_by_category_30d": [{**w, "qty": str(w["qty"])} for w in waste], "orders_by_status": by,
             "machine_availability": {r[0]: r[1] for r in db.execute(text("SELECT status, count(*) FROM equipment GROUP BY status"))}}
@@ -137,7 +138,7 @@ def plan(db: Session, cu: CurrentUser, *, warehouse_id: int, lines: list[dict], 
         outputs.append({"bom_id": bom.id, "output_item_id": bom.output_item_id, "planned_qty": str(l["qty"])})
         for bl in bom.lines:
             need[bl.item_id] = need.get(bl.item_id, Decimal(0)) + bl.qty * factor
-    rows = db.execute(text("""SELECT sb.item_id, COALESCE(sum(sb.qty_available) FILTER (WHERE sb.batch_id IS NULL OR (ib.qc_status='RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > current_date))),0) avail
+    rows = db.execute(text("""SELECT sb.item_id, COALESCE(sum(sb.qty_available) FILTER (WHERE sb.batch_id IS NULL OR (ib.qc_status='RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > business_today()))),0) avail
                                 FROM stock_balances sb LEFT JOIN inventory_batches ib ON ib.id = sb.batch_id WHERE sb.warehouse_id = :w AND sb.item_id = ANY(:ids) GROUP BY sb.item_id"""),
                       {"w": warehouse_id, "ids": list(need)}).all()
     have = {r[0]: Decimal(r[1]) for r in rows}

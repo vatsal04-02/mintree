@@ -11,6 +11,7 @@ from app.core.db import engine
 from scripts.check_integrity import run_checks
 from tests.conftest import mk_master
 from tests.test_production import extra_rm
+from app.core.clock import business_today  # noqa: E402
 
 pytestmark = pytest.mark.filterwarnings("ignore")
 key = lambda p="k": f"{p}-{uuid.uuid4().hex}"
@@ -28,7 +29,7 @@ def test_concurrent_releases_never_oversell_and_never_deadlock(live_users):
         buyer.post(f"/api/procurement/purchase-orders/{po['id']}/submit", json={"expected_version": po["version"]})
         po = admin.post(f"/api/procurement/purchase-orders/{po['id']}/approve", json={"expected_version": po["version"] + 1}).json()
         gr = stores.post("/api/procurement/goods-receipts", key=key("gr"), json={"po_id": po["id"], "warehouse_id": m1["wh1"], "delivery_note_no": f"DN-{uuid.uuid4().hex[:8]}",
-             "lines": [{"po_item_id": po["items"][0]["id"], "qty": "100", "mfg_date": str(date.today()), "expiry_date": str(date.today() + timedelta(days=300))}]}).json()
+             "lines": [{"po_item_id": po["items"][0]["id"], "qty": "100", "mfg_date": str(business_today()), "expiry_date": str(business_today() + timedelta(days=300))}]}).json()
         assert qm.post(f"/api/inventory/batches/{gr['lines'][0]['batch_id']}/qc-decision", key=key("qc"), json={"decision": "RELEASED"}).status_code == 200
 
     stock(m1["item_id"], "10"); stock(rm2, "20")

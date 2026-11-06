@@ -14,6 +14,7 @@ from app.core.errors import BusinessConflict, NotFound
 from app.core.idempotency import require_idempotency_key
 from app.core.posting import idempotent_post
 from app.core.uow import run_tx
+from app.core.clock import business_today
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 DB = Depends(get_db, scope="function")
@@ -112,7 +113,7 @@ def account_ledger(code: str, before_id: int | None = None, limit: int = Query(1
 @router.get("/reports/payables")
 def payables(db: Session = DB, _: CurrentUser = Depends(require("accounts.report:read"))):
     rows = db.execute(text("""SELECT i.id, i.number, i.supplier_id, i.invoice_date, i.total, i.amount_paid, i.total - i.amount_paid AS outstanding,
-                                     (current_date - i.invoice_date) AS age_days FROM supplier_invoices i WHERE i.status <> 'PAID' ORDER BY i.invoice_date""")).mappings().all()
+                                     (business_today() - i.invoice_date) AS age_days FROM supplier_invoices i WHERE i.status <> 'PAID' ORDER BY i.invoice_date""")).mappings().all()
     return {"items": [dict(r) for r in rows], "total_outstanding": str(sum(r["outstanding"] for r in rows))}
 
 
