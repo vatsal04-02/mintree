@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -166,3 +166,66 @@ class StorageLocation(AuditFieldsMixin, Base):
     @property
     def warehouse_code(self) -> str:
         return self.warehouse.code
+
+
+PAYMENT_METHOD_KINDS = ("CASH", "BANK_TRANSFER", "UPI", "CARD", "CHEQUE", "MARKETPLACE", "OTHER")
+COURIER_KINDS = ("COURIER", "SURFACE", "AIR", "OWN_FLEET", "MARKETPLACE_LOGISTICS")
+
+
+class UnitConversion(AuditFieldsMixin, Base):
+    """qty_in_to_uom = qty_in_from_uom * factor. item_id NULL = generic (1 kg = 1000 g); set = item-specific (density: 1 L of X = 0.92 kg)."""
+
+    __tablename__ = "unit_conversions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    from_uom_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))
+    to_uom_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))
+    item_id: Mapped[int | None] = mapped_column(ForeignKey("items.id"))
+    factor: Mapped[Decimal] = mapped_column(Numeric(18, 8))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    __table_args__ = (
+        CheckConstraint("factor > 0", name="factor_positive"),
+        CheckConstraint("from_uom_id <> to_uom_id", name="distinct_units"),
+        # NULLS NOT DISTINCT so there is at most one generic and one per-item rule per direction
+        Index("uq_unit_conversions_rule", "from_uom_id", "to_uom_id", "item_id", unique=True, postgresql_nulls_not_distinct=True),
+    )
+
+
+class TaxClass(AuditFieldsMixin, Base):
+    """GST classification (rate slabs). Informational master: it does not file returns or talk to any government system."""
+
+    __tablename__ = "tax_classes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    hsn_prefix: Mapped[str | None] = mapped_column(String(10))
+    gst_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    cess_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0, server_default="0")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    __table_args__ = (CheckConstraint("gst_rate >= 0 AND gst_rate <= 100", name="gst_rate_range"),
+                      CheckConstraint("cess_rate >= 0 AND cess_rate <= 100", name="cess_rate_range"))
+
+
+class PaymentMethod(AuditFieldsMixin, Base):
+    __tablename__ = "payment_methods"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(16))
+    ledger_account_code: Mapped[str | None] = mapped_column(String(10))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    __table_args__ = (CheckConstraint(_in("kind", PAYMENT_METHOD_KINDS), name="kind_valid"),)
+
+
+class CourierPartner(AuditFieldsMixin, Base):
+    """Courier master. `integration_mode` states honestly how bookings are made: MANUAL (no API), DEMO (fake adapter) or LIVE (verified credentials)."""
+
+    __tablename__ = "courier_partners"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(24))
+    integration_mode: Mapped[str] = mapped_column(String(8), default="MANUAL", server_default="MANUAL")
+    tracking_url_template: Mapped[str | None] = mapped_column(String(300))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    __table_args__ = (CheckConstraint(_in("kind", COURIER_KINDS), name="kind_valid"),
+                      CheckConstraint("integration_mode IN ('MANUAL','DEMO','LIVE')", name="integration_mode_valid"))

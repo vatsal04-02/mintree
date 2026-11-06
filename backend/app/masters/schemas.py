@@ -322,3 +322,89 @@ class LocationUpdate(_Base):
 
 class LocationOut(_Audited, LocationIn):
     warehouse_code: str
+
+
+# ---- Unit conversions / tax classes / payment methods / courier partners ----
+PaymentKind = Literal["CASH", "BANK_TRANSFER", "UPI", "CARD", "CHEQUE", "MARKETPLACE", "OTHER"]
+CourierKind = Literal["COURIER", "SURFACE", "AIR", "OWN_FLEET", "MARKETPLACE_LOGISTICS"]
+IntegrationMode = Literal["MANUAL", "DEMO", "LIVE"]
+Factor = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=8)]
+Rate = Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
+
+
+class ConversionIn(_Base):
+    from_uom_id: int
+    to_uom_id: int
+    item_id: int | None = None
+    factor: Factor
+    is_active: bool = True
+
+
+class ConversionUpdate(_Base):
+    factor: Factor | None = None
+    is_active: bool | None = None
+
+
+class ConversionOut(_Audited, ConversionIn):
+    pass
+
+
+class TaxClassIn(_Base):
+    code: Code
+    name: Name
+    hsn_prefix: str | None = Field(None, max_length=10)
+    gst_rate: Rate
+    cess_rate: Rate = Decimal(0)
+    is_active: bool = True
+
+
+class TaxClassUpdate(_Base):
+    name: Name | None = None
+    hsn_prefix: str | None = Field(None, max_length=10)
+    gst_rate: Rate | None = None
+    cess_rate: Rate | None = None
+    is_active: bool | None = None
+
+
+class TaxClassOut(_Audited, TaxClassIn):
+    pass
+
+
+class PaymentMethodIn(_Base):
+    code: Code
+    name: Name
+    kind: PaymentKind
+    ledger_account_code: str | None = Field(None, max_length=10)
+    is_active: bool = True
+
+
+class PaymentMethodUpdate(_Base):
+    name: Name | None = None
+    kind: PaymentKind | None = None
+    ledger_account_code: str | None = Field(None, max_length=10)
+    is_active: bool | None = None
+
+
+class PaymentMethodOut(_Audited, PaymentMethodIn):
+    pass
+
+
+class CourierIn(_Base):
+    code: Code
+    name: Name
+    kind: CourierKind
+    integration_mode: IntegrationMode = "MANUAL"
+    tracking_url_template: str | None = Field(None, max_length=300)
+    is_active: bool = True
+
+
+class CourierUpdate(_Base):
+    name: Name | None = None
+    kind: CourierKind | None = None
+    integration_mode: IntegrationMode | None = None
+    tracking_url_template: str | None = Field(None, max_length=300)
+    is_active: bool | None = None
+
+
+class CourierOut(_Audited, CourierIn):
+    pass

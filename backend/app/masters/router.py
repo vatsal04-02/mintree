@@ -1,4 +1,11 @@
-from fastapi import APIRouter
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.core.db import get_db
+from app.core.deps import require
+from app.masters.conversion import conversion_factor
 
 from app.core.crud import Resource, build_router
 from app.core.deps import CurrentUser
@@ -50,9 +57,25 @@ RESOURCES = [
                         ["code", "name"], default_sort="code")),
     ("warehouses", Resource("warehouse", m.Warehouse, "masters.warehouse", s.WarehouseIn, s.WarehouseUpdate,
                             s.WarehouseOut, ["code", "name"], ["kind"], default_sort="code")),
+    ("unit-conversions", Resource("unit_conversion", m.UnitConversion, "masters.uom", s.ConversionIn, s.ConversionUpdate, s.ConversionOut,
+                                  [], ["from_uom_id", "to_uom_id", "item_id"], has_active_flag=True)),
+    ("tax-classes", Resource("tax_class", m.TaxClass, "masters.tax_class", s.TaxClassIn, s.TaxClassUpdate, s.TaxClassOut,
+                             ["code", "name", "hsn_prefix"], default_sort="code")),
+    ("payment-methods", Resource("payment_method", m.PaymentMethod, "masters.payment_method", s.PaymentMethodIn, s.PaymentMethodUpdate,
+                                 s.PaymentMethodOut, ["code", "name"], ["kind"], default_sort="code")),
+    ("courier-partners", Resource("courier_partner", m.CourierPartner, "masters.courier", s.CourierIn, s.CourierUpdate, s.CourierOut,
+                                  ["code", "name"], ["kind", "integration_mode"], default_sort="code")),
     ("locations", Resource("location", m.StorageLocation, "masters.location", s.LocationIn, s.LocationUpdate,
                            s.LocationOut, ["code", "name"], ["warehouse_id"], default_sort="code")),
 ]
 
 for path, res in RESOURCES:
     router.include_router(build_router(res, prefix=f"/{path}", tags=["masters"]))
+
+
+@router.get("/convert")
+def convert_qty(qty: Decimal, from_uom_id: int, to_uom_id: int, item_id: int | None = None, db: Session = Depends(get_db),
+                _: CurrentUser = Depends(require("masters.uom:read"))):
+    """Quantity conversion using the configured rules (exact Decimal result, returned as a string)."""
+    f = conversion_factor(db, from_uom_id, to_uom_id, item_id)
+    return {"qty": str(qty), "from_uom_id": from_uom_id, "to_uom_id": to_uom_id, "item_id": item_id, "factor": str(f), "result": str(qty * f)}

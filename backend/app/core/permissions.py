@@ -24,6 +24,9 @@ RESOURCES: dict[str, list[str]] = {
     "masters.brand": CRUD,
     "masters.warehouse": CRUD,
     "masters.location": CRUD,
+    "masters.tax_class": CRUD,
+    "masters.payment_method": CRUD,
+    "masters.courier": CRUD,
     "documents.document": CRUD + ["download"],
     # Inventory & warehouse
     "inventory.stock": ["read"],
