@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.administration.router import router as admin_router
 from app.accounts.ext_router import router as accounts_ext_router
 from app.analytics.router import router as analytics_router
+from app.listings import router as listings_router
 from app.inventory.extras_router import router as inventory_extras_router
 from app.production.extras_router import router as production_extras_router
 from app.quality.extras_router import router as quality_extras_router
@@ -101,6 +102,6 @@ def health():
 
 # Extras routers first: their specific paths (e.g. .../stages/{seq}/checks) must win over the base routers' generic {action} routes.
 for r in (auth_router, admin_router, jobs_router, production_extras_router, accounts_ext_router, dispatch_extras_router, quality_extras_router, rnd_extras_router, inventory_extras_router,
-          rfq_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router,
+          rfq_router, listings_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router,
           maintenance_router, ecommerce_router, crm_router, branding_router, analytics_router, approvals_router, notifications_router, sales_router):
     app.include_router(r, prefix="/api")

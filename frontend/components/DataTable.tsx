@@ -46,7 +46,7 @@ export function DataTable<T extends { id: number | string }>({
                 {columns.map((c) => (
                   <td key={c.key} className={c.align === "right" ? "num" : ""} title={c.title?.(r)}>{c.render(r)}</td>
                 ))}
-                {rowActions && <td onClick={(e) => e.stopPropagation()} className="text-right">{rowActions(r)}</td>}
+                {rowActions && <td onClick={(e) => e.stopPropagation()} className="text-right !max-w-none">{rowActions(r)}</td>}
               </tr>
             ))}
           </tbody>

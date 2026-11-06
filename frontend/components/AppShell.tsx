@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
+import { Bell as BellIcon, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { ALL_NAV_ITEMS, NAV } from "@/lib/nav";
+import { ALL_NAV_ITEMS, NAV, visible } from "@/lib/nav";
 import { api, type Page } from "@/lib/api";
 import { useDebounced } from "./ui";
 
@@ -38,8 +38,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { try { setCollapsed(localStorage.getItem("mintree-nav") === "1"); } catch {} }, []);
   const toggleNav = () => setCollapsed((c) => { try { localStorage.setItem("mintree-nav", c ? "0" : "1"); } catch {} return !c; });
 
-  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || can(i.perm)) })).filter((g) => g.items.length);
-  const current = ALL_NAV_ITEMS.find((i) => (i.href === "/" ? pathname === "/" : pathname.startsWith(i.href)));
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => visible(i, can)) })).filter((g) => g.items.length);
+  const current = [...ALL_NAV_ITEMS].filter((i) => (i.href === "/" ? pathname === "/" : pathname.startsWith(i.href))).sort((a, b) => b.href.length - a.href.length)[0];
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -116,6 +116,7 @@ function Header({ current, theme, toggleTheme, logout }: { current?: string; the
         <span>Mintree</span><ChevronRight size={13} /><span className="text-fg font-medium truncate">{current ?? "Overview"}</span>
       </nav>
       <div className="flex-1" />
+      <NotificationBell />
       <button onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 h-8 w-72 px-2.5 rounded-md border border-line bg-bg text-muted text-[12.5px] hover:border-muted/50">
         <Search size={14} />Search or jump to…<kbd className="ml-auto text-[10.5px] border border-line rounded px-1 bg-surface">Ctrl K</kbd>
       </button>
@@ -167,7 +168,7 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   const pages: Hit[] = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return ALL_NAV_ITEMS.filter((i) => (!i.perm || can(i.perm)) && (!t || `${i.label} ${i.keywords ?? ""}`.toLowerCase().includes(t)))
+    return ALL_NAV_ITEMS.filter((i) => visible(i, can) && (!t || `${i.label} ${i.keywords ?? ""}`.toLowerCase().includes(t)))
       .map((i) => ({ label: i.label, sub: i.group, href: i.href }));
   }, [q, can]);
 
@@ -218,5 +219,24 @@ function Palette({ onClose }: { onClose: () => void }) {
         </ul>
       </div>
     </div>
+  );
+}
+
+
+function NotificationBell() {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const load = () => api<{ unread: number }>("/notifications", { params: { page_size: 1 } }).then((d) => live && setUnread(d.unread)).catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    window.addEventListener("notifications-changed", load);
+    return () => { live = false; clearInterval(t); window.removeEventListener("notifications-changed", load); };
+  }, []);
+  return (
+    <Link href="/notifications" className="relative btn btn-ghost btn-sm !px-2" aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}>
+      <BellIcon size={16} />
+      {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-[10px] leading-4 text-center font-medium" data-testid="unread-count">{unread > 99 ? "99+" : unread}</span>}
+    </Link>
   );
 }

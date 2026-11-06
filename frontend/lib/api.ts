@@ -7,7 +7,7 @@ export class ApiError extends Error {
 let csrfToken: string | null = null;
 export const setCsrf = (t: string | null) => { csrfToken = t; };
 
-type Opts = { method?: string; body?: unknown; form?: FormData; params?: Record<string, string | number | boolean | null | undefined> };
+type Opts = { method?: string; body?: unknown; form?: FormData; headers?: Record<string, string>; params?: Record<string, string | number | boolean | null | undefined> };
 
 function qs(params?: Opts["params"]) {
   if (!params) return "";
@@ -36,7 +36,7 @@ export const setUnauthorizedHandler = (fn: (() => void) | null) => { onUnauthori
 
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
   const method = opts.method ?? (opts.body || opts.form ? "POST" : "GET");
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   let body: BodyInit | undefined;
   if (opts.form) body = opts.form;

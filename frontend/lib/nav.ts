@@ -1,10 +1,19 @@
-import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, type LucideIcon } from "lucide-react";
+import { MODULES } from "./modules";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon; perm?: string; keywords?: string };
+export type NavItem = { href: string; label: string; icon: LucideIcon; perm?: string; anyPerm?: string[]; keywords?: string; hidden?: boolean };
 export type NavGroup = { label: string; items: NavItem[] };
 
 export const NAV: NavGroup[] = [
-  { label: "Workspace", items: [{ href: "/", label: "Overview", icon: LayoutDashboard }] },
+  { label: "Workspace", items: [
+    { href: "/", label: "Overview", icon: LayoutDashboard },
+    { href: "/approvals", label: "Approvals", icon: Inbox, keywords: "pending inbox approve" },
+    { href: "/notifications", label: "Notifications", icon: Bell, keywords: "alerts unread" },
+  ] },
+  {
+    label: "Operations",
+    items: MODULES.map((m) => ({ href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}` })),
+  },
   {
     label: "Master data",
     items: [
@@ -30,4 +39,8 @@ export const NAV: NavGroup[] = [
   },
 ];
 
-export const ALL_NAV_ITEMS = NAV.flatMap((g) => g.items.map((i) => ({ ...i, group: g.label })));
+/** Individual module screens are searchable from the command palette but not listed in the sidebar (each module has a workspace page). */
+const SCREEN_ITEMS: NavItem[] = MODULES.flatMap((m) => m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: `${m.label}: ${s.label}`, icon: m.icon, perm: s.perm, keywords: s.description, hidden: true })));
+
+export const ALL_NAV_ITEMS = [...NAV.flatMap((g) => g.items.map((i) => ({ ...i, group: g.label }))), ...SCREEN_ITEMS.map((i) => ({ ...i, group: "Screens" }))];
+export const visible = (i: NavItem, can: (p: string) => boolean) => (!i.perm || can(i.perm)) && (!i.anyPerm || i.anyPerm.some(can));
