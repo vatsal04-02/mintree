@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScanLine, Bell as BellIcon, Menu, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { Logo } from "./Logo";
 import { ALL_NAV_ITEMS, NAV, visible } from "@/lib/nav";
 import { api, type Page } from "@/lib/api";
 import { useDebounced } from "./ui";
@@ -60,9 +61,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden">
       {mobileOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} aria-hidden />}
       <aside id="primary-nav" className={`${collapsed ? "md:w-[60px]" : "md:w-[244px]"} w-[260px] shrink-0 flex flex-col transition-transform md:transition-[width] duration-150 fixed inset-y-0 left-0 z-40 md:static ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`} style={{ background: "var(--sidebar)", color: "var(--sidebar-fg)" }}>
-        <div className="h-14 flex items-center gap-2.5 px-3.5 shrink-0">
-          <div className="w-8 h-8 rounded-lg grid place-items-center font-semibold text-[15px] shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }} aria-hidden>M</div>
-          {!collapsed && <div className="leading-tight"><div className="text-white font-semibold text-[14px]">Mintree</div><div className="text-[11px] opacity-70">Factory OS</div></div>}
+        <div className="h-14 flex items-center px-4 shrink-0 border-b border-white/[0.06]">
+          <Link href="/" aria-label="Mintree Factory OS, overview" className="flex items-center gap-2.5 min-w-0">
+            {collapsed ? <Logo mark height={22} /> : <><Logo height={20} /><span className="text-[10.5px] font-medium tracking-wide text-white/45 border-l border-white/15 pl-2.5 leading-none py-0.5">Factory OS</span></>}
+          </Link>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 pb-3 sidebar-scroll" aria-label="Main">
           {groups.map((g) => (
@@ -125,7 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col canvas">
         <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} />
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-[1360px] mx-auto px-4 sm:px-7 py-6">{children}</div>
@@ -160,7 +162,7 @@ function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen }: { cur
   ].filter((q) => can(q.perm));
 
   return (
-    <header className="h-14 shrink-0 border-b border-line bg-surface flex items-center gap-3 sm:gap-4 px-4 sm:px-7">
+    <header className="h-14 shrink-0 border-b border-line bg-surface/85 backdrop-blur-sm flex items-center gap-3 sm:gap-4 px-4 sm:px-7">
       <button type="button" className="btn btn-ghost btn-sm !px-2 md:hidden" onClick={onMenu} aria-label="Open navigation" aria-controls="primary-nav" aria-expanded={menuOpen}><Menu size={17} /></button>
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[12.5px] text-muted min-w-0">
         <span className="hidden sm:inline">Mintree</span><ChevronRight size={13} className="hidden sm:block" /><span className="text-fg font-medium truncate">{current ?? "Overview"}</span>

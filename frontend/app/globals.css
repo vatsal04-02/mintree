@@ -25,6 +25,12 @@
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.05);
   --chart-fill: #2b2b2b;
   --chart-track: #e5e5e2;
+  --panel-highlight: inset 0 1px 0 rgb(255 255 255 / 0.85);
+  --panel-depth: 0.16;
+  --canvas-light: rgb(255 255 255 / 0.95);
+  --canvas-tint: rgb(1 135 122 / 0.085);
+  --canvas-shade: rgb(0 0 0 / 0.075);
+  --canvas-dot: rgb(0 0 0 / 0.16);
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -50,6 +56,12 @@
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.35);
   --chart-fill: #d4d4d0;
   --chart-track: #2a2a2a;
+  --panel-highlight: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --panel-depth: 0.55;
+  --canvas-light: rgb(255 255 255 / 0.045);
+  --canvas-tint: rgb(1 135 122 / 0.10);
+  --canvas-shade: rgb(0 0 0 / 0.5);
+  --canvas-dot: rgb(255 255 255 / 0.08);
   color-scheme: dark;
 }
 
@@ -110,9 +122,29 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
 .input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 .input[aria-invalid="true"] { border-color: var(--danger); }
 
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-sm); }
-.panel-link { transition: border-color 120ms, box-shadow 120ms; }
-.panel-link:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+.panel {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 94%, var(--bg)) 100%);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--panel-highlight), 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 24px -14px rgb(0 0 0 / var(--panel-depth));
+}
+.panel-link { transition: border-color 140ms, box-shadow 140ms, transform 140ms; }
+.panel-link:hover { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--panel-highlight), 0 2px 4px rgb(0 0 0 / 0.05), 0 16px 32px -14px rgb(0 0 0 / calc(var(--panel-depth) * 1.5)); }
+
+/* Page canvas: soft light from the top-left, a faint brand tint top-right, a quiet vignette below, and a dot grid that fades out downwards. All neutral and static. */
+.canvas { position: relative; isolation: isolate; background:
+  radial-gradient(1000px 520px at 8% -10%, var(--canvas-light), transparent 62%),
+  radial-gradient(520px 420px at 92% 38%, var(--canvas-tint), transparent 70%),
+  radial-gradient(760px 480px at 100% -4%, var(--canvas-tint), transparent 64%),
+  radial-gradient(1100px 620px at 50% 118%, var(--canvas-shade), transparent 66%),
+  var(--bg); }
+.canvas::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 1.2px); background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%); mask-image: linear-gradient(180deg, #000 0%, transparent 75%); }
+
+/* Display figures: large, tight, tabular; currency symbol and decimals step back so the amount reads first. */
+.fig { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum", "cv11"; letter-spacing: -0.035em; line-height: 1; font-weight: 600; }
+.fig .cur { font-size: 0.56em; font-weight: 500; letter-spacing: 0; color: var(--muted); margin-right: 0.12em; vertical-align: 0.5em; }
+.fig .dec { font-size: 0.56em; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .eyebrow { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 
 .badge {

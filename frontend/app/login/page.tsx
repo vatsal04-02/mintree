@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const { login, me, loading } = useAuth();
@@ -22,11 +23,8 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-[1.1fr_1fr]">
-      <div className="hidden md:flex flex-col justify-between p-12 text-white" style={{ background: "var(--sidebar)" }}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg grid place-items-center font-semibold bg-white/12">M</div>
-          <span className="font-semibold text-[15px]">Mintree</span>
-        </div>
+      <div className="hidden md:flex flex-col justify-between p-12 text-white" style={{ background: "radial-gradient(900px 600px at 15% 105%, rgb(1 135 122 / 0.28), transparent 60%), radial-gradient(700px 500px at 100% 0%, rgb(255 255 255 / 0.07), transparent 60%), radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.07) 1px, transparent 1.2px) 0 0 / 24px 24px, var(--sidebar)" }}>
+        <Logo height={26} />
         <div className="max-w-md">
           <h2 className="text-[30px] leading-[1.15] font-semibold tracking-[-0.015em]">One record from formulation to delivery.</h2>
           <p className="mt-4 text-[14px] leading-6 text-white/70">Purchasing, stores, production, quality, dispatch and accounts share a single, traceable source of truth.</p>
