@@ -96,3 +96,19 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (UniqueConstraint("event_id", "kind"),)
+
+
+class WebhookEvent(Base):
+    """Inbound external events (courier, marketplace, payment). unique(source, external_event_id) is the final duplicate guard:
+    a re-delivered webhook is recognised and acknowledged without any second business effect."""
+
+    __tablename__ = "webhook_events"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source: Mapped[str] = mapped_column(String(40))
+    external_event_id: Mapped[str] = mapped_column(String(120))
+    payload: Mapped[dict] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(12), default="RECEIVED", server_default="RECEIVED")   # RECEIVED | PROCESSED | IGNORED | FAILED
+    error: Mapped[str | None] = mapped_column(Text)
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("source", "external_event_id", name="uq_webhook_events_ext"),)

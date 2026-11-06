@@ -132,6 +132,26 @@ CHECKS: list[tuple[str, str, str]] = [
               ON a.invoice_id = i.id WHERE i.amount_paid <> COALESCE(a.s,0)
         UNION ALL SELECT 'qty', poi.id FROM purchase_order_items poi LEFT JOIN (SELECT po_item_id, sum(qty) s FROM supplier_invoice_lines GROUP BY 1) l
               ON l.po_item_id = poi.id WHERE poi.qty_invoiced <> COALESCE(l.s,0) OR poi.qty_invoiced > poi.qty_received"""),
+    ("accounts_receivable_control_reconciles_with_open_sales_invoices",
+     "GL 1200 Accounts Receivable (debit - credit) equals the sum of outstanding sales invoices (total - paid - credited)",
+     """SELECT gl.bal, sub.outstanding FROM
+          (SELECT COALESCE(sum(l.debit - l.credit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = '1200') gl,
+          (SELECT COALESCE(sum(total - amount_paid - credited_amount),0) outstanding FROM sales_invoices) sub WHERE gl.bal <> sub.outstanding"""),
+    ("invoice_and_credit_note_numbers_are_gapless",
+     "Per fiscal year, sales-invoice and credit-note sequence numbers are exactly 1..n (statutory numbering)",
+     """SELECT 'sales_invoice', fy, count(*), max(n) FROM (SELECT substring(number from 'SI/([0-9]+-[0-9]+)/') fy, substring(number from '/([0-9]+)$')::int n FROM sales_invoices) x GROUP BY fy HAVING count(*) <> max(n)
+        UNION ALL SELECT 'credit_note', fy, count(*), max(n) FROM (SELECT substring(number from 'CN/([0-9]+-[0-9]+)/') fy, substring(number from '/([0-9]+)$')::int n FROM credit_notes) x GROUP BY fy HAVING count(*) <> max(n)"""),
+    ("dispatch_documents_are_complete_and_consistent",
+     "Each dispatched/delivered order has exactly one shipment and one invoice (equal total, with a journal); shipped qty equals ledger DISPATCH; returned qty equals return lines",
+     """SELECT 'shipment', o.id FROM sales_orders o WHERE o.status IN ('DISPATCHED','DELIVERED') AND (SELECT count(*) FROM shipments s WHERE s.so_id = o.id) <> 1
+        UNION ALL SELECT 'invoice', o.id FROM sales_orders o WHERE o.status IN ('DISPATCHED','DELIVERED') AND NOT EXISTS
+              (SELECT 1 FROM sales_invoices i WHERE i.so_id = o.id AND i.total = o.total AND i.journal_entry_id IS NOT NULL)
+        UNION ALL SELECT 'shipped', i.id FROM sales_order_items i LEFT JOIN (SELECT source_id, source_line, -sum(qty_delta) s FROM stock_ledger WHERE source_type='sales_order' AND movement_type='DISPATCH' GROUP BY 1,2) l
+              ON l.source_id = i.so_id AND l.source_line = i.line_no WHERE i.qty_shipped <> COALESCE(l.s,0)
+        UNION ALL SELECT 'returned', i.id FROM sales_order_items i LEFT JOIN (SELECT sl.so_item_id, sum(rl.qty) s FROM sales_return_lines rl JOIN shipment_lines sl ON sl.id = rl.shipment_line_id GROUP BY 1) r
+              ON r.so_item_id = i.id WHERE i.qty_returned <> COALESCE(r.s,0)
+        UNION ALL SELECT 'payments', i.id FROM sales_invoices i LEFT JOIN (SELECT invoice_id, sum(amount) s FROM payment_allocations WHERE invoice_type='sales_invoice' GROUP BY 1) a
+              ON a.invoice_id = i.id WHERE i.amount_paid <> COALESCE(a.s,0)"""),
     ("ledger_is_append_only_by_construction",
      "Ledger rows carry the reversal link only once (a movement is reversed at most once)",
      """SELECT reverses_ledger_id, count(*) FROM stock_ledger WHERE reverses_ledger_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1"""),
@@ -154,7 +174,7 @@ def run_checks(engine) -> dict:
             rows = [list(map(str, r)) for r in conn.execute(text(sql)).all()]
             results.append({"name": name, "description": desc, "ok": not rows, "violations": len(rows), "sample": rows[:5]})
         counts = {t: conn.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in
-                  ("stock_balances", "stock_ledger", "stock_reservations", "goods_receipts", "purchase_orders", "idempotency_keys", "outbox_events", "journal_entries")}
+                  ("stock_balances", "stock_ledger", "stock_reservations", "goods_receipts", "purchase_orders", "idempotency_keys", "outbox_events", "journal_entries", "sales_orders")}
         if own:
             conn.rollback()
     return {"ok": all(r["ok"] for r in results), "checks": results, "skipped": [{"name": n, "reason": r} for n, r in SKIPPED], "row_counts": counts}

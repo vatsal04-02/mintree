@@ -54,8 +54,12 @@ def consume(self, consumer_name: str, event_id: str, event_type: str, payload: d
         c.handler(db, C.Event(event_id, event_type, payload, request_id))
         return "processed"
 
-    with SessionLocal() as db:
-        outcome = run_tx(db, work, name=f"consume.{consumer_name}")
+    if not c.transactional:
+        c.handler(C.Event(event_id, event_type, payload, request_id))     # idempotent by itself; may do external I/O
+        outcome = "processed"
+    else:
+        with SessionLocal() as db:
+            outcome = run_tx(db, work, name=f"consume.{consumer_name}")
     obs.WORKER_TASKS.labels(consumer_name, outcome).inc()
     obs.WORKER_DURATION.labels(consumer_name).observe(time.perf_counter() - t0)
     return outcome

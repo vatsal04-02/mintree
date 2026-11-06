@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     outbox_max_attempts: int = 8        # then status='dead' for operator inspection
     outbox_retention_days: int = 7
 
+    # Dispatch / courier
+    courier_webhook_secret: str = "dev-courier-secret"     # HMAC key for inbound courier webhooks; MUST be overridden in production
+    courier_default: str = "fake"
+    courier_booking_lease_s: int = 120
+
     # Observability
     metrics_token: str = ""            # if set, /api/metrics requires "Authorization: Bearer <token>"
     slow_request_ms: int = 1000        # log requests slower than this with a DB breakdown

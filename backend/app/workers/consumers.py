@@ -23,17 +23,18 @@ class Consumer:
     name: str
     event_type: str
     queue: str
-    handler: Callable[[Session, Event], None]
+    handler: Callable[..., None]
+    transactional: bool = True    # False: handler does its own short transactions and external I/O (never inside the dedupe tx)
 
 
 REGISTRY: dict[str, Consumer] = {}
 
 
-def consumer(event_type: str, *, name: str, queue: str = "default"):
+def consumer(event_type: str, *, name: str, queue: str = "default", transactional: bool = True):
     def deco(fn):
         if name in REGISTRY:
             raise RuntimeError(f"duplicate consumer name {name}")
-        REGISTRY[name] = Consumer(name, event_type, queue, fn)
+        REGISTRY[name] = Consumer(name, event_type, queue, fn, transactional)
         return fn
     return deco
 
@@ -54,3 +55,16 @@ def notify_po_approved(db: Session, ev: Event) -> None:
     db.execute(insert(Notification).values(
         event_id=ev.event_id, kind="purchase_order_approved", title=f"Purchase order {ev.payload.get('number', '')} approved",
         body=ev.payload, request_id=ev.request_id).on_conflict_do_nothing(index_elements=["event_id", "kind"]))
+
+
+@consumer("dispatch.shipment.requested", name="dispatch.book_shipment", queue="integrations", transactional=False)
+def book_shipment(ev: Event) -> None:
+    """Courier booking: network call happens OUTSIDE any DB transaction; book_shipment() is idempotent (claim -> call -> record)."""
+    from app.dispatch.service import book_shipment as book
+    book(int(ev.payload["shipment_id"]))
+
+
+@consumer("dispatch.order.dispatched", name="notify.order_dispatched", queue="notifications")
+def notify_dispatched(db: Session, ev: Event) -> None:
+    db.execute(insert(Notification).values(event_id=ev.event_id, kind="order_dispatched", title=f"Order {ev.payload.get('number', '')} dispatched",
+                                           body=ev.payload, request_id=ev.request_id).on_conflict_do_nothing(index_elements=["event_id", "kind"]))

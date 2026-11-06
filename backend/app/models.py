@@ -8,7 +8,7 @@ from app.masters.models import (  # noqa: F401
     Brand, Customer, Item, ItemCategory, StorageLocation, Supplier, UnitOfMeasure, Warehouse,
 )
 from app.core.platform_models import (  # noqa: E402,F401
-    IdempotencyKey, JobFailure, Notification, OutboxEvent, ProcessedEvent,
+    IdempotencyKey, JobFailure, Notification, OutboxEvent, ProcessedEvent, WebhookEvent,
 )
 from app.inventory.models import InventoryBatch, StockBalance, StockLedger, StockReservation  # noqa: E402,F401
 from app.procurement.models import (  # noqa: E402,F401
@@ -22,4 +22,7 @@ from app.rnd.models import Formulation, FormulationIngredient, FormulationVersio
 from app.quality.models import CapaAction, Deviation, Inspection, InspectionResult, QualitySpec, QualitySpecTest  # noqa: E402,F401
 from app.production.models import (  # noqa: E402,F401
     Bom, BomLine, ProductionConsumption, ProductionMaterial, ProductionOrder, ProductionStage, WastageRecord,
+)
+from app.dispatch.models import (  # noqa: E402,F401
+    CourierEvent, CreditNote, SalesInvoice, SalesOrder, SalesOrderItem, SalesReturn, SalesReturnLine, Shipment, ShipmentLine,
 )

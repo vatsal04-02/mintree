@@ -211,11 +211,12 @@ def post_payment(db: Session, cu: CurrentUser, *, direction: str, party_id: int,
         if not inv or (inv.supplier_id if supplier else inv.customer_id) != party_id:
             raise Unprocessable(f"Invoice {a['invoice_id']} not found for this party")
         amt = money(a["amount"])
-        if amt > inv.total - inv.amount_paid:
-            raise BusinessConflict("overpayment", "Allocation exceeds the outstanding amount", invoice_id=inv.id,
-                                   outstanding=str(inv.total - inv.amount_paid))
+        credited = getattr(inv, "credited_amount", Decimal(0))
+        outstanding = inv.total - inv.amount_paid - credited
+        if amt > outstanding:
+            raise BusinessConflict("overpayment", "Allocation exceeds the outstanding amount", invoice_id=inv.id, outstanding=str(outstanding))
         inv.amount_paid = inv.amount_paid + amt
-        inv.status = "PAID" if inv.amount_paid == inv.total else "PARTIAL"
+        inv.status = "PAID" if inv.amount_paid + credited == inv.total else "PARTIAL"
     n = db.execute(text("SELECT nextval('payment_number_seq')")).scalar_one()
     pay = Payment(number=f"PAY/{payment_date:%y}/{n:06d}", direction=direction, party_type="supplier" if supplier else "customer", party_id=party_id,
                   amount=amount, payment_date=payment_date, method=method, bank_account_code=bank_account_code, reference=reference, created_by=cu.id)

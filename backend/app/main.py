@@ -13,6 +13,7 @@ from app.accounts.router import router as accounts_router
 from app.administration.jobs import router as jobs_router
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
+from app.dispatch.router import router as dispatch_router
 from app.core.errors import BusinessConflict
 from app.core.context import client_ip_var, request_id_var
 from app.core.db import SessionLocal, engine
@@ -83,5 +84,5 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
-for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router):
+for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router):
     app.include_router(r, prefix="/api")

@@ -219,3 +219,17 @@ def set_qc_status(db: Session, *, batch_id: int, decision: str, reason: str | No
     db.execute(text("UPDATE inventory_batches SET qc_status=:s, qc_decided_at=now(), qc_decided_by=:u WHERE id=:i"),
                {"s": decision, "u": actor_id, "i": batch_id})
     return {"batch_id": batch_id, "from": cur, "to": decision, "balances_changed": changed}
+
+
+def unblock(db: Session, *, balance_id: int, qty, source_type: str, source_id: int, source_line: int, actor_id: int, reason: str | None = None) -> dict:
+    """Release previously blocked quantity (e.g. a restocked customer return) back to available stock, via the ledger."""
+    q = _positive(qty)
+    bal = repo.lock_balances(db, [balance_id]).get(balance_id)
+    if not bal:
+        raise NotFound("Stock balance")
+    if bal["qty_blocked"] < q:
+        raise BusinessConflict("not_enough_blocked", "Less stock is blocked than the quantity to release")
+    repo.add_ledger(db, balance=bal, blocked_delta=-q, movement_type="QC_RELEASE", source_type=source_type, source_id=source_id, source_line=source_line,
+                    leg=1, actor_id=actor_id, reason=reason)
+    repo.apply_delta(db, balance_id, blocked=-q)
+    return {"balance_id": balance_id, "released": str(q)}
