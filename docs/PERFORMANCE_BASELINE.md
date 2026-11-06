@@ -108,7 +108,7 @@ conclude "no degradation"**. A 2-hour soak at 1,000 clients on staging remains r
 | No unexplained deadlocks | **Met** (0 `pg_stat_database.deadlocks` in all runs after the fixes; the earlier ones were found and fixed) |
 | No lost / duplicate business effects | **Met** in every integrity check and in H |
 | No negative available stock | **Met** (DB CHECK + integrity check in every run; hot-stock E: 25.8 k conflicts, nothing oversold) |
-| No unbalanced accounting postings | **Not testable** — Accounts module not built |
+| No unbalanced accounting postings | **Not demonstrated under load.** All earlier runs predate the Accounts module (no journals were posted). The check is now real and passes in the functional/E2E suites; it must be re-run after load scenarios that post journals |
 | **1,000 concurrent operations, 30 min, on staging** | **NOT DEMONSTRATED** |
 
 ## 5. Limitations of these measurements

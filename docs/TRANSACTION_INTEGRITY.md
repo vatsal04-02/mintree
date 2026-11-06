@@ -73,9 +73,13 @@ delivery_note_no)` (same physical delivery cannot be booked twice under a *diffe
 qty_ordered` (over-receipt); `UNIQUE(event_id, kind)` on notifications. Mutation-tested: dropping the idempotency
 unique constraint makes the replay and concurrency tests fail.
 **Scope of what is implemented:** idempotent posting exists for goods receipts, QC decisions, reservations/releases, issues,
-transfers, adjustments and reversals. **Not implemented yet** (their modules do not exist): invoices, production postings,
-dispatch records, payment events and marketplace webhooks. The same primitive applies to them (`scope` = source, `key` =
-external event id) but there is no webhook endpoint or payment flow to test it on, so it is *not* claimed for them.
+transfers, adjustments, reversals, supplier invoices, payments, production release/issue/completion, order allocation and
+dispatch, and returns (all via `Idempotency-Key`). Inbound events use a different, equally DB-enforced mechanism: courier and
+marketplace webhooks insert into `webhook_events` (unique source + event id) in the same transaction as their effect;
+marketplace orders are unique per (account, external order id) and again per (channel, external ref) on sales orders.
+All are functionally tested (replays, duplicate deliveries, out-of-order courier events); concurrency-tested for dispatch
+and production; **not yet load-tested**. Webhooks from unauthenticated callers are HMAC-SHA256 verified (secrets
+`courier_webhook_secret` / `marketplace_webhook_secret` MUST be overridden outside development) and act as a system actor.
 
 ## 6. Transactional outbox
 * `core/outbox.add()` inserts the event **in the business transaction** (rollback ⇒ no event; commit ⇒ event, test-proved).
@@ -113,11 +117,20 @@ negative/over-reserved stock · no reservation on rejected batches · no duplica
 receipts / each GR has exactly one key · idempotency keys unique and resolvable · PO received qty = Σ receipts and ≤ ordered ·
 every receipt line in ledger with equal qty · batch↔GR↔supplier↔item traceability · audit entries exist for GRs, PO
 approvals, adjustments/reversals · every GR has its outbox event · no dead/stuck outbox events · no duplicated consumer
-effects · a movement is reversed at most once. **Skipped (module not built): balanced accounting journals** — the check
-will be added with the Accounts module; until then "no unbalanced accounting postings" is *not* demonstrated.
+effects · a movement is reversed at most once · **journals balanced and non-empty; trial balance balances; AP and AR control
+accounts equal open supplier/sales invoices; inventory GL equals item valuation plus open production WIP; every financial
+document has its journal; invoice and credit-note numbers gapless; production, dispatch, marketplace-order, equipment-downtime
+and content-publishing records internally consistent**. Nothing is skipped. Balanced journals are additionally impossible
+to commit: a DEFERRED constraint trigger rejects an unbalanced entry at COMMIT, and journal rows are immutable (corrections
+are reversing entries).
 
 ## 11. Known limitations (stated, not hidden)
 * Holding a RELEASED batch blocks only its *available* quantity; existing reservations stay reserved but flagged by batch status.
-* Document numbers use PostgreSQL sequences (gaps on rollback). Fine for stock documents; **statutory invoices need a
-  gapless locked counter** (Accounts module).
-* RFQ/quotation comparison, supplier invoices and payments are not part of this slice.
+* Document numbers use PostgreSQL sequences (gaps on rollback) for non-statutory documents. **Sales invoices and credit notes
+  use a gapless locked counter** (`document_counters`, taken last in the lock order, per fiscal year).
+* RFQ/quotation comparison is not built. Dispatch ships whole orders only; a refund after full payment is flagged
+  (`refund_required`), not automated; rejected returns stay blocked and are not written off.
+* Analytics figures come from several READ COMMITTED statements and can differ by a posting that lands mid-request; they are
+  operational, not period-end (use the accounts reports for that).
+* Webhook-created marketplace orders are attributed to the first (bootstrap) user because `created_by` needs a real user id; the
+  audit row shows `system:marketplace-webhook`.

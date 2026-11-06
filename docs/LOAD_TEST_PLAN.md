@@ -30,10 +30,10 @@ backend/.venv/bin/python tests/load/harness.py --scenario A_smoke.js --label <la
 | Master data (3) | create brand |
 | Inventory (~26) | reserve+release 8 · production-issue proxy 5 · dispatch proxy (reserve + consume) 5 · transfer 4 |
 | Procurement + QC (6) | PO → submit → approve (second user) → goods receipt → QC release (5 requests) |
-| Accounts, Integrations (0) | **not implemented — weight must stay 0** (the script refuses otherwise) |
+| Accounts, Integrations (0) | weight is still 0 in the scripts: the modules now exist (Milestone H) but **have not been added to the load mix or load-tested**; the perf DB must be re-migrated first |
 
 "Production" and "Dispatch" are *proxies*: they call the real inventory posting endpoints those modules will use.
-They are not production orders or dispatch notes. Accounts/marketplace/Meta traffic is not modelled because the modules do not exist.
+They are not production orders or dispatch notes. The real production, dispatch, accounts and marketplace modules now exist but are **not yet in any scenario**; adding them (an invoice + journal per dispatch) is the next load-test change and invalidates comparison with the earlier numbers.
 
 ## Scenarios (spec → file)
 | | Scenario | File | Spec parameters |
@@ -63,7 +63,7 @@ They are not production orders or dispatch notes. Accounts/marketplace/Meta traf
 ## Acceptance criteria (provisional; measured on staging, not a laptop)
 Reads p95 ≤ 500 ms · standard writes p95 ≤ 1 s, p99 ≤ 3 s · multi-line postings p95 ≤ 2 s · 5xx < 0.1 % · unexpected
 failures < 0.5 % · background queue wait p95 ≤ 10 s · no pool exhaustion · no unexplained deadlocks · no lost/duplicate
-business effects · no negative available stock · no unbalanced accounting postings *(Accounts not built: not testable yet)*.
+business effects · no negative available stock · no unbalanced accounting postings *(the check now exists and is run after every test; it has not yet been run after a load scenario that posts journals)*.
 
 ## After every critical run
 `check_integrity` (reconciliation, duplicates, traceability, audit, outbox) — an HTTP 2xx is never the pass criterion.

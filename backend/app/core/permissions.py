@@ -59,6 +59,23 @@ RESOURCES: dict[str, list[str]] = {
     "accounts.report": ["read"],
     "accounts.supplier_invoice": ["read", "post"],
     "accounts.payment": ["read", "post"],
+    # Maintenance
+    "maintenance.equipment": ["read", "create"],
+    "maintenance.workorder": ["read", "create", "assign", "execute", "verify"],
+    "maintenance.calibration": ["create"],
+    # E-commerce
+    "ecommerce.account": ["read", "create"],
+    "ecommerce.mapping": ["read", "update"],
+    "ecommerce.order": ["read", "ingest"],
+    "ecommerce.settlement": ["create"],
+    # CRM
+    "crm.lead": ["read", "create", "update"],
+    "crm.complaint": ["read", "create", "update"],
+    # Branding / marketing
+    "branding.campaign": ["read", "create"],
+    "branding.content": ["read", "create", "approve", "publish"],
+    # Analytics
+    "analytics.dashboard": ["read"],
 }
 
 
@@ -86,7 +103,7 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
         ["masters.*", "!masters.supplier_bank:*", "documents.*", "admin.user:read", "admin.department:*",
          "admin.audit:read", "admin.role:read"],
     ),
-    "management": ("Management / Owner", "Company-wide read visibility.", ["dispatch.*:read", "production.*:read", "rnd.*:read", "quality.*:read", "accounts.*:read", "inventory.*:read", "procurement.*:read", "masters.*:read", "masters.*:export", "!masters.supplier_bank:*", "documents.document:read",
+    "management": ("Management / Owner", "Company-wide read visibility.", ["dispatch.*:read", "production.*:read", "rnd.*:read", "quality.*:read", "accounts.*:read", "inventory.*:read", "procurement.*:read", "maintenance.*:read", "ecommerce.*:read", "crm.*:read", "branding.*:read", "analytics.*:read", "masters.*:read", "masters.*:export", "!masters.supplier_bank:*", "documents.document:read",
                     "documents.document:download"]),
     "production_manager": ("Production Manager", "Production planning and execution.",
                            ["production.*", "rnd.formula:read", "inventory.stock:read", "inventory.batch:read", "inventory.reservation:*", "inventory.issue:post",
@@ -112,18 +129,18 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
                     ["rnd.*", "quality.spec:read", "masters.item:*", "masters.category:read", "masters.uom:read", "masters.supplier:read",
                      "documents.document:*"]),
     "maintenance_manager": ("Maintenance Manager", "Equipment and maintenance.",
-                            ["documents.document:read", "documents.document:create", "documents.document:download"]),
+                            ["maintenance.*", "production.order:read", "documents.document:read", "documents.document:create", "documents.document:download"]),
     "dispatch_manager": ("Dispatch Manager", "Fulfilment and delivery.",
-                         ["dispatch.*", "accounts.sales_invoice:read", "inventory.stock:read", "masters.item:read", "masters.customer:read", "masters.warehouse:read",
+                         ["dispatch.*", "ecommerce.*", "crm.*", "accounts.sales_invoice:read", "inventory.stock:read", "masters.item:read", "masters.customer:read", "masters.warehouse:read",
                           "masters.uom:read", "documents.document:read", "documents.document:create",
                           "documents.document:download"]),
     "accounts_manager": ("Accounts Manager", "Finance.",
-                         ["accounts.*", "dispatch.order:read", "procurement.po:read", "procurement.receipt:read", "inventory.stock:read", "masters.supplier:*", "masters.supplier_bank:*", "masters.customer:*",
+                         ["accounts.*", "analytics.dashboard:read", "dispatch.order:read", "procurement.po:read", "procurement.receipt:read", "inventory.stock:read", "masters.supplier:*", "masters.supplier_bank:*", "masters.customer:*",
                           "masters.item:read", "masters.uom:read", "documents.document:*"]),
     "marketing_manager": ("Marketing Manager", "Brand and content.",
-                          ["masters.brand:*", "masters.item:read", "documents.document:*"]),
+                          ["masters.brand:*", "branding.*", "crm.lead:*", "analytics.dashboard:read", "masters.item:read", "documents.document:*"]),
     "sales_operator": ("Sales / E-commerce Operator", "Orders and customers.",
-                       ["dispatch.order:read", "dispatch.order:create", "dispatch.order:confirm", "dispatch.shipment:read", "dispatch.return:read", "dispatch.return:create", "masters.customer:read", "masters.customer:create", "masters.customer:update",
+                       ["ecommerce.*:read", "ecommerce.order:ingest", "crm.lead:*", "crm.complaint:*", "dispatch.order:read", "dispatch.order:create", "dispatch.order:confirm", "dispatch.shipment:read", "dispatch.return:read", "dispatch.return:create", "masters.customer:read", "masters.customer:create", "masters.customer:update",
                         "masters.item:read", "masters.brand:read", "documents.document:read"]),
 }
 

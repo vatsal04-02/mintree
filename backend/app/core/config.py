@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     # Dispatch / courier
     courier_webhook_secret: str = "dev-courier-secret"     # HMAC key for inbound courier webhooks; MUST be overridden in production
+    marketplace_webhook_secret: str = "dev-marketplace-secret"
     courier_default: str = "fake"
     courier_booking_lease_s: int = 120
 

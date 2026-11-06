@@ -21,6 +21,8 @@ celery.conf.update(
     # Messages rejected/expired from any queue land here and are inspected via the admin API / RabbitMQ UI.
     + [Queue("dead_letter", DLX, durable=True)],
     imports=("app.workers.tasks",),
+    # Scheduled jobs (run `celery -A app.workers.celery_app beat`). Idempotent: safe to run repeatedly or concurrently.
+    beat_schedule={"maintenance-generate-due": {"task": "mintree.maintenance.generate_due", "schedule": 3600.0}},
 )
 
 

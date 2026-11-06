@@ -3,8 +3,12 @@
 Manufacturing ERP + CRM + omnichannel commerce management for Mintree (cosmetics & skincare).
 Modular monolith: **FastAPI + PostgreSQL** backend, **Next.js + TypeScript + Tailwind** frontend.
 
-> Status: **Phase 0 — Foundation** and the **Inventory + Procurement** vertical slice (on a scalable transactional
-> backend: idempotent postings, append-only stock ledger, transactional outbox, workers) are implemented.
+> Status: **Phase 0 — Foundation**, the **Inventory + Procurement** slice (on a scalable transactional backend: idempotent
+> postings, append-only stock ledger, transactional outbox, workers) and the **Milestone H backend modules** — accounts,
+> R&D, quality, production, dispatch/invoicing/returns, maintenance, e-commerce ingestion, CRM, branding and a management
+> summary — are implemented and tested (136 backend tests, 16 browser tests). **Frontend screens exist only for Phase 0**;
+> the new modules are API-only so far. Not built: live marketplace/Meta/courier integrations (adapters and file/webhook
+> ingestion only), RFQ, bank reconciliation, partial shipments, report builder.
 > **The 1,000-concurrent-operation target is NOT yet demonstrated** — see `docs/PERFORMANCE_BASELINE.md` for what has
 > and has not been measured, and `docs/BACKEND_ARCHITECTURE.md` for the assessment that drove the changes.
 
@@ -13,7 +17,7 @@ Modular monolith: **FastAPI + PostgreSQL** backend, **Next.js + TypeScript + Tai
 | Area | What exists |
 |---|---|
 | Authentication | Session cookies (HttpOnly, SameSite), argon2 hashing, per-session CSRF token, account lockout, forced first-login password change, session revocation on password change/deactivation |
-| Access control | 15 PRD roles, 53 `resource:action` permissions, enforced **in the backend on every request**; UI hides what you can't use but is never the gate |
+| Access control | 15 PRD roles, 160 `resource:action` permissions, enforced **in the backend on every request**; UI hides what you can't use but is never the gate |
 | Privilege-escalation guards | You can't assign roles / grant permissions you don't hold, can't modify accounts above your own rights, can't deactivate yourself, and the last System Administrator can't be removed |
 | Audit | Append-only `audit_logs` (DB triggers block UPDATE/DELETE/TRUNCATE), written in the same transaction as the change; secrets redacted; request ID + IP captured |
 | Master data | Items (RM/PM/BULK/FG), categories, units, suppliers (GSTIN/PAN/IFSC validation, restricted bank details), customers, brands, warehouses, storage locations, departments |

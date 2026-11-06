@@ -26,3 +26,7 @@ from app.production.models import (  # noqa: E402,F401
 from app.dispatch.models import (  # noqa: E402,F401
     CourierEvent, CreditNote, SalesInvoice, SalesOrder, SalesOrderItem, SalesReturn, SalesReturnLine, Shipment, ShipmentLine,
 )
+from app.maintenance.models import CalibrationRecord, DowntimeRecord, Equipment, MaintenanceSchedule, MaintenanceWorkOrder  # noqa: E402,F401
+from app.ecommerce.models import ExternalOrder, ExternalOrderItem, MarketplaceAccount, MarketplaceSettlement, SkuMapping  # noqa: E402,F401
+from app.crm.models import Complaint, Lead  # noqa: E402,F401
+from app.branding.models import Campaign, ContentItem, PublishingRecord  # noqa: E402,F401

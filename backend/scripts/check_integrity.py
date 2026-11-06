@@ -152,6 +152,22 @@ CHECKS: list[tuple[str, str, str]] = [
               ON r.so_item_id = i.id WHERE i.qty_returned <> COALESCE(r.s,0)
         UNION ALL SELECT 'payments', i.id FROM sales_invoices i LEFT JOIN (SELECT invoice_id, sum(amount) s FROM payment_allocations WHERE invoice_type='sales_invoice' GROUP BY 1) a
               ON a.invoice_id = i.id WHERE i.amount_paid <> COALESCE(a.s,0)"""),
+    ("marketplace_orders_and_sales_orders_agree",
+     "Every SO_CREATED marketplace order points to exactly one MARKETPLACE sales order with its external ref; every MARKETPLACE sales order from an account has one external order; EXCEPTION orders have no sales order",
+     """SELECT 'so_missing', e.id FROM external_orders e LEFT JOIN sales_orders o ON o.id = e.sales_order_id WHERE e.status = 'SO_CREATED' AND (o.id IS NULL OR o.channel <> 'MARKETPLACE')
+        UNION ALL SELECT 'exception_has_so', e.id FROM external_orders e WHERE e.status <> 'SO_CREATED' AND e.sales_order_id IS NOT NULL
+        UNION ALL SELECT 'so_without_external', o.id FROM sales_orders o JOIN marketplace_accounts a ON a.customer_id = o.customer_id
+              WHERE o.channel = 'MARKETPLACE' AND o.external_ref LIKE a.platform || ':%' AND NOT EXISTS (SELECT 1 FROM external_orders e WHERE e.sales_order_id = o.id)"""),
+    ("equipment_downtime_is_consistent",
+     "Equipment in BREAKDOWN has exactly one open downtime record; no equipment has more than one open downtime; OPERATIONAL equipment has none",
+     """SELECT 'breakdown_without_downtime', e.id FROM equipment e WHERE e.status = 'BREAKDOWN' AND NOT EXISTS (SELECT 1 FROM downtime_records d WHERE d.equipment_id = e.id AND d.ended_at IS NULL)
+        UNION ALL SELECT 'operational_with_open_downtime', e.id FROM equipment e WHERE e.status = 'OPERATIONAL' AND EXISTS (SELECT 1 FROM downtime_records d WHERE d.equipment_id = e.id AND d.ended_at IS NULL)
+        UNION ALL SELECT 'multiple_open', equipment_id FROM downtime_records WHERE ended_at IS NULL GROUP BY equipment_id HAVING count(*) > 1"""),
+    ("content_publishing_is_consistent",
+     "Published content has exactly one publishing record and an approver different from its author; no publishing record exists for unpublished content",
+     """SELECT 'published_without_record', c.id FROM content_calendar c WHERE c.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM publishing_records p WHERE p.content_id = c.id)
+        UNION ALL SELECT 'record_without_published', p.content_id FROM publishing_records p JOIN content_calendar c ON c.id = p.content_id WHERE c.status <> 'PUBLISHED'
+        UNION ALL SELECT 'self_approved', c.id FROM content_calendar c WHERE c.approved_by = c.created_by"""),
     ("ledger_is_append_only_by_construction",
      "Ledger rows carry the reversal link only once (a movement is reversed at most once)",
      """SELECT reverses_ledger_id, count(*) FROM stock_ledger WHERE reverses_ledger_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1"""),

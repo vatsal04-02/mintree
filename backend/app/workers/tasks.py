@@ -63,3 +63,11 @@ def consume(self, consumer_name: str, event_id: str, event_type: str, payload: d
     obs.WORKER_TASKS.labels(consumer_name, outcome).inc()
     obs.WORKER_DURATION.labels(consumer_name).observe(time.perf_counter() - t0)
     return outcome
+
+
+@celery.task(name="mintree.maintenance.generate_due", acks_late=True)
+def generate_due_maintenance():
+    from datetime import date
+    from app.maintenance.service import generate_due
+    with SessionLocal() as db:
+        return run_tx(db, lambda d: generate_due(d, date.today()), name="maintenance.generate_due")

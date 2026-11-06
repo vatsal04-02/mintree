@@ -15,8 +15,11 @@ Rows marked *manual* were back-filled from observations earlier in the same work
 | 2026-11-06 09:14 | browser E2E (Playwright) | `f7d2c30` | 16 | 0 | **PASS** | historical | Chromium, hermetic DB + API + production build, 4 vCPU sandbox — recorded manually from the session log (16/16 after middleware/commit-semantics/permission changes) |
 | 2026-11-06 09:57 | backend (pytest) | `f7d2c30cbe+dirty` | 95 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
 | 2026-11-06 10:21 | backend (pytest) | `8c6b7f467e+dirty` | 95 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
-| 2026-11-06 11:09 | backend (pytest) | `ea5e2041e3+dirty` | 95 | 0 | **PASS** | current | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
-| 2026-11-06 11:10 | browser E2E (Playwright) | `ea5e2041e3+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 11:09 | backend (pytest) | `ea5e2041e3+dirty` | 95 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 11:10 | browser E2E (Playwright) | `ea5e2041e3+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 11:24 | backend (pytest) | `6c9d08cfdf+dirty` | 104 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 11:40 | backend (pytest) | `0e66812dd9+dirty` | 122 | 0 | **PASS** | current | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 11:52 | browser E2E (Playwright) | `ce93684615+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 
 ## 2. Load / resilience test runs
 
