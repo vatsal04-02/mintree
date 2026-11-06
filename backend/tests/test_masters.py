@@ -59,27 +59,29 @@ def test_delete_deactivates_and_never_removes(admin):
 
 
 def test_list_search_filter_sort_paginate(admin):
-    u = uom(admin)
+    """Scoped to this test's own records (unique prefix): other tests legitimately commit items to the shared DB."""
+    import uuid
+    u, tag = uom(admin), uuid.uuid4().hex[:6].upper()
     for i, (kind, name) in enumerate([("RM", "Niacinamide"), ("RM", "Hyaluronic acid"), ("PM", "Pump bottle 50ml"),
                                       ("PM", "Carton"), ("FG", "Vitamin C serum")]):
-        assert admin.post("/api/masters/items", json={"item_code": f"X{i}", "name": name, "kind": kind, "uom_id": u}).status_code == 201
-    g = lambda **p: admin.get("/api/masters/items", params=p).json()
+        assert admin.post("/api/masters/items", json={"item_code": f"{tag}-X{i}", "name": f"{name} {tag}", "kind": kind, "uom_id": u}).status_code == 201
+    g = lambda **p: admin.get("/api/masters/items", params={"q": tag, **p}).json()
     assert g()["total"] == 5
     assert g(kind="PM")["total"] == 2
-    assert [i["name"] for i in g(q="acid")["items"]] == ["Hyaluronic acid"]
-    assert [i["item_code"] for i in g(sort="-item_code")["items"]][:2] == ["X4", "X3"]
+    assert [i["name"] for i in g(q=f"Hyaluronic acid {tag}")["items"]] == [f"Hyaluronic acid {tag}"]
+    assert [i["item_code"] for i in g(sort="-item_code")["items"]][:2] == [f"{tag}-X4", f"{tag}-X3"]
     page2 = g(page=2, page_size=2, sort="item_code")
-    assert page2["total"] == 5 and [i["item_code"] for i in page2["items"]] == ["X2", "X3"]
+    assert page2["total"] == 5 and [i["item_code"] for i in page2["items"]] == [f"{tag}-X2", f"{tag}-X3"]
     assert g(sort="nonexistent; drop table")["total"] == 5  # unknown sort column falls back safely
 
 
 def test_csv_export_requires_permission_and_neutralises_formulas(admin, login):
-    admin.post("/api/masters/suppliers", json={"code": "S9", "name": "=HYPERLINK(\"http://evil\")"})
+    admin.post("/api/masters/suppliers", json={"code": "S9", "name": "=HYPERLINK(\"http://evil\")"})  # code S9 is rolled back with the test
     assert login("stores_manager").get("/api/masters/suppliers/export.csv").status_code == 403
     r = admin.get("/api/masters/suppliers/export.csv")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
     rows = list(csv.DictReader(io.StringIO(r.text)))
-    assert rows[0]["name"].startswith("'=")
+    assert any(row["code"] == "S9" and row["name"].startswith("'=") for row in rows)
     assert admin.get("/api/admin/audit-logs", params={"action": "export"}).json()["total"] == 1
 
 

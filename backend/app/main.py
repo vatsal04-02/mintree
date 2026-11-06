@@ -12,13 +12,16 @@ from app.administration.router import router as admin_router
 from app.administration.jobs import router as jobs_router
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
+from app.core.errors import BusinessConflict
 from app.core.context import client_ip_var, request_id_var
 from app.core.db import SessionLocal, engine
 from app.core.middleware import AdmissionControl, MetricsMiddleware, RequestContextMiddleware
 from app.core.logging import configure_logging
 from app.core import observability as obs
 from app.documents.router import router as documents_router
+from app.inventory.router import router as inventory_router
 from app.masters.router import router as masters_router
+from app.procurement.router import router as procurement_router
 
 configure_logging()
 obs.instrument_engine(engine)
@@ -51,6 +54,12 @@ async def unhandled(request: Request, exc: Exception):
     return JSONResponse({"detail": "Internal server error", "request_id": request_id_var.get()}, status_code=500)
 
 
+@app.exception_handler(BusinessConflict)
+async def business_conflict(request: Request, exc: BusinessConflict):
+    obs.BUSINESS_CONFLICTS.labels(exc.code).inc()
+    return JSONResponse({"detail": exc.detail}, status_code=409)
+
+
 @app.get("/api/metrics", include_in_schema=False)
 def metrics(request: Request):
     """Prometheus scrape endpoint. Exempt from admission control (see main.py); token-protected when configured."""
@@ -70,5 +79,5 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
-for r in (auth_router, admin_router, jobs_router, masters_router, documents_router):
+for r in (auth_router, admin_router, jobs_router, masters_router, documents_router, inventory_router, procurement_router):
     app.include_router(r, prefix="/api")

@@ -19,6 +19,7 @@ class CurrentUser:
     user: User
     session: SessionRecord
     permissions: set[str] = field(default_factory=set)
+    role_codes: set[str] = field(default_factory=set)
 
     @property
     def id(self) -> int:
@@ -56,7 +57,7 @@ def _load(request: Request, db: Session, *, allow_password_change: bool) -> Curr
         sess.last_seen_at = now
 
     perms = {p.code for role in user.roles for p in role.permissions}
-    return CurrentUser(user=user, session=sess, permissions=perms)
+    return CurrentUser(user=user, session=sess, permissions=perms, role_codes={r.code for r in user.roles})
 
 
 def current_user(request: Request, db: Session = Depends(get_db, scope="function")) -> CurrentUser:

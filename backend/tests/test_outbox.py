@@ -25,6 +25,15 @@ class FakeBroker:
             self.sent.append(event_id)
 
 
+@pytest.fixture(autouse=True)
+def _cleanup_test_events():
+    """Tests here create pending/dead events on purpose; settle them so DB-wide integrity checks stay meaningful."""
+    yield
+    with engine.begin() as c:
+        c.execute(text("UPDATE outbox_events SET status='published', published_at=now() WHERE payload ? 'tag' AND status <> 'published'"))
+        c.execute(text("UPDATE job_failures SET resolved_at = now() WHERE resolved_at IS NULL"))
+
+
 def emit(committed, tag, n=1):
     ids = []
     with committed() as db:

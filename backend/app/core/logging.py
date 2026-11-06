@@ -1,6 +1,8 @@
 """Structured JSON logs; every record carries the correlation (request) ID."""
 import json
 import logging
+import logging.handlers
+import queue
 import sys
 import time
 
@@ -21,12 +23,34 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(out, default=str)
 
 
+class DropOnFullQueueHandler(logging.handlers.QueueHandler):
+    """Never blocks the caller. Request threads log while holding DB transactions (and row locks); a stalled log sink
+    (full pipe, slow disk) must not be able to stall them. Overflow is dropped and counted."""
+
+    dropped = 0
+
+    def enqueue(self, record):
+        try:
+            self.queue.put_nowait(record)
+        except queue.Full:
+            DropOnFullQueueHandler.dropped += 1
+            try:
+                from app.core import observability as obs
+                obs.LOG_DROPPED.inc()
+            except Exception:
+                pass
+
+
 def configure_logging() -> None:
     root = logging.getLogger()
     if getattr(root, "_mintree_configured", False):
         return
-    h = logging.StreamHandler(sys.stderr)
-    h.setFormatter(JsonFormatter() if get_settings().log_json else logging.Formatter("%(levelname)s %(name)s %(message)s"))
-    root.handlers[:] = [h]
+    sink = logging.StreamHandler(sys.stderr)
+    sink.setFormatter(JsonFormatter() if get_settings().log_json else logging.Formatter("%(levelname)s %(name)s %(message)s"))
+    q: queue.Queue = queue.Queue(maxsize=20000)
+    listener = logging.handlers.QueueListener(q, sink, respect_handler_level=True)
+    listener.start()                       # a background thread owns the (possibly blocking) write
+    root.handlers[:] = [DropOnFullQueueHandler(q)]
     root.setLevel(logging.INFO)
     root._mintree_configured = True  # type: ignore[attr-defined]
+    root._mintree_listener = listener  # type: ignore[attr-defined]

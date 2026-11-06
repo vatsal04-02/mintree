@@ -44,6 +44,11 @@ WORKER_QUEUE_WAIT = Histogram("mintree_worker_queue_wait_seconds", "Time from ou
 OUTBOX_PUBLISHED = Counter("mintree_outbox_published_total", "Outbox events published to the broker")
 OUTBOX_PUBLISH_FAILURES = Counter("mintree_outbox_publish_failures_total", "Outbox publish attempts that failed")
 
+BUSINESS_CONFLICTS = Counter("mintree_business_conflicts_total", "Expected business conflicts (HTTP 409)", ["code"])
+STOCK_POSTINGS = Counter("mintree_stock_postings_total", "Stock ledger postings", ["movement"])
+
+LOG_DROPPED = Counter("mintree_log_records_dropped_total", "Log records dropped because the log sink could not keep up")
+
 _OP = re.compile(r"^\s*(\w+)")
 
 
@@ -51,6 +56,21 @@ def _op(stmt: str) -> str:
     m = _OP.match(stmt)
     w = (m.group(1).upper() if m else "OTHER")
     return w if w in ("SELECT", "INSERT", "UPDATE", "DELETE", "BEGIN", "COMMIT", "ROLLBACK") else "OTHER"
+
+
+_slow_tokens = {"n": 10.0, "t": time.monotonic()}
+
+
+def _slow_log_allowed(rate_per_s: float = 10.0) -> bool:
+    """Token bucket: at most ~10 slow-transaction log lines per second per process, so a latency incident cannot
+    turn into a log storm that makes the incident worse."""
+    now = time.monotonic()
+    _slow_tokens["n"] = min(rate_per_s, _slow_tokens["n"] + (now - _slow_tokens["t"]) * rate_per_s)
+    _slow_tokens["t"] = now
+    if _slow_tokens["n"] >= 1:
+        _slow_tokens["n"] -= 1
+        return True
+    return False
 
 
 def instrument_engine(engine) -> None:
@@ -83,7 +103,7 @@ def instrument_engine(engine) -> None:
                 return
             dt = time.perf_counter() - t0
             DB_TX.labels(outcome).observe(dt)
-            if dt >= slow_tx_s:
+            if dt >= slow_tx_s and _slow_log_allowed():
                 st = stats_var.get()
                 log.warning("slow transaction", extra={"fields": {
                     "tx_ms": round(dt * 1000, 1), "outcome": outcome, "route": getattr(st, "route", None),

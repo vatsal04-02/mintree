@@ -118,3 +118,97 @@ def committed():
 @pytest.fixture
 def uid():
     return lambda prefix="t": f"{prefix}-{_uuid.uuid4().hex[:12]}"
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Live multi-process server for REAL concurrency tests (HTTP + threads + separate OS processes).
+# ---------------------------------------------------------------------------------------------------------------
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import httpx  # noqa: E402
+
+LIVE_PORT = 8211
+
+
+@pytest.fixture(scope="session")
+def live_server(_schema):
+    env = dict(os.environ, MINTREE_DATABASE_URL=TEST_DB, MINTREE_ENVIRONMENT="test",
+               PROMETHEUS_MULTIPROC_DIR=tempfile.mkdtemp(prefix="prom-test-"), PYTHONPATH=str(Path(__file__).resolve().parent.parent))
+    proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(LIVE_PORT), "--workers", "2",
+                             "--no-access-log", "--log-level", "warning"], env=env, start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=open(Path(tempfile.gettempdir()) / "mintree-live-server.log", "w"))
+    base = f"http://127.0.0.1:{LIVE_PORT}"
+    for _ in range(60):
+        try:
+            if httpx.get(f"{base}/api/health", timeout=1).status_code == 200:
+                break
+        except httpx.HTTPError:
+            time.sleep(0.5)
+    else:
+        proc.kill()
+        raise RuntimeError("live server failed to start")
+    yield base
+    import os as _os, signal as _sig
+    _os.killpg(proc.pid, _sig.SIGTERM)
+    try:
+        proc.wait(10)
+    except subprocess.TimeoutExpired:
+        _os.killpg(proc.pid, _sig.SIGKILL)
+
+
+class Api:
+    """Thin httpx client with session cookie + CSRF, one per thread."""
+
+    def __init__(self, base: str, email: str, password: str = PASSWORD):
+        self.c = httpx.Client(base_url=base, timeout=30)
+        r = self.c.post("/api/auth/login", json={"email": email, "password": password})
+        assert r.status_code == 200, r.text
+        self.c.headers["X-CSRF-Token"] = r.json()["csrf_token"]
+        self.user_id = r.json()["id"]
+
+    def get(self, url, **kw): return self.c.get(url, **kw)
+    def post(self, url, json=None, key=None, **kw):
+        h = {"Idempotency-Key": key} if key else {}
+        return self.c.post(url, json=json, headers=h, **kw)
+
+
+@pytest.fixture
+def live_users(live_server):
+    """Factory: committed users with given roles, logged in against the live server."""
+    from sqlalchemy.orm import Session as S
+
+    def make(*roles: str, n: int = 1) -> list[Api]:
+        out = []
+        with S(engine) as s:
+            rs = list(s.scalars(select(Role).where(Role.code.in_(roles))))
+            emails = []
+            for _ in range(n):
+                u = User(email=f"live-{_uuid.uuid4().hex[:10]}@example.com", full_name="Live", password_hash=_HASH, roles=rs)
+                s.add(u)
+                emails.append(u.email)
+            s.commit()
+        return [Api(live_server, e) for e in emails]
+    return make
+
+
+_HASH = hash_password(PASSWORD)
+
+
+def mk_master(prefix: str, *, shelf_life: int | None = 365, batch_tracked: bool = True) -> dict:
+    """Committed master data for one test (unique codes): supplier (approved), item, warehouses. Returns ids."""
+    from sqlalchemy.orm import Session as S
+    from app.masters.models import Item, Supplier, UnitOfMeasure, Warehouse
+    tag = _uuid.uuid4().hex[:8].upper()
+    with S(engine) as s:
+        uom = s.scalar(select(UnitOfMeasure).where(UnitOfMeasure.code == "KG"))
+        sup = Supplier(code=f"S-{tag}", name=f"Supplier {tag}", approval_status="APPROVED", category="RM_PM")
+        item = Item(item_code=f"{prefix}-{tag}", name=f"Item {tag}", kind="RM", uom_id=uom.id, shelf_life_days=shelf_life,
+                    is_batch_tracked=batch_tracked, gst_rate=18)
+        w1 = Warehouse(code=f"W1-{tag}", name="W1", kind="RM")
+        w2 = Warehouse(code=f"W2-{tag}", name="W2", kind="RM")
+        s.add_all([sup, item, w1, w2])
+        s.commit()
+        return {"supplier_id": sup.id, "item_id": item.id, "wh1": w1.id, "wh2": w2.id, "tag": tag}
