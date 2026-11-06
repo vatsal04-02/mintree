@@ -2,11 +2,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell as BellIcon, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
+import { ScanLine, Bell as BellIcon, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ALL_NAV_ITEMS, NAV, visible } from "@/lib/nav";
 import { api, type Page } from "@/lib/api";
 import { useDebounced } from "./ui";
+import { ScanDialog, useGlobalScan, useWedgeScanner } from "./Scanner";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -34,6 +35,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { me, can, logout } = useAuth();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggleGroup = (href: string, open: boolean) => setExpanded((e) => ({ ...e, [href]: !open }));
   const [theme, toggleTheme] = useTheme();
   useEffect(() => { try { setCollapsed(localStorage.getItem("mintree-nav") === "1"); } catch {} }, []);
   const toggleNav = () => setCollapsed((c) => { try { localStorage.setItem("mintree-nav", c ? "0" : "1"); } catch {} return !c; });
@@ -48,13 +52,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="w-8 h-8 rounded-lg grid place-items-center font-semibold text-[15px] shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }} aria-hidden>M</div>
           {!collapsed && <div className="leading-tight"><div className="text-white font-semibold text-[14px]">Mintree</div><div className="text-[11px] opacity-70">Factory OS</div></div>}
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 pb-3" aria-label="Main">
+        <nav className="flex-1 overflow-y-auto px-2 pb-3 sidebar-scroll" aria-label="Main">
           {groups.map((g) => (
             <div key={g.label} className="mt-3 first:mt-1">
               {!collapsed && <div className="px-2.5 mb-1 text-[10.5px] uppercase tracking-[0.08em] opacity-55 font-medium">{g.label}</div>}
               {g.items.map((i) => {
                 const active = i === current || (i.href === "/" ? pathname === "/" : pathname.startsWith(i.href));
                 const Icon = i.icon;
+                if (i.children) {
+                  const kids = i.children.filter((c) => !c.perm || can(c.perm));
+                  const open = !collapsed && (expanded[i.href] ?? pathname.startsWith(i.href));
+                  return (
+                    <div key={i.href} className="mb-px">
+                      <button type="button" aria-expanded={open} title={collapsed ? i.label : undefined}
+                        onClick={() => (collapsed ? router.push(kids[0]?.href ?? i.href) : toggleGroup(i.href, open))}
+                        className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] w-full text-left transition-colors ${active ? "text-white font-medium" : "hover:bg-white/5"}`}>
+                        <Icon size={16} className="shrink-0" />
+                        {!collapsed && <><span className="truncate flex-1">{i.label}</span><ChevronRight size={13} className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-90" : ""}`} /></>}
+                      </button>
+                      {open && (
+                        <div className="ml-[19px] pl-3 border-l border-white/10 my-0.5">
+                          {kids.map((c) => {
+                            const here = c.href === `/m/${i.href.split("/")[2]}` ? pathname === c.href : pathname === c.href || pathname.startsWith(`${c.href}/`);
+                            return (
+                              <Link key={c.href + c.label} href={c.href} aria-current={here ? "page" : undefined}
+                                className={`block h-7 leading-7 px-2.5 rounded-md text-[12.5px] truncate transition-colors ${here ? "text-white bg-white/10 font-medium" : "opacity-75 hover:opacity-100 hover:bg-white/5"}`}>{c.label}</Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <Link key={i.href} href={i.href} title={collapsed ? i.label : undefined} aria-current={active ? "page" : undefined}
                     className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] mb-px transition-colors ${active ? "text-white font-medium" : "hover:bg-white/5"}`}
@@ -95,11 +124,14 @@ function Header({ current, theme, toggleTheme, logout }: { current?: string; the
   const [menu, setMenu] = useState(false);
   const [create, setCreate] = useState(false);
   const [palette, setPalette] = useState(false);
+  const [scan, setScan] = useState(false);
+  const gscan = useGlobalScan();
+  useWedgeScanner(gscan.handle);
   const menuRef = useRef<HTMLDivElement>(null), createRef = useRef<HTMLDivElement>(null);
   useOutside(menuRef, () => setMenu(false), menu);
   useOutside(createRef, () => setCreate(false), create);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } };
+    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } if (e.altKey && e.key.toLowerCase() === "s") { e.preventDefault(); setScan(true); } };
     document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
   }, []);
 
@@ -116,6 +148,7 @@ function Header({ current, theme, toggleTheme, logout }: { current?: string; the
         <span>Mintree</span><ChevronRight size={13} /><span className="text-fg font-medium truncate">{current ?? "Overview"}</span>
       </nav>
       <div className="flex-1" />
+      <button onClick={() => setScan(true)} className="btn btn-sm" aria-label="Scan a barcode" title="Scan a barcode (Alt+S)"><ScanLine size={15} /><span className="hidden lg:inline">Scan</span></button>
       <NotificationBell />
       <button onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 h-8 w-72 px-2.5 rounded-md border border-line bg-bg text-muted text-[12.5px] hover:border-muted/50">
         <Search size={14} />Search or jump to…<kbd className="ml-auto text-[10.5px] border border-line rounded px-1 bg-surface">Ctrl K</kbd>
@@ -153,6 +186,8 @@ function Header({ current, theme, toggleTheme, logout }: { current?: string; the
         )}
       </div>
       {palette && <Palette onClose={() => setPalette(false)} />}
+      <ScanDialog open={scan} onClose={() => setScan(false)} onCode={(c) => { setScan(false); gscan.handle(c); }} />
+      {gscan.dialog}
     </header>
   );
 }

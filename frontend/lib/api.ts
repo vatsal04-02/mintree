@@ -28,6 +28,8 @@ function parseDetail(detail: unknown): { message: string; fields?: Record<string
     }
     return { message: Object.values(fields)[0] ?? "Validation failed", fields };
   }
+  // Business-rule refusals arrive as {code, message, ...context}: show the sentence, not a generic failure.
+  if (detail && typeof detail === "object" && typeof (detail as { message?: unknown }).message === "string") return { message: (detail as { message: string }).message };
   return { message: "Request failed" };
 }
 

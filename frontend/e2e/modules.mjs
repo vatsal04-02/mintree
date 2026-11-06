@@ -35,15 +35,18 @@ const nav = () => page.getByRole("navigation", { name: "Main" });
 
 await step("administrator sees every operations module in the sidebar", async () => {
   await login(ADMIN.email, ADMIN.password);
-  for (const l of ["Purchase", "Inventory", "Production", "R&D", "Quality", "Dispatch", "CRM & Sales", "Accounts", "Maintenance", "E-commerce", "Meta & Branding", "Management", "Approvals", "Notifications"])
-    await nav().getByRole("link", { name: l, exact: true }).waitFor({ timeout: 4000 });
+  for (const l of ["Purchase", "Inventory", "Production", "R&D", "Quality", "Dispatch", "CRM & Sales", "Accounts", "Maintenance", "E-commerce", "Meta & Branding", "Management", "Administration tools"])
+    await nav().getByRole("button", { name: l, exact: true }).waitFor({ timeout: 4000 });      // modules are expandable sections
+  for (const l of ["Approvals", "Notifications"]) await nav().getByRole("link", { name: l, exact: true }).waitFor({ timeout: 4000 });
   await shot("m01-sidebar");
 });
 
 const screens = [];
 await step("each module workspace opens and lists its screens", async () => {
-  const mods = await nav().locator('a[href^="/m/"]').evaluateAll((els) => els.map((e) => e.getAttribute("href")));
-  assert.ok(mods.length >= 12, `expected 12 module links, got ${mods.length}`);
+  const mods = ["procurement", "inventory", "production", "rnd", "quality", "dispatch", "sales", "accounts", "maintenance", "ecommerce", "branding", "analytics", "admin"].map((m) => `/m/${m}`);
+  const nav0 = nav();
+  await nav0.getByRole("button", { name: "Inventory", exact: true }).click();
+  await nav0.getByRole("link", { name: "Stock balances", exact: true }).waitFor();         // expanding a module lists its sub-sections in the sidebar
   for (const href of mods) {
     await page.goto(`${BASE}${href}`);
     await page.getByRole("heading", { level: 1 }).waitFor();
@@ -74,9 +77,10 @@ await step("create a lead through the form and see it in the list", async () => 
   await page.getByLabel("Name").fill(`Salon ${stamp}`);
   await page.getByLabel("Company").fill("Glow Studio");
   await page.getByRole("button", { name: "Create" }).click();
-  await page.getByRole("cell", { name: `Salon ${stamp}` }).waitFor();
-  await page.getByRole("row", { name: new RegExp(`Salon ${stamp}`) }).getByRole("button", { name: /Contacted/ }).click();
-  await page.getByRole("row", { name: new RegExp(`Salon ${stamp}`) }).getByText("Contacted").waitFor();
+  const lead = () => page.locator("article").filter({ hasText: `Salon ${stamp}` });
+  await lead().waitFor();
+  await lead().getByRole("button", { name: /Contacted/ }).click();
+  await lead().getByText("Contacted", { exact: true }).waitFor();
   await shot("m03-lead");
 });
 
@@ -88,15 +92,15 @@ await step("required-field validation appears inline", async () => {
   await page.locator("#asset_id").fill(`EQ-${stamp}`);
   await page.locator("#name").fill("Homogenizer 500L");
   await page.getByRole("button", { name: "Create" }).click();
-  await page.getByRole("cell", { name: `EQ-${stamp}` }).waitFor();
+  await page.locator("article").filter({ hasText: `EQ-${stamp}` }).waitFor();
   await shot("m04-equipment");
 });
 
 await step("a server rule is shown to the user (breakdown needs a description)", async () => {
-  await page.getByRole("row", { name: new RegExp(`EQ-${stamp}`) }).getByRole("button", { name: "Report breakdown" }).click();
+  await page.locator("article").filter({ hasText: `EQ-${stamp}` }).getByRole("button", { name: "Report breakdown" }).click();
   await page.getByLabel("Issue").fill("Seal leaking");
   await page.getByRole("dialog").getByRole("button", { name: "Report breakdown" }).click();
-  await page.getByRole("row", { name: new RegExp(`EQ-${stamp}`) }).getByText("Breakdown").waitFor();
+  await page.locator("article").filter({ hasText: `EQ-${stamp}` }).getByText("Breakdown").waitFor();
 });
 
 await step("a report screen runs with date parameters", async () => {
@@ -142,9 +146,9 @@ await step("limited user: only permitted modules are visible and direct URLs are
   await page.getByLabel("Confirm new password").fill("Limited-Stores#2026");
   await page.getByRole("button", { name: "Update password" }).click();
   await page.waitForURL(`${BASE}/`);
-  await nav().getByRole("link", { name: "Inventory", exact: true }).waitFor();
-  assert.equal(await nav().getByRole("link", { name: "Meta & Branding", exact: true }).count(), 0, "branding hidden");
-  assert.equal(await nav().getByRole("link", { name: "Accounts", exact: true }).count(), 0, "accounts hidden");
+  await nav().getByRole("button", { name: "Inventory", exact: true }).waitFor();
+  assert.equal(await nav().getByRole("button", { name: "Meta & Branding", exact: true }).count(), 0, "branding hidden");
+  assert.equal(await nav().getByRole("button", { name: "Accounts", exact: true }).count(), 0, "accounts hidden");
   await page.goto(`${BASE}/m/accounts/gst`);
   await page.getByText("You don't have access to this area").waitFor();
   await page.goto(`${BASE}/m/inventory/stock`);

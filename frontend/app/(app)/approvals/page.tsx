@@ -22,7 +22,7 @@ export default function ApprovalsPage() {
         <div className="panel overflow-hidden"><table className="dt"><thead><tr><th>Type</th><th>Reference</th><th>What</th><th className="num">Amount</th><th>Waiting since</th><th /></tr></thead>
           <tbody>{items.map((i) => (
             <tr key={`${i.type}-${i.id}`}><td><Badge tone="warning">{titleCase(i.type)}</Badge></td><td className="font-mono text-[12px]">{i.number}</td><td>{i.summary}</td><td className="num">{i.amount ? fmtMoney(i.amount) : "—"}</td><td>{fmtDateTime(i.since)}</td>
-              <td className="text-right">{WHERE[i.type] && <Link className="btn btn-sm" href={WHERE[i.type]}>Open</Link>}</td></tr>
+              <td className="text-right">{WHERE[i.type] && <Link className="btn btn-sm" href={`${WHERE[i.type]}?open=${i.id}`}>Open</Link>}</td></tr>
           ))}</tbody></table></div>
       )}
     </>

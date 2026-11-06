@@ -75,8 +75,8 @@ backend/.venv/bin/python backend/scripts/check_integrity.py   # (python -m scrip
 ## Tests
 
 ```bash
-cd backend && .venv/bin/pytest            # 173 tests, real Postgres + RabbitMQ + a live 2-process server for concurrency tests
-cd frontend && npm run lint && ./e2e/run.sh   # 27 browser tests (Playwright: Phase 0 + every module screen) against a hermetic DB + API + production build
+cd backend && .venv/bin/pytest            # 187 tests, real Postgres + RabbitMQ + a live 2-process server for concurrency tests
+cd frontend && npm run lint && ./e2e/run.sh   # 50 browser tests (Playwright: Phase 0, every module screen, and real UI workflows incl. scanning) against a hermetic DB + API + production build
 ```
 
 The backend suite includes permission-matrix, escalation, audit-immutability, document-integrity tests and a

@@ -34,6 +34,7 @@ RESOURCES: dict[str, list[str]] = {
     "inventory.adjustment": ["post"],
     "inventory.reversal": ["post"],
     "inventory.stocktake": ["count", "approve"],
+    "inventory.opening": ["post"],
     # Procurement
     "procurement.pr": ["read", "create", "update", "approve"],
     "procurement.po": ["read", "create", "update", "approve", "cancel"],

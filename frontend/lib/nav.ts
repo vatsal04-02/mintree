@@ -1,7 +1,8 @@
 import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, type LucideIcon } from "lucide-react";
 import { MODULES } from "./modules";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon; perm?: string; anyPerm?: string[]; keywords?: string; hidden?: boolean };
+export type NavChild = { href: string; label: string; perm?: string };
+export type NavItem = { href: string; label: string; icon: LucideIcon; perm?: string; anyPerm?: string[]; keywords?: string; hidden?: boolean; children?: NavChild[] };
 export type NavGroup = { label: string; items: NavItem[] };
 
 export const NAV: NavGroup[] = [
@@ -12,7 +13,10 @@ export const NAV: NavGroup[] = [
   ] },
   {
     label: "Operations",
-    items: MODULES.map((m) => ({ href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}` })),
+    items: MODULES.map((m) => ({
+      href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}`,
+      children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
+    })),
   },
   {
     label: "Master data",

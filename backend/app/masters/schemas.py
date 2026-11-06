@@ -104,6 +104,7 @@ class ItemIn(_Base):
     category_id: int | None = None
     uom_id: int
     hsn_code: Annotated[str | None, StringConstraints(pattern=r"^[0-9]{4,8}$")] = None
+    barcode: Annotated[str | None, StringConstraints(pattern=r"^[0-9A-Za-z\-]{6,32}$")] = None
     gst_rate: Annotated[Decimal | None, Field(ge=0, le=100, decimal_places=2)] = None
     storage_conditions: str | None = Field(None, max_length=200)
     shelf_life_days: int | None = Field(None, gt=0)
@@ -120,6 +121,7 @@ class ItemUpdate(_Base):
     category_id: int | None = None
     uom_id: int | None = None
     hsn_code: Annotated[str | None, StringConstraints(pattern=r"^[0-9]{4,8}$")] = None
+    barcode: Annotated[str | None, StringConstraints(pattern=r"^[0-9A-Za-z\-]{6,32}$")] = None
     gst_rate: Annotated[Decimal | None, Field(ge=0, le=100, decimal_places=2)] = None
     storage_conditions: str | None = Field(None, max_length=200)
     shelf_life_days: int | None = Field(None, gt=0)

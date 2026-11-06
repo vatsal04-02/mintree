@@ -120,6 +120,12 @@ def pack_order(db: Session, cu: CurrentUser, order_id: int, expected_version: in
     o = _lock_order(db, order_id, expected_version)
     if o.status != "ALLOCATED":
         raise BusinessConflict("invalid_status", f"Cannot pack an order in status {o.status}")
+    from app.approvals.service import get_setting
+    if get_setting(db, "dispatch.require_pick_scan") is True:
+        from app.dispatch.extras import scan_progress
+        prog = scan_progress(db, order_id)
+        if not prog["complete"]:
+            raise BusinessConflict("pick_scan_incomplete", "Scan every pick line before packing", remaining=[l for l in prog["lines"] if not l["complete"]])
     o.cartons, o.weight_kg, o.status, o.version = cartons, weight_kg, "PACKED", o.version + 1
     audit.record(db, user=cu, action="pack", entity="sales_order", entity_id=o.id, after={"cartons": cartons})
     return order_dict(o)

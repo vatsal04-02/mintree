@@ -30,3 +30,18 @@ class StocktakeLine(Base):
     counted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     note: Mapped[str | None] = mapped_column(Text)
     __table_args__ = (UniqueConstraint("stocktake_id", "balance_id", name="uq_stocktake_lines_balance"), CheckConstraint("counted_qty IS NULL OR counted_qty >= 0", name="counted_non_negative"))
+
+
+class OpeningStock(Base):
+    """A go-live (or later migration) stock load: quantities with their cost, posted once, valued, and balanced against Owner's Equity (3000)."""
+
+    __tablename__ = "opening_stock_postings"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(30), unique=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
+    qc_status: Mapped[str] = mapped_column(String(12))
+    note: Mapped[str | None] = mapped_column(Text)
+    total_value: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    posted_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("qc_status IN ('RELEASED','QUARANTINE')", name="qc_valid"),)

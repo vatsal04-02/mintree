@@ -90,6 +90,7 @@ class Shipment(Base):
     shipping_charge: Mapped[Decimal | None] = mapped_column(MONEY)              # courier freight actually charged (recorded for margin; not posted)
     pickup_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     manifest_no: Mapped[str | None] = mapped_column(String(40))
+    handed_over_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))      # scanned onto the courier at handover
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     lines: Mapped[list["ShipmentLine"]] = relationship(lazy="selectin")
     __table_args__ = (CheckConstraint("status IN ('PENDING_BOOKING','BOOKING','BOOKED','PICKED_UP','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','FAILED_DELIVERY','RTO')", name="status_valid"),)
@@ -161,3 +162,17 @@ class CreditNote(Base):
     journal_entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (CheckConstraint("total = subtotal + tax_total AND total > 0", name="consistent"),)
+
+
+class PickScan(Base):
+    """One scan during picking: which batch, how much, by whom. Verification compares scanned quantity per batch with the reservation that allocation made."""
+
+    __tablename__ = "pick_scans"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    so_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    batch_id: Mapped[int | None] = mapped_column(ForeignKey("inventory_batches.id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
+    qty: Mapped[Decimal] = mapped_column(QTY)
+    scanned_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"), Index("ix_pick_scans_order", "so_id"))

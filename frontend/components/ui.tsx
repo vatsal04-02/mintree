@@ -56,6 +56,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 /* ---------- Drawer / Modal ---------- */
+const drawerStack: string[] = [];   // only the topmost open drawer reacts to Escape (a scan dialog inside a counting drawer must not close both)
+
 export function Drawer({ open, onClose, title, subtitle, children, footer, width = 520 }: {
   open: boolean; onClose: () => void; title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; width?: number;
 }) {
@@ -64,10 +66,11 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    drawerStack.push(id);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && drawerStack[drawerStack.length - 1] === id) onClose(); };
     document.addEventListener("keydown", onKey);
     ref.current?.focus();
-    return () => { document.removeEventListener("keydown", onKey); prev?.focus?.(); };
+    return () => { document.removeEventListener("keydown", onKey); const i = drawerStack.lastIndexOf(id); if (i >= 0) drawerStack.splice(i, 1); prev?.focus?.(); };
   }, [open, onClose]);
   if (!open) return null;
   return (

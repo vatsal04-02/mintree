@@ -25,12 +25,23 @@ Rows marked *manual* were back-filled from observations earlier in the same work
 | 2026-11-06 12:43 | backend (pytest) | `55b44411c0+dirty` | 164 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
 | 2026-11-06 12:52 | browser E2E (Playwright) | `ed681bbb2a+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 | 2026-11-06 12:54 | browser E2E (Playwright) - module screens | `ed681bbb2a+dirty` | 7 | 4 | **FAIL** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
-| 2026-11-06 13:10 | backend (pytest) | `8318d95912+dirty` | 173 | 0 | **PASS** | current | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
+| 2026-11-06 13:10 | backend (pytest) | `8318d95912+dirty` | 173 | 0 | **PASS** | historical | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
 | 2026-11-06 13:11 | browser E2E (Playwright) | `8318d95912+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 | 2026-11-06 13:12 | browser E2E (Playwright) - module screens | `8318d95912+dirty` | 11 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 | 2026-11-06 13:06 | backup restore check | `8318d95912+dirty` | 116 | 0 | **PASS** | current | PostgreSQL 16 local; ops/backup.sh -> ops/restore_check.sh (116 tables restored, identical row counts, schema revision 0012, 34 integrity checks passed) |
-| 2026-11-06 13:42 | browser E2E (Playwright) | `3b2285a72c+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
-| 2026-11-06 13:43 | browser E2E (Playwright) - module screens | `3b2285a72c+dirty` | 11 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 13:42 | browser E2E (Playwright) | `3b2285a72c+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 13:43 | browser E2E (Playwright) - module screens | `3b2285a72c+dirty` | 11 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:37 | browser E2E (Playwright) | `5a33ca4131+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:39 | browser E2E (Playwright) - module screens | `5a33ca4131+dirty` | 4 | 7 | **FAIL** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:40 | browser E2E (Playwright) | `5a33ca4131+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:42 | browser E2E (Playwright) - module screens | `5a33ca4131+dirty` | 8 | 3 | **FAIL** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:43 | browser E2E (Playwright) | `5a33ca4131+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:44 | browser E2E (Playwright) - module screens | `5a33ca4131+dirty` | 11 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:45 | browser E2E (Playwright) - UI workflows | `5a33ca4131+dirty` | 21 | 2 | **FAIL** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:46 | browser E2E (Playwright) | `5a33ca4131+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:47 | browser E2E (Playwright) - module screens | `5a33ca4131+dirty` | 11 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:48 | browser E2E (Playwright) - UI workflows | `5a33ca4131+dirty` | 23 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-06 15:51 | backend (pytest) | `5a33ca4131+dirty` | 187 | 0 | **PASS** | current | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), Python 3.13.18, RabbitMQ local, 4 vCPU sandbox |
 
 ## 2. Load / resilience test runs
 

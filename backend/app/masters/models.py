@@ -47,6 +47,7 @@ class Item(AuditFieldsMixin, Base):
     category_id: Mapped[int | None] = mapped_column(ForeignKey("product_categories.id"))
     uom_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))
     hsn_code: Mapped[str | None] = mapped_column(String(10))
+    barcode: Mapped[str | None] = mapped_column(String(32), unique=True)      # retail / GS1 barcode (EAN-13, UPC-A, ...) scanned at receiving and dispatch
     gst_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     storage_conditions: Mapped[str | None] = mapped_column(String(200))
     shelf_life_days: Mapped[int | None] = mapped_column(Integer)

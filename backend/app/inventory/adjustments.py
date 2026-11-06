@@ -58,3 +58,52 @@ def reverse_adjustment(db: Session, cu, *, ledger_id: int, reason: str) -> dict:
             v.qty, v.value = v.qty - take, max(Decimal(0), v.value - je["total_debit"])
         acct.reverse_journal(db, cu, je["id"], reason)
     return out | {"valuation_reversed": bool(je)}
+
+
+def post_opening_stock(db: Session, cu, *, warehouse_id: int, qc_status: str, note: str | None, lines: list[dict]) -> dict:
+    """Loads existing stock. Per line: batch (for batch-tracked items), ledger + balance, valuation at the given unit cost; one journal Dr inventory / Cr 3000 Owner's Equity.
+    RELEASED stock needs the QC-release permission (the same control as releasing a batch); QUARANTINE stock waits for the normal inspection."""
+    from app.audit import service as audit
+    from app.core.errors import Unprocessable
+    from app.inventory.stocktake_models import OpeningStock
+    from app.quality import service as quality
+    if qc_status == "RELEASED" and not cu.can("inventory.batch:qc_release"):
+        raise BusinessConflict("release_not_permitted", "Loading stock as already released needs the QC-release permission; load it as QUARANTINE for normal inspection")
+    if len({l["item_id"] for l in lines}) != len(lines):
+        raise Unprocessable("An item may appear once per posting")
+    items = {i.id: i for i in db.scalars(select(Item).where(Item.id.in_([l["item_id"] for l in lines])))}
+    n = db.execute(text("SELECT nextval('opening_stock_seq')")).scalar_one()
+    doc = OpeningStock(number=f"OS/{date.today():%y}/{n:05d}", warehouse_id=warehouse_id, qc_status=qc_status, note=note, total_value=Decimal(0), posted_by=cu.id)
+    db.add(doc)
+    db.flush()
+    out, valued = [], []
+    for ln, l in enumerate(sorted(lines, key=lambda x: x["item_id"]), 1):
+        it = items.get(l["item_id"])
+        if not it or not it.is_active:
+            raise Unprocessable(f"Item {l['item_id']} not found or inactive")
+        qty, cost = Decimal(str(l["qty"])), Decimal(str(l["unit_cost"]))
+        batch_id = None
+        if it.is_batch_tracked:
+            batch_id = svc.create_batch(db, item_id=it.id, supplier_id=None, supplier_lot_no=l.get("supplier_lot_no"), mfg_date=l.get("mfg_date"), expiry_date=l.get("expiry_date"),
+                                        source_type="opening_stock", source_id=doc.id)
+            if qc_status == "RELEASED":
+                db.execute(text("UPDATE inventory_batches SET qc_status = 'RELEASED', qc_decided_at = now() WHERE id = :b"), {"b": batch_id})
+            else:
+                quality.auto_incoming(db, batch_id, it.id)
+        bal = svc.receive(db, item_id=it.id, warehouse_id=warehouse_id, location_id=l.get("location_id"), batch_id=batch_id, qty=qty, source_type="opening_stock", source_id=doc.id,
+                          source_line=ln, actor_id=cu.id, quarantine=it.is_batch_tracked and qc_status != "RELEASED", movement="RECEIPT")
+        valued.append((it, qty, acct.money(qty * cost)))
+        out.append({"line_no": ln, "item_id": it.id, "qty": str(qty), "batch_id": batch_id, "balance_id": bal["balance_id"]})
+    vrows = acct.lock_valuations(db, [it.id for it, _, _ in valued])
+    by_account: dict[str, Decimal] = {}
+    for it, qty, value in valued:
+        acct.val_receive(db, vrows, it.id, qty, value)
+        code = acct.INVENTORY_ACCOUNT[it.kind]
+        by_account[code] = by_account.get(code, Decimal(0)) + value
+    total = sum(by_account.values(), Decimal(0))
+    if total > 0:
+        acct.post_journal(db, entry_date=date.today(), description=f"Opening stock {doc.number}", source_type="opening_stock", source_id=doc.id,
+                          lines=[(c, v, Decimal(0)) for c, v in sorted(by_account.items())] + [("3000", Decimal(0), total)], actor_id=cu.id)
+    doc.total_value = total
+    audit.record(db, user=cu, action="post", entity="opening_stock", entity_id=doc.id, after={"number": doc.number, "lines": len(out), "value": str(total), "qc": qc_status})
+    return {"id": doc.id, "number": doc.number, "total_value": str(total), "qc_status": qc_status, "lines": out}

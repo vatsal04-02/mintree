@@ -49,6 +49,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { name: "storage_conditions", label: "Storage conditions", type: "text", section: "Inventory", placeholder: "e.g. Cool, dry place below 25°C" },
       { name: "is_batch_tracked", label: "Track by batch", type: "bool", section: "Inventory" },
       { name: "hsn_code", label: "HSN code", type: "text", section: "Tax", help: "4–8 digits" },
+      { name: "barcode", label: "Retail barcode", type: "text", section: "Tax", help: "EAN-13 / UPC printed on the pack (6–32 characters); scanning it finds this item" },
       { name: "gst_rate", label: "GST rate (%)", type: "number", section: "Tax", step: "0.01" },
     ],
     columns: [

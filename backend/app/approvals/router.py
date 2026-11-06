@@ -97,6 +97,8 @@ def put_setting(key: str, body: SettingIn, db: Session = DB, cu: CurrentUser = D
             raise Unprocessable("Threshold must be a non-negative number or empty")
         if key == "finance.fiscal_year_start_month" and body.value not in range(1, 13):
             raise Unprocessable("Month must be 1-12")
+        if key == "dispatch.require_pick_scan" and not isinstance(body.value, bool):
+            raise Unprocessable("Must be true or false")
         if key == "inventory.rotation_policy" and body.value not in ("FEFO", "FIFO"):
             raise Unprocessable("Policy must be FEFO or FIFO")
         row = d.get(CompanySetting, key)
