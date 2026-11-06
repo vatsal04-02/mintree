@@ -53,10 +53,28 @@ CHECKS: list[tuple[str, str, str]] = [
         SELECT k.scope, k.key, 0 FROM idempotency_keys k LEFT JOIN goods_receipts gr ON gr.id::text = k.resource_id
          WHERE k.scope='inventory.goods_receipt.post' AND k.resource_id IS NOT NULL AND gr.id IS NULL"""),
     ("po_received_quantities_reconcile_with_receipts",
-     "PO line qty_received equals the sum of goods-receipt line quantities and never exceeds qty_ordered",
-     """SELECT poi.id, poi.qty_received, COALESCE(g.s,0) AS receipts_sum, poi.qty_ordered FROM purchase_order_items poi
+     "PO line qty_received equals goods-receipt line quantities minus purchase-return quantities and never exceeds qty_ordered",
+     """SELECT poi.id, poi.qty_received, COALESCE(g.s,0) AS receipts_sum, COALESCE(r.s,0) AS returned_sum, poi.qty_ordered FROM purchase_order_items poi
           LEFT JOIN (SELECT po_item_id, sum(qty) s FROM goods_receipt_items GROUP BY po_item_id) g ON g.po_item_id = poi.id
-         WHERE poi.qty_received <> COALESCE(g.s,0) OR poi.qty_received > poi.qty_ordered"""),
+          LEFT JOIN (SELECT gri.po_item_id, sum(prl.qty) s FROM purchase_return_lines prl JOIN goods_receipt_items gri ON gri.id = prl.gr_item_id GROUP BY gri.po_item_id) r ON r.po_item_id = poi.id
+         WHERE poi.qty_received <> COALESCE(g.s,0) - COALESCE(r.s,0) OR poi.qty_received > poi.qty_ordered"""),
+    ("purchase_returns_reconcile_with_ledger_cap_and_books",
+     "Every purchase-return line has ledger rows summing to its quantity, returns never exceed the received quantity, and the return value equals its balanced journal",
+     """SELECT 'line' AS kind, prl.id AS ref FROM purchase_return_lines prl JOIN purchase_returns pr ON pr.id = prl.return_id
+          LEFT JOIN (SELECT source_id, source_line, sum(-qty_delta) s FROM stock_ledger WHERE source_type='purchase_return' GROUP BY 1,2) l
+                 ON l.source_id = prl.return_id AND l.source_line = prl.line_no
+         WHERE prl.qty <> COALESCE(l.s,0)
+        UNION ALL
+        SELECT 'cap', gri.id FROM goods_receipt_items gri JOIN (SELECT gr_item_id, sum(qty) s FROM purchase_return_lines GROUP BY 1) r ON r.gr_item_id = gri.id WHERE r.s > gri.qty
+        UNION ALL
+        SELECT 'value', pr.id FROM purchase_returns pr LEFT JOIN journal_entries e ON e.id = pr.journal_entry_id
+         WHERE e.id IS NULL OR e.total_debit <> pr.total_value OR e.total_debit <> e.total_credit
+            OR pr.total_value <> (SELECT COALESCE(sum(value),0) FROM purchase_return_lines WHERE return_id = pr.id)"""),
+    ("po_amendment_history_is_consistent",
+     "Each PO has at most one pending amendment, decided amendments carry a decider, and approved amendments never leave a line below its received quantity",
+     """SELECT 'pending' AS kind, po_id AS ref FROM po_amendments WHERE status='PENDING' GROUP BY po_id HAVING count(*) > 1
+        UNION ALL SELECT 'undecided', id FROM po_amendments WHERE status <> 'PENDING' AND (decided_by IS NULL OR decided_at IS NULL)
+        UNION ALL SELECT 'below_received', poi.id FROM purchase_order_items poi WHERE poi.qty_ordered < poi.qty_received"""),
     ("every_receipt_line_is_in_the_ledger_with_matching_quantity",
      "Each goods-receipt line has exactly one RECEIPT ledger row of equal quantity",
      """SELECT gri.gr_id, gri.line_no, gri.qty, COALESCE(l.s,0) AS ledger_qty FROM goods_receipt_items gri

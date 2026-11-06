@@ -42,6 +42,7 @@ RESOURCES: dict[str, list[str]] = {
     "procurement.pr": ["read", "create", "update", "approve"],
     "procurement.po": ["read", "create", "update", "approve", "cancel"],
     "procurement.receipt": ["read", "post"],
+    "procurement.return": ["read", "post"],
     "procurement.rfq": ["read", "create", "send", "quote", "award"],
     # Dispatch
     "dispatch.order": ["read", "create", "confirm", "allocate", "pack", "dispatch", "cancel"],
@@ -139,7 +140,7 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
                          ["procurement.*", "inventory.stock:read", "inventory.batch:read", "masters.supplier:*", "masters.supplier_bank:read", "masters.item:read",
                           "masters.category:read", "masters.uom:read", "documents.document:*"]),
     "stores_manager": ("Stores Manager", "Receipts, stock and warehouses.",
-                       ["inventory.*", "!inventory.batch:qc_release", "procurement.receipt:*", "procurement.po:read", "masters.item:read", "masters.item:update", "masters.warehouse:*", "masters.location:*",
+                       ["inventory.*", "!inventory.batch:qc_release", "procurement.receipt:*", "procurement.return:*", "procurement.po:read", "masters.item:read", "masters.item:update", "masters.warehouse:*", "masters.location:*",
                         "masters.uom:read", "masters.category:read", "masters.supplier:read",
                         "documents.document:read", "documents.document:create", "documents.document:download"]),
     "quality_manager": ("Quality Manager", "Specifications, inspections and release.",
