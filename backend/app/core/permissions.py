@@ -188,7 +188,7 @@ ROLES["business_admin"][2].append("admin.settings:read")
 # AI access, deliberately narrow to start: nobody gets it by wildcard except the system administrator.
 for _r, _p in {"management": ["ai.assistant:use"], "purchase_manager": ["ai.assistant:use", "ai.extraction:use", "ai.proposal:review"],
                "stores_manager": ["ai.assistant:use", "ai.extraction:use", "ai.proposal:review"], "accounts_manager": ["ai.assistant:use", "ai.extraction:use"],
-               "dispatch_manager": ["ai.assistant:use"], "production_manager": ["ai.assistant:use"], "quality_manager": ["ai.assistant:use"]}.items():
+               "dispatch_manager": ["ai.assistant:use", "ai.proposal:review"], "production_manager": ["ai.assistant:use"], "quality_manager": ["ai.assistant:use"]}.items():
     ROLES[_r][2].extend(_p)
 
 

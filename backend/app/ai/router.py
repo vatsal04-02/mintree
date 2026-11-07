@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy import select
 
-from app.ai import assistant, extraction
+from app.ai import assistant, briefing, extraction, proposals
 from app.ai.models import AiExtraction
 from app.core.db import get_db
 from app.core.deps import CurrentUser, current_user, require
@@ -72,3 +72,33 @@ class ReviewIn(BaseModel):
 @router.post("/extractions/{ext_id}/review")
 def review_extraction(ext_id: int, body: ReviewIn, db: Session = DB, cu: CurrentUser = Depends(require("ai.extraction:use"))):
     return extraction.review(db, cu, ext_id, outcome=body.outcome, edits=body.edits, posted=body.posted)
+
+
+# ------------------------------------------------------------------ proposals and briefing
+@router.get("/proposals")
+def list_proposals(status: Literal["PROPOSED", "ACCEPTED", "REJECTED", "EXPIRED"] | None = "PROPOSED", db: Session = DB, cu: CurrentUser = Depends(require("ai.proposal:review"))):
+    return {"items": proposals.visible(db, cu, status)}
+
+
+@router.post("/proposals/generate")
+def generate_proposals(db: Session = DB, cu: CurrentUser = Depends(require("ai.proposal:review"))):
+    assistant.require_enabled()
+    return proposals.generate(db, cu)
+
+
+@router.post("/proposals/{pid}/accept")
+def accept_proposal(pid: int, db: Session = DB, cu: CurrentUser = Depends(require("ai.proposal:review"))):
+    assistant.require_enabled()
+    return proposals.accept(db, cu, pid)
+
+
+@router.post("/proposals/{pid}/reject")
+def reject_proposal(pid: int, db: Session = DB, cu: CurrentUser = Depends(require("ai.proposal:review"))):
+    assistant.require_enabled()
+    return proposals.reject(db, cu, pid)
+
+
+@router.get("/briefing")
+def get_briefing(refresh: bool = False, db: Session = DB, cu: CurrentUser = Depends(require("ai.assistant:use"))):
+    assistant.require_enabled()
+    return briefing.today(db, cu, refresh)
