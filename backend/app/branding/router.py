@@ -290,8 +290,10 @@ def analytics(start: date, end: date, db: Session = DB, _: CurrentUser = Depends
                                                                                FROM campaign_metrics m JOIN marketing_campaigns c ON c.id = m.campaign_id LEFT JOIN brands b ON b.id = c.brand_id
                                                                               WHERE m.metric_date BETWEEN :s AND :e GROUP BY b.name ORDER BY 2 DESC"""), {"s": start, "e": end}).mappings()]
     content = [dict(r) for r in db.execute(text("""SELECT channel, status, count(*) AS n FROM content_calendar GROUP BY 1, 2 ORDER BY 1, 2""")).mappings()]
+    simulated = db.scalar(text("SELECT count(*) FROM campaign_metrics WHERE source = 'DEMO' AND metric_date BETWEEN :s AND :e"), {"s": start, "e": end})
     return {"period": {"start": start, "end": end}, "campaigns": camp, "by_brand": by_brand, "content_pipeline": content,
-            "total_spend": str(sum((Decimal(c["spend"]) for c in camp), Decimal(0))), "source": "manually entered / imported campaign metrics; no Meta API connection"}
+            "total_spend": str(sum((Decimal(c["spend"]) for c in camp), Decimal(0))), "simulated_days": simulated,
+            "source": ("INCLUDES SIMULATED SANDBOX DATA (" + str(simulated) + " campaign-days): not real Meta results. " if simulated else "") + "Manually entered / imported campaign metrics; no live Meta API connection"}
 
 
 # ------------------------------------------------------------------ campaign lifecycle and the Meta workspace (sandbox vs live)
@@ -349,6 +351,11 @@ def add_connection(body: ConnectionIn, db: Session = DB, cu: CurrentUser = Depen
         audit.record(d, user=cu, action="create", entity="meta_connection", entity_id=m.id, after={"kind": m.kind, "mode": m.mode})
         return connection_dict(m)
     return run_tx(db, work, name="branding.meta.connection.create")
+
+
+@router.get("/meta/connections")
+def list_connections(db: Session = DB, _: CurrentUser = Depends(require("branding.social:read"))):
+    return [connection_dict(m) for m in db.scalars(select(MetaConnection).order_by(MetaConnection.kind, MetaConnection.id))]
 
 
 @router.get("/meta/workspace")
