@@ -1,0 +1,2 @@
+Drill 1: Redis stopped for 8 s of a 30 s run: 9027 requests, unexpected 0 (0.00%), http_req_failed 0.00%, p50 7 ms, p95 1366 ms, p99 1630 ms
+Drill 2: API restarted (down ~4 s) in a 30 s run: 9026 requests, unexpected 1765 (19.55%), http_req_failed 19.55%, p50 5 ms, p95 88 ms, p99 437 ms

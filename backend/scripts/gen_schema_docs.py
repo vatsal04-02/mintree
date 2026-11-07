@@ -33,7 +33,7 @@ DOMAINS: list[tuple[str, list[str]]] = [
     ("Accounts & finance", ["accounts", "accounting_periods", "journal_entries", "journal_lines", "sales_invoices", "payments", "payment_allocations", "bank_accounts", "bank_transactions"]),
     ("E-commerce & marketplaces", ["marketplace_accounts", "sku_mappings", "external_orders", "external_order_items", "marketplace_settlements", "marketplace_returns"]),
     ("Maintenance", ["equipment", "maintenance_schedules", "maintenance_work_orders", "downtime_records", "spare_part_usage", "calibration_records"]),
-    ("Branding & marketing", ["marketing_campaigns", "content_calendar", "brand_assets", "publishing_records", "social_accounts", "campaign_metrics"]),
+    ("Branding & marketing", ["marketing_campaigns", "content_calendar", "brand_assets", "publishing_records", "social_accounts", "campaign_metrics", "meta_connections"]),
     ("Approvals, notifications & documents", ["approval_policies", "approval_records", "approval_delegations", "user_notifications", "notification_preferences", "documents", "document_versions", "document_links"]),
 ]
 

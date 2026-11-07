@@ -1,0 +1,1 @@
+class A target    400/s  achieved    395.4/s  p50     8.9  p95    104.5  p99    412.5 ms  unexpected 0/120026 (0.00%)  dropped_iter 0

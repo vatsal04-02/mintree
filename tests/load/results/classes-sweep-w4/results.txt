@@ -1,0 +1,6 @@
+class A target    300/s  achieved    258.9/s  p50     4.4  p95     64.4  p99    319.9 ms  unexpected 0/3626 (0.00%)  dropped_iter 0
+class A target    600/s  achieved    522.8/s  p50     5.4  p95     18.3  p99     43.3 ms  unexpected 0/7227 (0.00%)  dropped_iter 0
+class A target    900/s  achieved    785.1/s  p50    20.8  p95     58.5  p99     80.8 ms  unexpected 0/10827 (0.00%)  dropped_iter 0
+class B target    300/s  achieved    253.3/s  p50    15.8  p95    193.6  p99    300.7 ms  unexpected 0/3626 (0.00%)  dropped_iter 0
+class B target    600/s  achieved    473.3/s  p50   476.9  p95    948.6  p99   1066.7 ms  unexpected 0/7145 (0.00%)  dropped_iter 81
+class B target    900/s  achieved    482.7/s  p50  2123.6  p95   3254.2  p99   3362.9 ms  unexpected 0/8250 (0.00%)  dropped_iter 2576
