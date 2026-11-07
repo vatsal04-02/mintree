@@ -90,3 +90,8 @@ def obs(tid: int, db: Session = DB, _: CurrentUser = Depends(require("rnd.trial:
 @router.get("/version-comparison")
 def compare(a: int, b: int, db: Session = DB, _: CurrentUser = Depends(require("rnd.formula:read"))):
     return svc.compare_versions(db, a, b)
+
+
+@router.get("/formulation-versions/{vid}/cost")
+def formulation_cost(vid: int, db: Session = DB, _: CurrentUser = Depends(require("rnd.formula:read"))):
+    return svc.formula_cost(db, vid)

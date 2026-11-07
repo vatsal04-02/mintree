@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScanLine, Sparkles, Bell as BellIcon, Menu, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Logo } from "./Logo";
@@ -54,6 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [theme, toggleTheme] = useTheme();
   const [assist, setAssist] = useState(false);
   const aiStatus = useAssistantStatus();
+  const toggleAssist = useCallback(() => setAssist((v) => !v), []);
   useEffect(() => { try { setCollapsed(localStorage.getItem("mintree-nav") === "1"); } catch {} }, []);
   const toggleNav = () => setCollapsed((c) => { try { localStorage.setItem("mintree-nav", c ? "0" : "1"); } catch {} return !c; });
 
@@ -131,7 +132,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col canvas">
-        <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} aiStatus={aiStatus} onAssist={() => setAssist((v) => !v)} />
+        <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} aiStatus={aiStatus} onAssist={toggleAssist} />
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-[1360px] mx-auto px-4 sm:px-7 py-6">{children}</div>
         </main>
@@ -156,7 +157,7 @@ function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen, aiStatu
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } if (e.altKey && e.key.toLowerCase() === "s") { e.preventDefault(); setScan(true); } if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); onAssist(); } };
     document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
-  }, []);
+  }, [onAssist]);
 
   const quick = [
     { label: "Item", href: "/masters/items?new=1", perm: "masters.item:create" },

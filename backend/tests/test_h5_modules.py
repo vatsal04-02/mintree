@@ -257,12 +257,12 @@ def test_content_approval_and_single_publish(login, db):
 # ------------------------------------------------------------------ analytics
 def test_management_summary_is_computed_from_real_records(shop, login, db):
     f, cust = make_fg(shop, 100, 10), make_customer()
-    before = login("management").get("/api/analytics/management-summary").json()
+    before = login("management").get("/api/analytics/management-summary", params={"fresh": True}).json()
     o = new_so(shop, f, cust)
     p = advance(shop, o)
     assert shop["disp"].post(f"/api/dispatch/orders/{o['id']}/dispatch", headers=k(), json={"expected_version": p["version"]}).status_code == 200
     mg = login("management")
-    after = mg.get("/api/analytics/management-summary").json()
+    after = mg.get("/api/analytics/management-summary", params={"fresh": True}).json()
     assert N(after["sales"]["revenue_ex_tax"]) - N(before["sales"]["revenue_ex_tax"]) == 750
     assert N(after["sales"]["receivable_outstanding"]) - N(before["sales"]["receivable_outstanding"]) == 885
     assert N(after["sales"]["cogs"]) - N(before["sales"]["cogs"]) == 300, "30 units at moving-average cost 10"

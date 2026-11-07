@@ -56,3 +56,18 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
 }
 
 export type Page<T> = { items: T[]; total: number; page: number; page_size: number };
+
+/** GET with in-flight de-duplication and a short client-side freshness window, for read-mostly aggregates only (dashboards, status flags).
+ *  Never use it for stock availability, balances or anything a user acts on within seconds: those must always be fetched fresh. */
+const shared = new Map<string, { at: number; p: Promise<unknown> }>();
+export function sharedGet<T>(path: string, params?: Opts["params"], ttlMs = 10_000): Promise<T> {
+  const key = path + qs(params);
+  const hit = shared.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.p as Promise<T>;
+  const p = api<T>(path, { params });
+  shared.set(key, { at: Date.now(), p });
+  p.catch(() => shared.delete(key));                      // a failure is never remembered
+  return p;
+}
+/** Forget shared reads (call after a business write so the next screen shows the change). */
+export const clearShared = () => shared.clear();

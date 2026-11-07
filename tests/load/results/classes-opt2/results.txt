@@ -1,0 +1,9 @@
+class A target    500/s  achieved    418.3/s  p50     9.5  p95    152.0  p99    511.0 ms  unexpected 0/6027 (0.00%)  dropped_iter 0
+class A target    800/s  achieved    670.2/s  p50    58.0  p95    178.9  p99    206.8 ms  unexpected 0/9627 (0.00%)  dropped_iter 0
+class A target   1200/s  achieved    676.1/s  p50  1644.5  p95   2621.2  p99   2733.2 ms  unexpected 0/11386 (0.00%)  dropped_iter 3040
+class B target    500/s  achieved    338.0/s  p50  1226.7  p95   2067.2  p99   2212.2 ms  unexpected 0/5497 (0.00%)  dropped_iter 530
+class B target    800/s  achieved    360.7/s  p50  2987.8  p95   5019.5  p99   5076.4 ms  unexpected 106/6826 (1.55%)  dropped_iter 2801
+class B target   1200/s  achieved    385.8/s  p50  4452.4  p95   5067.8  p99   5136.5 ms  unexpected 444/7384 (6.01%)  dropped_iter 7043
+class C target    500/s  achieved    415.7/s  p50    10.5  p95     38.7  p99     93.2 ms  unexpected 0/6026 (0.00%)  dropped_iter 0
+class C target    800/s  achieved    663.7/s  p50    43.8  p95    481.9  p99    588.3 ms  unexpected 0/9601 (0.00%)  dropped_iter 29
+class C target   1200/s  achieved    678.3/s  p50  1374.5  p95   2531.9  p99   2745.0 ms  unexpected 0/11573 (0.00%)  dropped_iter 2854

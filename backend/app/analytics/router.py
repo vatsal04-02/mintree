@@ -25,13 +25,13 @@ def _num(v):
 DASHBOARD_TTL_S = 15.0
 
 
-def _cached_dashboard(ns: str, key: str, compute) -> Response:
+def _cached_dashboard(ns: str, key: str, compute, fresh: bool = False) -> Response:
     """Dashboards are aggregates over many tables; serving them from a 15 s cache keeps ten browsers from running the same ten queries ten times. The figures say so:
     `meta.cached`, `meta.generated_at` and `meta.max_age_s` travel with every response (the Overview shows the as-of time). Single-flight: concurrent misses compute once."""
-    body, ver = rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)
+    body, ver = (None, None) if fresh else rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)       # ?fresh=true recomputes now (and refreshes the cache)
     if body is None:
         with rcache.single_flight(ns, key):
-            body, ver = rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)
+            body, ver = (None, None) if fresh else rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)
             if body is None:
                 from datetime import datetime, timezone
                 data = jsonable_encoder(compute())
@@ -45,8 +45,8 @@ def _cached_dashboard(ns: str, key: str, compute) -> Response:
 
 
 @router.get("/overview-period")
-def overview_period(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
-    return _cached_dashboard("dash_period", f"{start}|{end}", lambda: _overview_period(start, end, db))
+def overview_period(start: date, end: date, fresh: bool = False, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
+    return _cached_dashboard("dash_period", f"{start}|{end}", lambda: _overview_period(start, end, db), fresh)
 
 
 def _overview_period(start: date, end: date, db: Session):
@@ -88,9 +88,9 @@ def _overview_period(start: date, end: date, db: Session):
 
 
 @router.get("/management-summary")
-def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
+def management_summary(as_of: date | None = None, fresh: bool = False, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
     d = as_of or business_today()
-    return _cached_dashboard("dash_summary", str(d), lambda: _management_summary(d, db))
+    return _cached_dashboard("dash_summary", str(d), lambda: _management_summary(d, db), fresh)
 
 
 def _management_summary(d: date, db: Session):

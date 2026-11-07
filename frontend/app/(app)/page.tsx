@@ -121,7 +121,7 @@ export default function Overview() {
         <div className="min-w-0">
           <h1 className="t-page">Factory overview</h1>
           <p className="t-label mt-1">
-            {rangeError ? <span className="text-danger">{rangeError}</span> : <>{fmtDay(range.start)} – {fmtDate(range.end)} <span aria-hidden>·</span> {plural(daysBetween(range.start, range.end) + 1, "day", "days")}{s && <> <span aria-hidden>·</span> data as of {fmtDate(s.as_of)}</>}</>}
+            {rangeError ? <span className="text-danger">{rangeError}</span> : <>{fmtDay(range.start)} – {fmtDate(range.end)} <span aria-hidden>·</span> {plural(daysBetween(range.start, range.end) + 1, "day", "days")}{s && <> <span aria-hidden>·</span> data as of {fmtDate(s.as_of)}{s.meta && <>, computed {fmtAgo(s.meta.generated_at)} (refreshed at most every {fmtNum(s.meta.max_age_s)} s)</>}</>}</>}
           </p>
         </div>
         {canSummary && (

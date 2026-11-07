@@ -71,3 +71,21 @@ The demo needs no broker. Outbox events written by the postings simply wait for 
 * Marketing posts are recorded **manually** (`mode=MANUAL`); there is no Meta integration and no social-account credentials.
 * Every demo item uses the 18% cosmetics tax class; payments and shipments reference their payment-method and courier masters.
 * GST fields and summaries exist; **no GST filing, e-invoicing or government integration** is implemented.
+
+## At-scale demo (added in the performance & completeness milestone)
+`scripts/demo/scale.py` adds six steps after the hand-written scenarios; the whole demo is now 21 steps and ≈ 100 s from an empty demo database. Volumes and status mix are in `DEMO_DATA_COVERAGE.md` (130+ sales orders on top of 126 marketplace orders, 125 leads + opportunities, 460 journal entries, 460 ledger movements, 140 shipments, 30 Meta records). Commands:
+
+| Purpose | Command |
+|---|---|
+| Initialise / seed (idempotent) | `python -m scripts.demo_data init` |
+| Verify (integrity + reconciliation + coverage + permissions, 117 checks) | `python -m scripts.demo_data verify` |
+| Counts per module vs targets | `python -m scripts.demo_data report` (`--markdown` for a table) |
+| Which steps are done | `python -m scripts.demo_data status` |
+| Reset (destructive, guarded: environment must be `demo`, database name must contain "demo", host local, the exact name typed again, marker row present) | `python -m scripts.demo_data reset --confirm-reset-demo-database <name>` |
+| Quick, smaller run for tests | `MINTREE_DEMO_SCALE=0.25 …` |
+
+Safety: the seeder refuses any database that is not a marked demo database; development, test, demo and production data never share a database. Demo credentials are the single documented demo password printed by `init` for 17 role-specific users (`demo.admin`, `demo.mgmt`, `demo.buyer`, `demo.stores`, `demo.pm`, `demo.qa`, `demo.disp`, `demo.acct`, `demo.sales`, `demo.mkt`, `demo.maint`, …); users see exactly what their roles permit (verified by the permission checks in `verify`). No production secret is stored anywhere in the repository.
+
+Known limitation: if a step fails part-way, its deterministic idempotency keys collide with the partial work on re-run (the system correctly refuses a different payload under the same key). Reset the demo database and re-run; steps are small and the full build takes under two minutes.
+
+Two documented fixtures write timestamps the services stamp from the server clock: production-order completion dates are spread over ~100 days so the weekly output chart has a history, and one shipment's creation time is set to nine days ago to demonstrate the "delayed shipment" exception.

@@ -167,6 +167,11 @@ def bs(as_of: date | None = None, db: Session = DB, _: CurrentUser = Depends(req
     return reports.balance_sheet(db, as_of or business_today())
 
 
+@router.get("/reports/cash-flow")
+def cash_flow(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("accounts.report:read"))):
+    return reports.cash_flow(db, start, end)
+
+
 @router.get("/reports/product-costing")
 def costing(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("accounts.report:read"))):
     return reports.product_costing(db, start, end)

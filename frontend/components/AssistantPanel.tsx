@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Plus, Send, Sparkles } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, sharedGet } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/format";
 import { Badge, Drawer } from "./ui";
@@ -17,7 +17,7 @@ const SUGGESTIONS = ["What is overdue?", "Which purchase orders are late?", "Wha
 export function useAssistantStatus() {
   const { can } = useAuth();
   const [status, setStatus] = useState<Status | null>(null);
-  useEffect(() => { if (can("ai.assistant:use")) api<Status>("/ai/status").then(setStatus).catch(() => setStatus(null)); }, [can]);
+  useEffect(() => { if (can("ai.assistant:use")) sharedGet<Status>("/ai/status", undefined, 30_000).then(setStatus).catch(() => setStatus(null)); }, [can]);
   return status;
 }
 

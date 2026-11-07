@@ -1,7 +1,7 @@
 "use client";
 /** GET /analytics/management-summary: the single source for the Overview and Management dashboards. Every figure either page shows is read from here. */
 import { useEffect, useState } from "react";
-import { api, ApiError } from "./api";
+import { ApiError, sharedGet } from "./api";
 import { MODULE_BY_ID, toneFor } from "./modules";
 import { fmtNum, titleCase } from "./format";
 import type { Tone } from "@/components/dash";
@@ -9,6 +9,8 @@ import type { Tone } from "@/components/dash";
 export type Count = { status: string; n: number; value?: string | number };
 export type Summary = {
   as_of: string;
+  /** Dashboards are served from a short server cache: when the figures were computed and how stale they can be. */
+  meta?: { cached: boolean; generated_at: string; max_age_s: number };
   sales: { revenue_ex_tax: string | number; credit_notes_ex_tax: string | number; net_revenue_ex_tax: string | number; invoices: number; receivable_outstanding: string | number; cogs: string | number };
   finance: { payable_outstanding: string | number; cash_and_bank: string | number; inventory_value: string | number };
   orders_by_status: Count[]; production_by_status: Count[]; purchase_orders_by_status: Count[]; shipments_by_status: Count[];
@@ -31,7 +33,7 @@ export function useSummary(enabled: boolean) {
   useEffect(() => {
     if (!enabled) { setSummary(null); return; }
     let live = true;
-    api<Summary>("/analytics/management-summary")
+    sharedGet<Summary>("/analytics/management-summary")
       .then((s) => live && setSummary(s))
       .catch((e) => { if (live) { setSummary(null); setError(e instanceof ApiError ? e.message : "The summary could not be loaded."); } });
     return () => { live = false; };
@@ -67,7 +69,7 @@ export function usePeriod(enabled: boolean, start: string, end: string) {
     if (!enabled) { setData(null); return; }
     let live = true;
     setData(undefined);
-    api<PeriodData>("/analytics/overview-period", { params: { start, end } }).then((d) => live && setData(d)).catch(() => live && setData(null));
+    sharedGet<PeriodData>("/analytics/overview-period", { start, end }).then((d) => live && setData(d)).catch(() => live && setData(null));
     return () => { live = false; };
   }, [enabled, start, end]);
   return data;

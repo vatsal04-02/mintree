@@ -36,6 +36,14 @@ def _schema():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _no_stale_cached_reads():
+    """The response cache is process-wide; a test must never see another test's cached list or dashboard (cache behaviour has its own tests in test_response_cache.py)."""
+    from app.core import rcache
+    rcache.clear()
+    yield
+
+
 @pytest.fixture
 def db():
     """Each test runs inside an outer transaction that is rolled back; app commits become savepoints."""

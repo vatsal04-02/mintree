@@ -83,3 +83,36 @@ def compare_versions(db: Session, a_id: int, b_id: int) -> dict:
             "batch_size_changed": va.batch_size != vb.batch_size, "from_batch_size": str(va.batch_size), "to_batch_size": str(vb.batch_size),
             "process_instructions_changed": (va.process_instructions or "") != (vb.process_instructions or ""), "added": added, "removed": removed, "changed": changed,
             "identical": not (added or removed or changed or va.batch_size != vb.batch_size)}
+
+
+def formula_cost(db, version_id: int) -> dict:
+    """Material cost of one batch of a formulation version, computed by code in Decimal from what the company actually holds/pays:
+    1) the item's current weighted-average stock cost (item_valuation value / qty) when it has stock;
+    2) otherwise the unit price on the item's most recent purchase-order line;
+    3) otherwise the ingredient is reported as 'unpriced' and the total is marked incomplete (it is never guessed or set to zero silently).
+    Cost per unit of output = total / batch size. This is a standard-costing aid for R&D, not a posting."""
+    from decimal import Decimal
+    from sqlalchemy import text
+    from app.core.errors import NotFound
+    v = db.execute(text("SELECT fv.id, fv.version_no, fv.status, fv.batch_size, f.name FROM formulation_versions fv JOIN formulations f ON f.id = fv.formulation_id WHERE fv.id = :i"), {"i": version_id}).mappings().first()
+    if not v:
+        raise NotFound("Formulation version")
+    lines = db.execute(text("""SELECT fi.line_no, it.id AS item_id, it.item_code, it.name, u.code AS uom, fi.qty, fi.percentage,
+                                      (SELECT CASE WHEN val.qty > 0 THEN val.value / val.qty END FROM item_valuation val WHERE val.item_id = it.id) AS avg_cost,
+                                      (SELECT poi.unit_price FROM purchase_order_items poi JOIN purchase_orders po ON po.id = poi.po_id WHERE poi.item_id = it.id AND po.status NOT IN ('DRAFT','CANCELLED')
+                                        ORDER BY po.id DESC LIMIT 1) AS last_po_price
+                                 FROM formulation_ingredients fi JOIN items it ON it.id = fi.item_id JOIN units_of_measure u ON u.id = it.uom_id WHERE fi.version_id = :i ORDER BY fi.line_no"""), {"i": version_id}).mappings().all()
+    out, total, complete = [], Decimal(0), True
+    for l in lines:
+        unit, src = (Decimal(l["avg_cost"]), "average stock cost") if l["avg_cost"] is not None else ((Decimal(l["last_po_price"]), "last purchase price") if l["last_po_price"] is not None else (None, "unpriced"))
+        amount = None if unit is None else (Decimal(l["qty"]) * unit).quantize(Decimal("0.01"))
+        if amount is None:
+            complete = False
+        else:
+            total += amount
+        out.append({"line_no": l["line_no"], "item_code": l["item_code"], "name": l["name"], "uom": l["uom"], "qty": str(l["qty"]), "percentage": None if l["percentage"] is None else str(l["percentage"]),
+                    "unit_cost": None if unit is None else str(unit.quantize(Decimal("0.0001"))), "cost_source": src, "amount": None if amount is None else str(amount)})
+    batch = Decimal(v["batch_size"]) if v["batch_size"] else None
+    return {"version_id": v["id"], "formulation": v["name"], "version_no": v["version_no"], "status": v["status"], "batch_size": None if batch is None else str(batch), "lines": out,
+            "material_cost": str(total), "complete": complete, "cost_per_unit": None if (not batch or not complete) else str((total / batch).quantize(Decimal("0.0001"))),
+            "note": "Material cost only (no labour, overhead or wastage). Cost per unit is shown only when every ingredient is priced."}

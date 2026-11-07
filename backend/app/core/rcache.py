@@ -36,12 +36,7 @@ CACHED_TABLES: dict[str, str] = {}       # table name -> namespace (registered b
 
 def _version(ns: str) -> str | None:
     """Current version of a namespace; None if Redis is unavailable (caller bypasses)."""
-    if authz_cache.current_epoch() is None:          # also trips the shared 1 s Redis back-off
-        return None
-    try:
-        return authz_cache._client().get(f"mintree:rcv:{ns}") or "0"
-    except Exception:
-        return None
+    return authz_cache.memo_get(f"mintree:rcv:{ns}")          # 20 ms per-process memo; None when Redis is down (shared 1 s back-off)
 
 
 def bump(ns: str) -> None:
@@ -49,6 +44,7 @@ def bump(ns: str) -> None:
         authz_cache._client().incr(f"mintree:rcv:{ns}")
     except Exception:
         log.error("could not bump response-cache version for %s; relying on the TTL", ns)
+    authz_cache.forget(f"mintree:rcv:{ns}")
     with _lock:
         for k in [k for k in _entries if k.startswith(ns + "|")]:
             _drop(k)

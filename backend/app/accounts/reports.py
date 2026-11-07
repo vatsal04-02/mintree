@@ -210,3 +210,46 @@ def product_costing(db: Session, start: date, end: date) -> dict:
                     "wastage_qty": str(D(wmap[r["id"]]["qty"])) if r["id"] in wmap else "0", "wastage_value_at_cost": str(D(wmap[r["id"]]["value_at_cost"]).quantize(Decimal("0.01"))) if r["id"] in wmap else "0.00"})
     return {"period": {"start": start, "end": end}, "overhead_pct_applied": str(ovh), "products": out,
             "notes": "COGS is the moving-average cost issued at dispatch (posted to 5000). Overhead/labour are not captured in the ledger; the allocation is a reporting view."}
+
+
+CASH_CODES = ("1000", "1100")
+CASH_FLOW_LABELS = [  # counter-account code -> (section, label)
+    ("1200", "OPERATING", "Receipts from customers"), ("2000", "OPERATING", "Payments to suppliers"), ("2100", "OPERATING", "Payments against goods received"),
+    ("5400", "OPERATING", "Bank charges"), ("5500", "OPERATING", "Marketplace fees and settlement adjustments"), ("2200", "OPERATING", "GST paid / refunded"), ("1500", "OPERATING", "GST paid / refunded"),
+    ("3000", "FINANCING", "Owner's capital introduced / withdrawn"),
+]
+
+
+def cash_flow(db: Session, start: date, end: date) -> dict:
+    """Cash-flow statement, DIRECT method, built only from the journal lines of the cash and bank accounts: every cash line is classified by the account on the other side of
+    its entry. Opening + net movement must equal the closing balance of the same accounts; the report says whether it does (`reconciles`). No investing activity exists in the
+    chart of accounts (no fixed-asset ledger), so that section is reported as 0 and said to be unsupported rather than silently omitted."""
+    if end < start:
+        raise NotFound("Valid period")
+    cash = text("""SELECT COALESCE(sum(l.debit - l.credit), 0) FROM journal_lines l JOIN accounts a ON a.id = l.account_id JOIN journal_entries e ON e.id = l.entry_id
+                    WHERE a.code = ANY(:c) AND e.entry_date {cmp}""")
+    opening = D(db.scalar(text(str(cash).format(cmp="< :s")), {"c": list(CASH_CODES), "s": start}))
+    closing = D(db.scalar(text(str(cash).format(cmp="<= :e")), {"c": list(CASH_CODES), "e": end}))
+    rows = db.execute(text("""
+        SELECT e.id AS entry_id, e.source_type, l.debit - l.credit AS net,
+               (SELECT string_agg(DISTINCT a2.code, ',' ORDER BY a2.code) FROM journal_lines l2 JOIN accounts a2 ON a2.id = l2.account_id WHERE l2.entry_id = e.id AND a2.code <> ALL(:c)) AS counters
+          FROM journal_lines l JOIN accounts a ON a.id = l.account_id JOIN journal_entries e ON e.id = l.entry_id
+         WHERE a.code = ANY(:c) AND e.entry_date BETWEEN :s AND :e"""), {"c": list(CASH_CODES), "s": start, "e": end}).mappings().all()
+    buckets: dict[tuple[str, str], list[Decimal]] = {}
+    by_code = {c: (sec, lab) for c, sec, lab in CASH_FLOW_LABELS}
+    for r in rows:
+        counters = (r["counters"] or "").split(",")
+        sec, lab = next((by_code[c] for c in counters if c in by_code), ("OPERATING", "Other operating movements"))
+        v = buckets.setdefault((sec, lab), [Decimal(0), Decimal(0), Decimal(0)])
+        net = D(r["net"])
+        v[0 if net >= 0 else 1] += abs(net)
+        v[2] += net
+    out = {"OPERATING": [], "INVESTING": [], "FINANCING": []}
+    for (sec, lab), (inflow, outflow, net) in sorted(buckets.items()):
+        out[sec].append({"label": lab, "inflow": str(inflow), "outflow": str(outflow), "net": str(net)})
+    total = lambda sec: sum((D(x["net"]) for x in out[sec]), Decimal(0))
+    net_change = total("OPERATING") + total("INVESTING") + total("FINANCING")
+    return {"start": start, "end": end, "method": "direct", "opening_cash": str(opening), "operating": out["OPERATING"], "operating_net": str(total("OPERATING")),
+            "investing": out["INVESTING"], "investing_net": "0", "investing_note": "No fixed-asset ledger exists, so investing cash flows are not tracked.",
+            "financing": out["FINANCING"], "financing_net": str(total("FINANCING")), "net_change": str(net_change), "closing_cash": str(closing),
+            "reconciles": opening + net_change == closing}

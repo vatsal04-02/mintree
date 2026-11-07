@@ -45,7 +45,7 @@ def test_cached_lists_do_not_leak_across_permission_sets(login, admin):
 
 def test_no_redis_means_no_caching_and_the_answer_is_still_correct(login, monkeypatch):
     c = login("stores_manager")
-    monkeypatch.setattr(authz_cache, "current_epoch", lambda: None)
+    monkeypatch.setattr(authz_cache, "memo_get", lambda key: None)                 # Redis unreachable
     a = c.get("/api/masters/warehouses")
     b = c.get("/api/masters/warehouses")
     assert a.status_code == b.status_code == 200 and "x-cache" not in a.headers and "x-cache" not in b.headers
