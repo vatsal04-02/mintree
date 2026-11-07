@@ -7,6 +7,31 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 
 
+class MetaConnection(Base):
+    """A Meta Business asset the company works with: business account, Facebook page, Instagram professional account, ad account.
+    mode DEMO = a clearly simulated sandbox record (status SANDBOX, never 'connected'); mode LIVE starts NOT_CONNECTED and becomes CONNECTED only after
+    the Graph API has verified it (verified_at set). The CHECKs make a fabricated 'connected' state impossible."""
+
+    __tablename__ = "meta_connections"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12))
+    name: Mapped[str] = mapped_column(String(160))
+    external_ref: Mapped[str] = mapped_column(String(80))
+    mode: Mapped[str] = mapped_column(String(4), default="LIVE", server_default="LIVE")
+    status: Mapped[str] = mapped_column(String(13), default="NOT_CONNECTED", server_default="NOT_CONNECTED")
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("meta_connections.id"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("kind", "external_ref", name="uq_meta_connections_ref"),
+                      CheckConstraint("kind IN ('BUSINESS','PAGE','INSTAGRAM','AD_ACCOUNT')", name="kind_valid"),
+                      CheckConstraint("mode IN ('DEMO','LIVE')", name="mode_valid"),
+                      CheckConstraint("status IN ('SANDBOX','NOT_CONNECTED','CONNECTED')", name="status_valid"),
+                      CheckConstraint("(mode = 'DEMO' AND status = 'SANDBOX') OR (mode = 'LIVE' AND status IN ('NOT_CONNECTED','CONNECTED'))", name="mode_status_consistent"),
+                      CheckConstraint("status <> 'CONNECTED' OR (mode = 'LIVE' AND verified_at IS NOT NULL)", name="connected_means_verified"))
+
+
 class Campaign(Base):
     __tablename__ = "marketing_campaigns"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -16,8 +41,11 @@ class Campaign(Base):
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(10), default="PLANNED", server_default="PLANNED")
+    objective: Mapped[str | None] = mapped_column(String(12))
+    meta_ad_account_id: Mapped[int | None] = mapped_column(ForeignKey("meta_connections.id"))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    __table_args__ = (CheckConstraint("status IN ('PLANNED','RUNNING','DONE')", name="status_valid"),
+    __table_args__ = (CheckConstraint("status IN ('PLANNED','RUNNING','PAUSED','DONE')", name="status_valid"),
+                      CheckConstraint("objective IS NULL OR objective IN ('AWARENESS','TRAFFIC','ENGAGEMENT','LEADS','SALES')", name="objective_valid"),
                       CheckConstraint("end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="dates_ordered"))
 
 
@@ -33,10 +61,12 @@ class ContentItem(Base):
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     rejection_reason: Mapped[str | None] = mapped_column(Text)
+    meta_page_id: Mapped[int | None] = mapped_column(ForeignKey("meta_connections.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (CheckConstraint("channel IN ('INSTAGRAM','FACEBOOK','WEBSITE','EMAIL','OTHER')", name="channel_valid"),
-                      CheckConstraint("status IN ('DRAFT','IN_REVIEW','APPROVED','PUBLISHED','REJECTED')", name="status_valid"),
-                      CheckConstraint("status NOT IN ('APPROVED','PUBLISHED') OR approved_by IS NOT NULL", name="approval_recorded"))
+                      CheckConstraint("status IN ('DRAFT','IN_REVIEW','APPROVED','SCHEDULED','PUBLISHED','REJECTED')", name="status_valid"),
+                      CheckConstraint("status NOT IN ('APPROVED','SCHEDULED','PUBLISHED') OR approved_by IS NOT NULL", name="approval_recorded"),
+                      CheckConstraint("status <> 'SCHEDULED' OR scheduled_for IS NOT NULL", name="scheduled_has_time"))
 
 
 class PublishingRecord(Base):

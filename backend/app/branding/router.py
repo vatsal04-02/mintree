@@ -28,6 +28,8 @@ class _In(BaseModel):
 class CampaignIn(_In):
     name: str = Field(min_length=2, max_length=160)
     brand_id: int | None = None
+    objective: Literal["AWARENESS", "TRAFFIC", "ENGAGEMENT", "LEADS", "SALES"] | None = None
+    meta_ad_account_id: int | None = None
     budget: Decimal | None = Field(default=None, ge=0)
     start_date: date | None = None
     end_date: date | None = None
@@ -39,6 +41,7 @@ class ContentIn(_In):
     title: str = Field(min_length=2, max_length=200)
     caption: str | None = None
     scheduled_for: datetime | None = None
+    meta_page_id: int | None = None
 
 
 class RejectIn(_In):
@@ -50,12 +53,13 @@ class PublishIn(_In):
 
 
 def campaign_dict(c: Campaign) -> dict:
-    return {"id": c.id, "name": c.name, "brand_id": c.brand_id, "budget": c.budget, "start_date": c.start_date, "end_date": c.end_date, "status": c.status}
+    return {"id": c.id, "name": c.name, "brand_id": c.brand_id, "budget": c.budget, "start_date": c.start_date, "end_date": c.end_date, "status": c.status,
+            "objective": c.objective, "meta_ad_account_id": c.meta_ad_account_id}
 
 
 def content_dict(c: ContentItem) -> dict:
     return {"id": c.id, "campaign_id": c.campaign_id, "channel": c.channel, "title": c.title, "caption": c.caption, "scheduled_for": c.scheduled_for,
-            "status": c.status, "created_by": c.created_by, "approved_by": c.approved_by, "rejection_reason": c.rejection_reason}
+            "status": c.status, "created_by": c.created_by, "approved_by": c.approved_by, "rejection_reason": c.rejection_reason, "meta_page_id": c.meta_page_id}
 
 
 def _flush(d: Session, msg: str):
@@ -145,13 +149,30 @@ def reject(cid: int, body: RejectIn, db: Session = DB, cu: CurrentUser = Depends
     return run_tx(db, work, name="branding.content.reject")
 
 
+class ScheduleIn(_In):
+    scheduled_for: datetime
+
+
+@router.post("/content/{cid}/schedule")
+def schedule(cid: int, body: ScheduleIn, db: Session = DB, cu: CurrentUser = Depends(require("branding.content:publish"))):
+    """Approved content gets a planned publishing time. Nothing is sent to Meta: publishing remains a recorded manual step (or, later, an API call after a verified connection)."""
+    def work(d: Session):
+        c = _item(d, cid)
+        if c.status not in ("APPROVED", "SCHEDULED"):
+            raise BusinessConflict("not_approved", "Only approved content can be scheduled")
+        c.status, c.scheduled_for = "SCHEDULED", body.scheduled_for
+        audit.record(d, user=cu, action="schedule", entity="content", entity_id=c.id, after={"scheduled_for": body.scheduled_for.isoformat()})
+        return content_dict(c)
+    return run_tx(db, work, name="branding.content.schedule")
+
+
 @router.post("/content/{cid}/publish")
 def publish(cid: int, body: PublishIn, db: Session = DB, cu: CurrentUser = Depends(require("branding.content:publish"))):
     """Records that approved content was published manually. No call to Meta is made."""
     def work(d: Session):
         c = _item(d, cid)
-        if c.status != "APPROVED":
-            raise BusinessConflict("not_approved", "Only approved content can be published")
+        if c.status not in ("APPROVED", "SCHEDULED"):
+            raise BusinessConflict("not_approved", "Only approved or scheduled content can be published")
         d.add(PublishingRecord(content_id=c.id, mode="MANUAL", external_url=body.external_url, published_by=cu.id))
         c.status = "PUBLISHED"
         _flush(d, "Already published")
@@ -271,3 +292,122 @@ def analytics(start: date, end: date, db: Session = DB, _: CurrentUser = Depends
     content = [dict(r) for r in db.execute(text("""SELECT channel, status, count(*) AS n FROM content_calendar GROUP BY 1, 2 ORDER BY 1, 2""")).mappings()]
     return {"period": {"start": start, "end": end}, "campaigns": camp, "by_brand": by_brand, "content_pipeline": content,
             "total_spend": str(sum((Decimal(c["spend"]) for c in camp), Decimal(0))), "source": "manually entered / imported campaign metrics; no Meta API connection"}
+
+
+# ------------------------------------------------------------------ campaign lifecycle and the Meta workspace (sandbox vs live)
+from app.branding.meta_provider import GraphMetaProvider, MetaError, MetaNotConfigured, demo_provider   # noqa: E402
+from app.branding.models import MetaConnection                                                       # noqa: E402
+from app.core.config import get_settings                                                             # noqa: E402
+
+CAMPAIGN_FLOW = {"PLANNED": {"RUNNING"}, "RUNNING": {"PAUSED", "DONE"}, "PAUSED": {"RUNNING", "DONE"}, "DONE": set()}
+
+
+class CampaignStatusIn(_In):
+    status: Literal["RUNNING", "PAUSED", "DONE"]
+
+
+@router.post("/campaigns/{cid}/status")
+def campaign_status(cid: int, body: CampaignStatusIn, db: Session = DB, cu: CurrentUser = Depends(require("branding.campaign:create"))):
+    def work(d: Session):
+        c = d.scalar(select(Campaign).where(Campaign.id == cid).with_for_update())
+        if not c:
+            raise NotFound("Campaign")
+        if body.status not in CAMPAIGN_FLOW[c.status]:
+            raise BusinessConflict("invalid_transition", f"A {c.status.lower()} campaign cannot become {body.status.lower()}")
+        before = c.status
+        c.status = body.status
+        audit.record(d, user=cu, action="status", entity="campaign", entity_id=c.id, before={"status": before}, after={"status": c.status})
+        return campaign_dict(c)
+    return run_tx(db, work, name="branding.campaign.status")
+
+
+class ConnectionIn(_In):
+    kind: Literal["BUSINESS", "PAGE", "INSTAGRAM", "AD_ACCOUNT"]
+    name: str = Field(min_length=2, max_length=160)
+    external_ref: str = Field(min_length=2, max_length=80)
+    mode: Literal["DEMO", "LIVE"]
+    parent_id: int | None = None
+
+
+def connection_dict(m: MetaConnection) -> dict:
+    return {"id": m.id, "kind": m.kind, "name": m.name, "external_ref": m.external_ref, "mode": m.mode, "status": m.status, "parent_id": m.parent_id, "verified_at": m.verified_at,
+            "label": "Simulated sandbox record: not connected to Meta" if m.mode == "DEMO" else ("Connected and verified with the Meta Graph API" if m.status == "CONNECTED" else "Registered, not connected")}
+
+
+@router.post("/meta/connections", status_code=201)
+def add_connection(body: ConnectionIn, db: Session = DB, cu: CurrentUser = Depends(require("branding.social:manage"))):
+    if body.mode == "DEMO" and get_settings().environment == "production":
+        raise Unprocessable("Sandbox records cannot be created in a production environment")
+    def work(d: Session):
+        m = MetaConnection(kind=body.kind, name=body.name, external_ref=body.external_ref, mode=body.mode, parent_id=body.parent_id,
+                           status="SANDBOX" if body.mode == "DEMO" else "NOT_CONNECTED", created_by=cu.id)
+        d.add(m)
+        try:
+            d.flush()
+        except IntegrityError as ex:
+            raise BusinessConflict("duplicate_connection", "That Meta asset is already registered") from ex
+        audit.record(d, user=cu, action="create", entity="meta_connection", entity_id=m.id, after={"kind": m.kind, "mode": m.mode})
+        return connection_dict(m)
+    return run_tx(db, work, name="branding.meta.connection.create")
+
+
+@router.get("/meta/workspace")
+def meta_workspace(db: Session = DB, _: CurrentUser = Depends(require("branding.social:read"))):
+    rows = [connection_dict(m) for m in db.scalars(select(MetaConnection).order_by(MetaConnection.kind, MetaConnection.id))]
+    return {"connections": rows, "live_connected": any(r["status"] == "CONNECTED" for r in rows), "has_sandbox_data": any(r["mode"] == "DEMO" for r in rows),
+            "live_configured": bool(get_settings().meta_access_token),
+            "notice": "Records marked DEMO are simulated. Nothing here is connected to Meta unless a connection shows 'Connected and verified'."}
+
+
+@router.post("/meta/connections/{mid}/verify")
+def verify_connection(mid: int, db: Session = DB, cu: CurrentUser = Depends(require("branding.social:manage"))):
+    """Asks the Graph API whether the asset exists and the configured token can read it. Only then does the connection become CONNECTED."""
+    m = db.get(MetaConnection, mid)
+    if not m:
+        raise NotFound("Meta connection")
+    if m.mode == "DEMO":
+        raise BusinessConflict("sandbox_record", "Sandbox records are simulated and cannot be verified against Meta")
+    try:
+        info = GraphMetaProvider().verify(m.kind, m.external_ref)
+    except MetaNotConfigured as e:
+        raise BusinessConflict("meta_not_configured", str(e)) from None
+    except MetaError as e:
+        raise BusinessConflict("meta_verification_failed", str(e)) from None
+
+    def work(d: Session):
+        row = d.scalar(select(MetaConnection).where(MetaConnection.id == mid).with_for_update())
+        row.status, row.verified_by = "CONNECTED", cu.id
+        row.verified_at = d.scalar(__import__("sqlalchemy").text("SELECT now()"))
+        audit.record(d, user=cu, action="verify", entity="meta_connection", entity_id=row.id, after={"graph_id": info.get("id")})
+        return connection_dict(row)
+    return run_tx(db, work, name="branding.meta.connection.verify")
+
+
+@router.post("/meta/sync-sandbox")
+def sync_sandbox(db: Session = DB, cu: CurrentUser = Depends(require("branding.campaign:create"))):
+    """Fills in SIMULATED daily metrics (source DEMO) for campaigns attached to a sandbox ad account, from the campaign start to today (or end). Idempotent: existing days are never touched."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from datetime import timedelta
+    from app.core.clock import business_today
+    prov = demo_provider()
+
+    def work(d: Session):
+        made = 0
+        camps = d.execute(text("""SELECT c.id, c.start_date, c.end_date, c.budget, c.objective, c.status FROM marketing_campaigns c JOIN meta_connections m ON m.id = c.meta_ad_account_id
+                                  WHERE m.mode = 'DEMO' AND c.status IN ('RUNNING','PAUSED','DONE') AND c.start_date IS NOT NULL""")).mappings().all()
+        for c in camps:
+            end = min(c["end_date"] or business_today(), business_today())
+            days = max((end - c["start_date"]).days + 1, 1)
+            daily = (c["budget"] or Decimal(0)) / days if c["budget"] else Decimal(500)
+            for i in range(days):
+                day = c["start_date"] + timedelta(days=i)
+                if c["status"] == "PAUSED" and i >= days * 0.6:
+                    break                                       # a paused campaign stops delivering part-way
+                ins = prov.insights(f"campaign-{c['id']}", day, daily, c["objective"])
+                r = d.execute(pg_insert(CampaignMetric).values(campaign_id=c["id"], metric_date=day, reach=ins.reach, impressions=ins.impressions, clicks=ins.clicks, engagements=ins.engagements,
+                                                                results=ins.results, spend=ins.spend, source="DEMO", recorded_by=cu.id).on_conflict_do_nothing().returning(CampaignMetric.id)).first()
+                made += 1 if r else 0
+        audit.record(d, user=cu, action="sync_sandbox", entity="campaign_metric", after={"days_created": made, "campaigns": len(camps)})
+        return {"days_created": made, "campaigns": len(camps), "simulated": True}
+    return run_tx(db, work, name="branding.meta.sync_sandbox")

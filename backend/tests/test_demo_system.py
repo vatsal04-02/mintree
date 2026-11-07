@@ -131,6 +131,9 @@ def test_reset_init_verify_idempotent_and_tamper_evident(scratch_dbs):
     assert r2.returncode == 0 and "0 step(s) ran" in r2.stdout
     assert _psql(url, counts) == first, "a second init must not create anything"
     assert cli(db, "verify").returncode == 0
+    rep = cli(db, "report")
+    assert rep.returncode == 0 and "NOT MET" not in rep.stdout, rep.stdout[-1500:]        # every coverage target (100+ sales orders, 100+ marketplace orders, 30+ Meta records, ...) is met
+    assert "[target 100: met]" in rep.stdout
     assert "[x]" in cli(db, "status").stdout and "[ ]" not in cli(db, "status").stdout
     # the verifier must be able to FAIL: break the ledger/balance agreement, then an invoice total
     _psql(url, "UPDATE stock_balances SET qty_physical = qty_physical + 1 WHERE id = (SELECT min(id) FROM stock_balances WHERE qty_physical > 0)")

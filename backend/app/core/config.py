@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     ai_daily_token_budget_per_user: int = 200_000  # input + output tokens per user per business day
     ai_max_message_chars: int = 4000
     ai_max_document_mb: int = 10
+    # Meta Graph API (live connection). Empty = no live connection can be verified; the demo/sandbox workspace never needs it. Environment only.
+    meta_access_token: str = ""
+    meta_graph_version: str = "v21.0"
 
     # First-run bootstrap admin (used only by `python -m app.seed`)
     bootstrap_admin_email: str = "admin@example.com"  # override via MINTREE_BOOTSTRAP_ADMIN_EMAIL

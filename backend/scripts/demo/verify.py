@@ -145,6 +145,18 @@ def verify_all(ctx: Ctx) -> int:
         r.eq("dashboard: open deviations match", summ["quality"]["open_deviations"], one("SELECT count(*) FROM deviations WHERE status <> 'CLOSED'"))
         r.eq("dashboard: late deliveries match", summ["procurement"]["late_deliveries"], one("SELECT count(*) FROM purchase_orders WHERE status IN ('APPROVED','PARTIALLY_RECEIVED') AND expected_date < business_today()"))
 
+    # ---------- 9b. the books reconcile with the sub-ledgers (at any scale), and the coverage targets are met (full-scale demo only)
+    gl = lambda *codes: one("SELECT COALESCE(sum(l.debit - l.credit), 0) FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = ANY(:c)", c=list(codes))
+    r.eq("books: accounts receivable (1200) equals open sales invoices", gl("1200"), one("SELECT COALESCE(sum(total - amount_paid - credited_amount), 0) FROM sales_invoices"))
+    r.eq("books: accounts payable (2000) equals open supplier invoices", -gl("2000"), one("SELECT COALESCE(sum(total - amount_paid - credited_amount), 0) FROM supplier_invoices"))
+    r.eq("books: inventory accounts (1300/1310/1320) equal stock valuation plus work in progress", gl("1300", "1310", "1320"),
+         one("SELECT COALESCE((SELECT sum(value) FROM item_valuation), 0) + COALESCE((SELECT sum(wip_cost) FROM production_orders WHERE status NOT IN ('COMPLETED','CANCELLED')), 0)"))
+    if (ctx.refs.get("scale_masters") or {}).get("scale", 0) >= 1:
+        from scripts.demo import report as _report
+        for row in _report.collect():
+            if row["target"]:
+                r.check(f"coverage: {row['label'].strip()} >= {row['target']}", row["met"], f"{row['count']}")
+
     # ---------- 10. role-based access really is enforced (HTTP, as the demo users)
     deny = [("op", "get", "/api/accounts/reports/trial-balance"), ("op", "get", "/api/procurement/purchase-orders"), ("sales", "get", "/api/accounts/reports/trial-balance"),
             ("stores", "get", "/api/crm/opportunities"), ("qi", "get", "/api/accounts/payments"), ("mgmt", "post", "/api/production/work-centres"), ("mkt", "get", "/api/inventory/balances")]

@@ -68,6 +68,7 @@ def cmd_init(args) -> int:
     print(f"Initialising demo data in '{name}' (idempotent; completed steps are skipped) ...")
     _migrate_and_seed()
     import scripts.demo.steps  # noqa: F401  (registers the steps)
+    import scripts.demo.scale  # noqa: F401  (registers the at-scale steps)
     with Session(engine) as db:
         if not db.get(DemoSeedStep, MARKER):
             db.add(DemoSeedStep(step_key=MARKER, detail={"purpose": "demonstration database", "password_policy": "documented demo password"}))
@@ -86,6 +87,7 @@ def cmd_verify(args) -> int:
     s = get_settings()
     guard.check_demo_target(s.environment, s.database_url)
     import scripts.demo.steps  # noqa: F401
+    import scripts.demo.scale  # noqa: F401
     ctx = Ctx()
     load_refs(ctx)
     from scripts.demo.verify import verify_all
@@ -96,12 +98,25 @@ def cmd_status(args) -> int:
     s = get_settings()
     name = guard.check_demo_target(s.environment, s.database_url)
     import scripts.demo.steps  # noqa: F401
+    import scripts.demo.scale  # noqa: F401
     ctx = Ctx()
     done = load_refs(ctx)
     print(f"Demo database '{name}': marker {'present' if MARKER in done else 'ABSENT'}")
     for key, _ in STEPS:
         print(f"  [{'x' if key in done else ' '}] {key}")
     return 0
+
+
+def cmd_report(args) -> int:
+    s = get_settings()
+    guard.check_demo_target(s.environment, s.database_url)
+    from scripts.demo import report
+    rows = report.collect()
+    if args.markdown:
+        print(report.markdown(rows))
+    else:
+        report.print_table(rows)
+    return 0 if all(r["met"] for r in rows) else 1
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -112,6 +127,9 @@ def run(argv: list[str] | None = None) -> int:
     sub.add_parser("init", help="seed the demo stories through the real workflows (idempotent)").set_defaults(fn=cmd_init)
     sub.add_parser("verify", help="integrity + demo checks").set_defaults(fn=cmd_verify)
     sub.add_parser("status", help="which steps are complete").set_defaults(fn=cmd_status)
+    rp = sub.add_parser("report", help="record counts per module, measured from the tables, against the coverage targets (exit 1 if a target is not met)")
+    rp.add_argument("--markdown", action="store_true")
+    rp.set_defaults(fn=cmd_report)
     r = sub.add_parser("reset", help="wipe a DEMO database and rebuild it (guarded)")
     r.add_argument("--confirm-reset-demo-database", metavar="DBNAME", help="type the database name to confirm")
     r.add_argument("--allow-remote-host", action="store_true")
