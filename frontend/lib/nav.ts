@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, ScanText, Lightbulb, type LucideIcon } from "lucide-react";
 import { MODULES, MODULE_BY_ID, type Module } from "./modules";
 
 /** Which sidebar group each module sits in; the admin tools module is appended to Administration below. */
@@ -41,6 +41,10 @@ export const NAV: NavGroup[] = [
       { href: "/masters/locations", label: "Storage locations", icon: MapPin, perm: "masters.location:read", keywords: "rack bin" },
     ],
   },
+  { label: "Assistant", items: [
+    { href: "/ai/extract", label: "Document reader", icon: ScanText, perm: "ai.extraction:use", keywords: "ai invoice delivery note read upload extract" },
+    { href: "/ai/proposals", label: "Suggestions", icon: Lightbulb, perm: "ai.proposal:review", keywords: "ai reorder follow up suggestion proposal" },
+  ] },
   { label: "Records", items: [{ href: "/documents", label: "Document centre", icon: FileText, perm: "documents.document:read", keywords: "coa invoice certificate files" }] },
   {
     label: "Administration",

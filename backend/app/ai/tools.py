@@ -123,7 +123,7 @@ def batch_trace(db, cu, a: BatchArg) -> ToolResult:
 
 
 def order_status(db, cu, a: OrderArg) -> ToolResult:
-    o = _q(db, """SELECT o.id, o.number, c.name AS customer, o.status, o.total, o.created_at::date AS created
+    o = _q(db, """SELECT o.id, o.number, c.name AS customer, o.status, o.total, business_date(o.created_at) AS created
                     FROM sales_orders o JOIN customers c ON c.id = o.customer_id WHERE o.number = :n""", n=a.number)
     if not o:
         return ToolResult({"found": False}, [])

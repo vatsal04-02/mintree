@@ -133,7 +133,7 @@ class FakeProvider:
     calls: list[dict] = []          # every request seen, for assertions
 
     def complete(self, *, system, messages, tools, model, max_tokens, force_tool=None) -> Completion:
-        FakeProvider.calls.append({"system": system, "messages": messages, "tools": [t["name"] for t in tools], "model": model, "force_tool": force_tool})
+        FakeProvider.calls.append({"system": system, "messages": json.loads(json.dumps(messages, default=str)), "tools": [t["name"] for t in tools], "model": model, "force_tool": force_tool})
         if FakeProvider.script:
             return FakeProvider.script.popleft()
         if force_tool == "record_extraction":
@@ -141,11 +141,8 @@ class FakeProvider:
         last = messages[-1]
         # after a tool round: summarise whatever the tools returned, quoting numbers verbatim
         if isinstance(last["content"], list) and any(b.get("type") == "tool_result" for b in last["content"]):
-            parts = []
-            for b in last["content"]:
-                if b.get("type") == "tool_result":
-                    parts.append(str(b["content"])[:600])
-            return Completion("Here is what the records show: " + " | ".join(parts), tokens_in=60, tokens_out=40)
+            parts = [_summarise(str(b["content"])) for b in last["content"] if b.get("type") == "tool_result"]
+            return Completion("Here is what the records show:\n" + "\n".join(parts), tokens_in=60, tokens_out=40)
         q = (last["content"] if isinstance(last["content"], str) else "").lower()
         names = {t["name"] for t in tools}
         for kw, tool, args in (("overdue", "receivables", {}), ("receivable", "receivables", {}), ("late", "late_purchase_orders", {}), ("low stock", "low_stock", {}),
@@ -156,6 +153,29 @@ class FakeProvider:
         if m and "stock_availability" in names:
             return Completion(tool_uses=[ToolUse("fake-stock", "stock_availability", {"item": m.group(1).strip()})], tokens_in=40, tokens_out=10, stop="tool_use")
         return Completion("I can look up stock, receivables, late purchase orders, quality, production and the business overview. Ask about one of those.", tokens_in=30, tokens_out=20)
+
+
+def _summarise(tool_content: str) -> str:
+    """Readable rendering of a tool result for the demo provider: scalars as `key: value`, lists as a count plus their first entries. Values are copied, never computed."""
+    body = re.sub(r"^<tool_data>|</tool_data>$", "", tool_content.strip())
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return body[:300]
+    def show(v: Any) -> str:
+        if isinstance(v, dict):
+            return ", ".join(f"{k} {x}" for k, x in v.items() if not isinstance(x, (dict, list)))
+        return str(v)
+    lines = []
+    for k, v in (data.items() if isinstance(data, dict) else [("result", data)]):
+        label = k.replace("_", " ")
+        if isinstance(v, list):
+            lines.append(f"- {label}: {len(v)}" + ("".join(f"\n    · {show(x)}" for x in v[:5])))
+        elif isinstance(v, dict):
+            lines.append(f"- {label}: {show(v)}")
+        elif v is not None:
+            lines.append(f"- {label}: {v}")
+    return "\n".join(lines) or "Nothing found."
 
 
 def _doc_text(messages: list[dict]) -> str:

@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScanLine, Bell as BellIcon, Menu, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
+import { ScanLine, Sparkles, Bell as BellIcon, Menu, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Logo } from "./Logo";
 import { ALL_NAV_ITEMS, NAV, visible } from "@/lib/nav";
 import { api, type Page } from "@/lib/api";
 import { useDebounced } from "./ui";
 import { ScanDialog, useGlobalScan, useWedgeScanner } from "./Scanner";
+import { AssistantPanel, useAssistantStatus } from "./AssistantPanel";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -51,6 +52,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [mobileOpen]);
   const toggleGroup = (href: string, open: boolean) => setExpanded((e) => ({ ...e, [href]: !open }));
   const [theme, toggleTheme] = useTheme();
+  const [assist, setAssist] = useState(false);
+  const aiStatus = useAssistantStatus();
   useEffect(() => { try { setCollapsed(localStorage.getItem("mintree-nav") === "1"); } catch {} }, []);
   const toggleNav = () => setCollapsed((c) => { try { localStorage.setItem("mintree-nav", c ? "0" : "1"); } catch {} return !c; });
 
@@ -128,16 +131,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col canvas">
-        <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} />
+        <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} aiStatus={aiStatus} onAssist={() => setAssist((v) => !v)} />
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-[1360px] mx-auto px-4 sm:px-7 py-6">{children}</div>
         </main>
       </div>
+      {aiStatus?.can_assist && <AssistantPanel open={assist} onClose={() => setAssist(false)} status={aiStatus} />}   {/* outside the header: its backdrop filter would become the containing block of the fixed drawer */}
     </div>
   );
 }
 
-function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen }: { current?: string; theme: string; toggleTheme: () => void; logout: () => void; onMenu: () => void; menuOpen: boolean }) {
+function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen, aiStatus, onAssist }: { current?: string; theme: string; toggleTheme: () => void; logout: () => void; onMenu: () => void; menuOpen: boolean; aiStatus: ReturnType<typeof useAssistantStatus>; onAssist: () => void }) {
   const { me, can } = useAuth();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -150,7 +154,7 @@ function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen }: { cur
   useOutside(menuRef, () => setMenu(false), menu);
   useOutside(createRef, () => setCreate(false), create);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } if (e.altKey && e.key.toLowerCase() === "s") { e.preventDefault(); setScan(true); } };
+    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } if (e.altKey && e.key.toLowerCase() === "s") { e.preventDefault(); setScan(true); } if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); onAssist(); } };
     document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
   }, []);
 
@@ -169,6 +173,7 @@ function Header({ current, theme, toggleTheme, logout, onMenu, menuOpen }: { cur
       </nav>
       <div className="flex-1" />
       <button onClick={() => setScan(true)} className="btn btn-sm" aria-label="Scan a barcode" title="Scan a barcode (Alt+S)"><ScanLine size={15} /><span className="hidden lg:inline">Scan</span></button>
+      {aiStatus?.can_assist && <button onClick={onAssist} className="btn btn-sm" aria-label="Open the assistant" title="Assistant (Ctrl+J)" data-testid="ai-open"><Sparkles size={15} /><span className="hidden lg:inline">Assistant</span></button>}
       <NotificationBell />
       <button onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 h-8 w-72 px-2.5 rounded-md border border-line bg-bg text-muted text-[12.5px] hover:border-muted/50">
         <Search size={14} />Search or jump to…<kbd className="ml-auto text-[10.5px] border border-line rounded px-1 bg-surface">Ctrl K</kbd>
