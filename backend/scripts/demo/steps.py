@@ -370,6 +370,14 @@ def production_finished_goods(c: Ctx) -> dict:
         if code == "FG-BW-OUD-200":
             coa = c.ok(qa.post(f"/api/quality/inspections/{r['inspection']}/coa"))
             out["coa_id"] = coa["id"]
+    # Demo fixture: production_orders.started_at/completed_at come from the server clock, so every seeded order would complete "today" and the Overview's weekly output chart would have one
+    # point. Spread the completions over five weeks, as the back-dated planned dates imply. Documented in docs/DEMO_ENVIRONMENT.md.
+    spread = {c.refs["rnd_to_production"]["bulk_order_v1"]: 33, out["orders"]["FG-BW-OUD-200"]: 26, out["orders"]["FG-BB-OLIVE-150"]: 19, out["orders"]["FG-BS-OUD-150"]: 12, out["orders"]["FG-DETAN-60"]: 5}
+    with Session(engine) as db:
+        from sqlalchemy import text
+        for oid, days in spread.items():
+            db.execute(text("UPDATE production_orders SET completed_at = now() - make_interval(days => :d), started_at = now() - make_interval(days => :d, hours => 6) WHERE id = :i"), {"d": days, "i": oid})
+        db.commit()
     return out
 
 

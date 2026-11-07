@@ -68,11 +68,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 overflow-y-auto px-2 pb-3 sidebar-scroll" aria-label="Main">
           {groups.map((g) => (
-            <div key={g.label} className="mt-4 first:mt-1">
+            <div key={g.label} className="mt-5 first:mt-1">
               {!collapsed
                 ? <button type="button" aria-expanded={!closedGroups[g.label]} onClick={() => setClosedGroups((c) => ({ ...c, [g.label]: !c[g.label] }))}
-                    className="flex items-center w-full px-2.5 mb-1 h-6 text-[11.5px] font-medium opacity-60 hover:opacity-100 transition-opacity">
-                    <span className="flex-1 text-left">{g.label}</span><ChevronDown size={12} className={`transition-transform ${closedGroups[g.label] ? "-rotate-90" : ""}`} />
+                    className="group/label flex items-center w-full px-2.5 mb-1 h-6 text-[11px] font-medium tracking-[0.04em] opacity-50 hover:opacity-90 focus-visible:opacity-90 transition-opacity duration-150">
+                    <span className="flex-1 text-left">{g.label}</span><ChevronDown size={12} aria-hidden className={`opacity-0 group-hover/label:opacity-100 group-focus-visible/label:opacity-100 transition-[opacity,transform] duration-150 ${closedGroups[g.label] ? "-rotate-90" : ""}`} />
                   </button>
                 : <div className="mx-2.5 mb-1.5 border-t border-white/10" aria-hidden />}
               {(collapsed || !closedGroups[g.label]) && g.items.map((i) => {
@@ -85,9 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <div key={i.href} className="mb-px">
                       <button type="button" aria-expanded={open} title={collapsed ? i.label : undefined}
                         onClick={() => (collapsed ? router.push(kids[0]?.href ?? i.href) : toggleGroup(i.href, open))}
-                        className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] w-full text-left transition-colors ${active ? "text-white font-medium" : "hover:bg-white/5"}`}>
+                        className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] w-full text-left transition-colors duration-150 ${active ? "text-white font-medium" : "hover:bg-white/5"}`}>
                         <Icon size={16} className="shrink-0" />
-                        {!collapsed && <><span className="truncate flex-1">{i.label}</span><ChevronRight size={13} className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-90" : ""}`} /></>}
+                        {!collapsed && <><span className="truncate flex-1">{i.label}</span><ChevronRight size={13} aria-hidden className={`shrink-0 opacity-35 transition-transform duration-150 ${open ? "rotate-90 opacity-60" : ""}`} /></>}
                       </button>
                       {open && (
                         <div className="ml-[19px] pl-3 border-l border-white/10 my-0.5">
@@ -105,9 +105,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }
                 return (
                   <Link key={i.href} href={i.href} title={collapsed ? i.label : undefined} aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] mb-px transition-colors ${active ? "text-white font-medium" : "hover:bg-white/5"}`}
+                    className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] mb-px transition-colors duration-150 ${active ? "text-white font-medium" : "hover:bg-white/5"}`}
                     style={active ? { background: "var(--sidebar-active)" } : undefined}>
-                    <Icon size={16} className="shrink-0" />{!collapsed && <span className="truncate">{i.label}</span>}
+                    {i.plain && !collapsed ? <span className="w-4 shrink-0" aria-hidden /> : <Icon size={16} className="shrink-0" aria-hidden />}{!collapsed && <span className="truncate">{i.label}</span>}
                   </Link>
                 );
               })}

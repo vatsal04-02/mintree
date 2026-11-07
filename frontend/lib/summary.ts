@@ -51,3 +51,24 @@ export const num = (v: unknown) => (v === null || v === undefined || v === "" ? 
 export const plural = (n: number, one: string, many: string) => `${fmtNum(n)} ${n === 1 ? one : many}`;
 export const sumStatus = (rows: Count[] | undefined, pick: (s: string) => boolean) => (rows ?? []).filter((r) => pick(r.status)).reduce((a, r) => a + r.n, 0);
 export const statusItems = (rows: Count[] | undefined) => (rows ?? []).map((r) => ({ label: titleCase(r.status), value: r.n, tone: toneFor(r.status) as Tone }));
+
+/* ------------------------------------------------------------------ period-scoped figures (GET /analytics/overview-period) */
+export type PeriodData = {
+  start: string; end: string; previous: { start: string; end: string };
+  revenue: { net_ex_tax: string | number; invoices: number; previous_net_ex_tax: string | number; previous_invoices: number };
+  production: { granularity: "week"; weeks_with_data: number; buckets: { week_start: string; orders: number; planned: string | null; actual: string | null }[] };
+  overdue_invoices: { count: number; amount: string | number };
+  recent: { kind: string; id: number; reference: string; related: string | null; status: string; created_at: string }[];
+};
+/** undefined while loading, null when unavailable. Refetches when the range changes. */
+export function usePeriod(enabled: boolean, start: string, end: string) {
+  const [data, setData] = useState<PeriodData | null | undefined>(enabled ? undefined : null);
+  useEffect(() => {
+    if (!enabled) { setData(null); return; }
+    let live = true;
+    setData(undefined);
+    api<PeriodData>("/analytics/overview-period", { params: { start, end } }).then((d) => live && setData(d)).catch(() => live && setData(null));
+    return () => { live = false; };
+  }, [enabled, start, end]);
+  return data;
+}

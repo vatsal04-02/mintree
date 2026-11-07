@@ -1,21 +1,25 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtAgo, fmtDate, fmtDateTime, fmtNum, fmtPct, fmtRupees, titleCase } from "@/lib/format";
-import { KIND, num, plural, screenHref, SHIPMENT_FINAL, statusItems, sumStatus, useSummary } from "@/lib/summary";
-import { PageHeader } from "@/components/ui";
-import { BarRows, Flow, InlineNotice, Section, SectionLink, SkeletonRows, StackRow, StatStrip, StockWatch, Timeline, WorkQueue, type Cell, type QueueItem, type Stage } from "@/components/dash";
+import { addDays, businessToday, daysBetween, fmtAgo, fmtDate, fmtDateTime, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees, fyStart, titleCase } from "@/lib/format";
+import { toneFor } from "@/lib/modules";
+import { num, plural, screenHref, SHIPMENT_FINAL, sumStatus, usePeriod, useSummary } from "@/lib/summary";
+import { Badge } from "@/components/ui";
+import { ActivityTimeline, Block, EmptyState, ExceptionList, GroupedBars, Legend, LinkMore, MetricStrip, Panel, Pipeline, Segmented, Skeleton, TransactionTable, type Bucket, type Exception, type Metric, type PipelineStage, type TxRow } from "@/components/blocks";
 
 type Approval = { type: string; id: number; number: string; since: string };
 type Audit = { id: number; occurred_at: string; user_email: string | null; action: string; entity: string; entity_id: string | null };
+type PeriodKey = "30d" | "90d" | "fy" | "custom";
 
-/** Audit entity -> list screen that opens the record via ?open=<id> (the same convention the approvals inbox uses). */
-const RECORD_SCREEN: Record<string, string> = {
-  purchase_order: "/m/procurement/orders", rfq: "/m/procurement/rfqs", production_order: "/m/production/orders", bom: "/m/production/boms", shipment: "/m/dispatch/shipments",
-  sales_return: "/m/dispatch/returns", inspection: "/m/quality/inspections", deviation: "/m/quality/deviations", formulation_version: "/m/rnd/formulations",
-  maintenance_work_order: "/m/maintenance/work-orders", content: "/m/branding/content",
+/** Audit entity and document kind -> the list screen that opens the record via ?open=<id>. */
+const RECORD_SCREEN: Record<string, [string, string]> = {
+  purchase_order: ["procurement", "orders"], rfq: ["procurement", "rfqs"], production_order: ["production", "orders"], bom: ["production", "boms"], shipment: ["dispatch", "shipments"],
+  sales_order: ["dispatch", "orders"], sales_invoice: ["dispatch", "invoices"], sales_return: ["dispatch", "returns"], inspection: ["quality", "inspections"], deviation: ["quality", "deviations"],
+  formulation_version: ["rnd", "formulations"], maintenance_work_order: ["maintenance", "work-orders"], content: ["branding", "content"],
 };
+const KIND_LABEL: Record<string, string> = { purchase_order: "Purchase order", production_order: "Production order", sales_order: "Sales order", shipment: "Shipment", sales_invoice: "Sales invoice" };
 /** Sign-ins and password events are security records, not business activity; they stay in the audit log. */
 const NOISE = /^(login|logout|password|session)/;
 
@@ -23,138 +27,167 @@ export default function Overview() {
   const { me, can } = useAuth();
   const canSummary = can("analytics.dashboard:read");
   const canAudit = can("admin.audit:read");
+  const today = businessToday();
+  const [key, setKey] = useState<PeriodKey>("30d");
+  const [custom, setCustom] = useState({ start: addDays(today, -29), end: today });
+  const range = key === "30d" ? { start: addDays(today, -29), end: today } : key === "90d" ? { start: addDays(today, -89), end: today } : key === "fy" ? { start: fyStart(today), end: today } : custom;
+  const rangeError = range.end < range.start ? "The end date is before the start date." : daysBetween(range.start, range.end) > 399 ? "The period cannot exceed 400 days." : null;
+
   const { summary, error } = useSummary(canSummary);
+  const period = usePeriod(canSummary && !rangeError, rangeError ? today : range.start, rangeError ? today : range.end);
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
   const [activity, setActivity] = useState<Audit[] | null>(null);
-
   useEffect(() => {
     api<{ items: Approval[] }>("/approvals/pending").then((d) => setApprovals(d.items)).catch(() => setApprovals([]));
-    if (canAudit) api<Page<Audit>>("/admin/audit-logs", { params: { page_size: 40 } }).then((p) => setActivity(p.items.filter((a) => !NOISE.test(a.action)).slice(0, 7))).catch(() => setActivity([]));
+    if (canAudit) api<Page<Audit>>("/admin/audit-logs", { params: { page_size: 40 } }).then((p) => setActivity(p.items.filter((a) => !NOISE.test(a.action)).slice(0, 6))).catch(() => setActivity([]));
   }, [canAudit]);
 
   const to = (m: string, s: string) => screenHref(can, m, s);
+  const open = (kind: string, id: number | string) => { const t = RECORD_SCREEN[kind]; const h = t && to(t[0], t[1]); return h && /^\d+$/.test(String(id)) ? `${h}?open=${id}` : undefined; };
+  const s = summary ?? null;
+  const loading = canSummary && summary === undefined;
 
-  const view = useMemo(() => {
-    const s = summary;
-    if (!s) return null;
+  /* ---- the four indicators ---- */
+  const metrics: Metric[] = useMemo(() => {
+    if (!s) return ["Receivables outstanding", "Net revenue", "Production orders active", "Inventory needing attention"].map((label) => ({ label, value: "", loading: true }));
+    const attention = s.inventory.below_reorder_level + s.inventory.expired_with_stock + s.quality.batches_on_hold + s.quality.batches_quarantined;
+    const delta = period ? fmtDelta(num(period.revenue.net_ex_tax), num(period.revenue.previous_net_ex_tax)) : null;
+    return [
+      { label: "Receivables outstanding", value: fmtRupees(s.sales.receivable_outstanding), note: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices"), href: to("accounts", "ageing-r") },
+      period === undefined ? { label: "Net revenue, ex-tax", value: "", loading: true }
+        : { label: `Net revenue, ex-tax`, value: period ? fmtRupees(period.revenue.net_ex_tax) : "—", note: !period ? "Unavailable" : delta ? `${delta} on the previous ${daysBetween(period.previous.start, period.previous.end) + 1} days` : period.revenue.invoices ? plural(period.revenue.invoices, "invoice", "invoices") : "No invoices in this period", href: to("accounts", "pnl") },
+      { label: "Production orders active", value: fmtNum(s.production.active_orders), note: s.production.delayed_work_orders ? `${fmtNum(s.production.delayed_work_orders)} past planned date` : "On schedule", noteTone: s.production.delayed_work_orders ? "danger" : undefined, href: to("production", "orders") },
+      { label: "Inventory needing attention", value: fmtNum(attention), note: attention ? [s.inventory.below_reorder_level && `${fmtNum(s.inventory.below_reorder_level)} below reorder`, (s.quality.batches_on_hold + s.quality.batches_quarantined) && `${fmtNum(s.quality.batches_on_hold + s.quality.batches_quarantined)} held`, s.inventory.expired_with_stock && `${fmtNum(s.inventory.expired_with_stock)} expired`].filter(Boolean).join(" · ") : "Nothing flagged", noteTone: s.inventory.expired_with_stock ? "danger" : undefined, href: to("inventory", "reorder") },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, period, can]);
+
+  /* ---- exceptions: real, non-zero conditions only, most severe first ---- */
+  const exceptions: Exception[] = useMemo(() => {
+    if (!s) return [];
     const q = s.quality, inv = s.inventory, pr = s.procurement, d = s.dispatch, p = s.production;
     const held = q.batches_on_hold + q.batches_quarantined;
-    const shipmentsOpen = sumStatus(s.shipments_by_status, (st) => !SHIPMENT_FINAL.includes(st));
-    const stages: Stage[] = [
-      { label: "Procurement", count: fmtNum(pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval), unit: "awaiting approval", href: to("procurement", "orders"), flags: [] },
-      { label: "Goods receipt", count: fmtNum(pr.open_purchase_orders), unit: "POs awaiting delivery", href: to("procurement", "receipts"), flags: [{ label: "late", n: pr.late_deliveries, tone: "danger" }] },
-      { label: "Inventory", count: fmtNum(inv.below_reorder_level), unit: "below reorder", href: to("inventory", "reorder"),
-        flags: [{ label: "expired in stock", n: inv.expired_with_stock, tone: "danger" }, { label: "held", n: held, tone: "warning" }, { label: "expiring in 90 days", n: inv.expiring_within_90_days, tone: "warning" }] },
-      { label: "Production", count: fmtNum(p.active_orders), unit: "in progress", href: to("production", "orders"), flags: [{ label: "past planned date", n: p.delayed_work_orders, tone: "danger" }] },
-      { label: "Quality", count: fmtNum(q.open_inspections), unit: "inspections open", href: to("quality", "inspections"),
-        flags: [{ label: "deviations", n: q.open_deviations, tone: "warning" }, { label: "CAPA open", n: q.open_capa, tone: "warning" }] },
-      { label: "Dispatch", count: fmtNum(shipmentsOpen), unit: "shipments open", href: to("dispatch", "shipments"),
-        flags: [{ label: "over 5 days", n: d.delayed_shipments, tone: "danger" }, { label: "failed or RTO", n: d.failed_or_rto, tone: "danger" }, { label: "returns open", n: d.returns_open, tone: "warning" }] },
+    const od = period?.overdue_invoices;
+    const list: Exception[] = [
+      { key: "expired", label: "Expired batches still holding stock", value: fmtNum(inv.expired_with_stock), severity: "high", href: to("inventory", "expiring") },
+      { key: "od", label: "Invoices past their payment terms", detail: od ? `${fmtRupees(od.amount)} outstanding` : undefined, value: od ? fmtNum(od.count) : undefined, severity: "high", href: to("accounts", "ageing-r") },
+      { key: "wo", label: "Production orders past planned date", value: fmtNum(p.delayed_work_orders), severity: "high", href: to("production", "orders") },
+      { key: "ship", label: "Shipments open longer than 5 days", value: fmtNum(d.delayed_shipments), severity: "high", href: to("dispatch", "shipments") },
+      { key: "fail", label: "Failed deliveries and returns to origin", value: fmtNum(d.failed_or_rto), severity: "high", href: to("dispatch", "shipments") },
+      { key: "po-late", label: "Purchase orders past expected delivery", value: fmtNum(pr.late_deliveries), severity: "high", href: to("procurement", "delivery") },
+      { key: "qc", label: "Batches on QC hold or in quarantine", value: fmtNum(held), severity: "medium", href: to("inventory", "batches") },
+      { key: "insp", label: "Inspections awaiting a decision", value: fmtNum(q.open_inspections), severity: "medium", href: to("quality", "inspections") },
+      { key: "dev", label: "Open deviations", value: fmtNum(q.open_deviations), severity: "medium", href: to("quality", "deviations") },
+      { key: "pr", label: "Purchase requests awaiting approval", value: fmtNum(pr.purchase_requests_awaiting_approval), severity: "medium", href: to("procurement", "requests") },
+      { key: "po", label: "Purchase orders awaiting approval", value: fmtNum(pr.purchase_orders_awaiting_approval), severity: "medium", href: to("procurement", "orders") },
+      { key: "ret", label: "Customer returns awaiting action", value: fmtNum(d.returns_open), severity: "medium", href: to("dispatch", "returns") },
+      ...s.low_stock.slice(0, 3).map((l): Exception => ({ key: `low-${l.item_code}`, label: l.name, detail: `${l.item_code} · below reorder level`, value: `${fmtNum(l.available, 1)} of ${fmtNum(l.reorder_level, 1)}`, severity: "medium", href: to("inventory", "reorder") })),
     ];
-    const queue: QueueItem[] = ([
-      { key: "expired", label: "Expired batches still holding stock", count: inv.expired_with_stock, tone: "danger", href: to("inventory", "expiring") },
-      { key: "late", label: "Purchase orders past expected delivery", count: pr.late_deliveries, tone: "danger", href: to("procurement", "delivery") },
-      { key: "delayed-wo", label: "Production orders past planned date", count: p.delayed_work_orders, tone: "danger", href: to("production", "orders") },
-      { key: "ship-late", label: "Shipments open longer than 5 days", count: d.delayed_shipments, tone: "danger", href: to("dispatch", "shipments") },
-      { key: "ship-fail", label: "Failed deliveries and returns to origin", count: d.failed_or_rto, tone: "danger", href: to("dispatch", "shipments") },
-      { key: "qc-hold", label: "Batches on QC hold or quarantine", count: held, tone: "warning", href: to("inventory", "batches") },
-      { key: "inspections", label: "Inspections awaiting a decision", count: q.open_inspections, tone: "warning", href: to("quality", "inspections") },
-      { key: "dev", label: "Open deviations", count: q.open_deviations, tone: "warning", href: to("quality", "deviations") },
-      { key: "pr", label: "Purchase requests awaiting approval", count: pr.purchase_requests_awaiting_approval, tone: "warning", href: to("procurement", "requests") },
-      { key: "po", label: "Purchase orders awaiting approval", count: pr.purchase_orders_awaiting_approval, tone: "warning", href: to("procurement", "orders") },
-      { key: "returns", label: "Customer returns awaiting action", count: d.returns_open, tone: "warning", href: to("dispatch", "returns") },
-    ] as QueueItem[]).filter((i) => (i.count ?? 0) > 0);
-    const stock = s.low_stock.map((l) => ({ code: l.item_code, name: l.name, available: fmtNum(l.available, 1), reorder: fmtNum(l.reorder_level, 1), ratio: num(l.reorder_level) > 0 ? num(l.available) / num(l.reorder_level) : 0 }));
-    return { stages, queue, stock, held, shipmentsOpen, planned: num(p.planned_qty_30d), actual: num(p.actual_qty_30d) };
+    return list.filter((e) => e.value !== undefined && e.value !== "0").slice(0, 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary, can]);
+  }, [s, period, can]);
+
+  /* ---- pipeline: stage-specific counts that the strip does not show ---- */
+  const stages: PipelineStage[] = useMemo(() => {
+    if (!s) return [];
+    const pr = s.procurement, q = s.quality, d = s.dispatch, inv = s.inventory;
+    const queued = sumStatus(s.production_by_status, (x) => ["PLANNED", "RELEASED"].includes(x));
+    const ready = sumStatus(s.orders_by_status, (x) => ["PACKED", "PARTIALLY_DISPATCHED"].includes(x));
+    const open = sumStatus(s.shipments_by_status, (x) => !SHIPMENT_FINAL.includes(x));
+    return [
+      { label: "Procurement", value: fmtNum(pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval), note: "awaiting approval", href: to("procurement", "orders") },
+      { label: "Goods receipt", value: fmtNum(pr.open_purchase_orders), note: "orders awaiting delivery", flag: pr.late_deliveries ? `${fmtNum(pr.late_deliveries)} late` : undefined, href: to("procurement", "receipts") },
+      { label: "Inventory", value: fmtRupees(inv.total_value), note: "stock on hand at cost", flag: inv.expiring_within_90_days ? `${fmtNum(inv.expiring_within_90_days)} batches expire within 90 days` : undefined, href: to("inventory", "valuation") },
+      { label: "Production", value: fmtNum(queued), note: "queued to start", href: to("production", "orders") },
+      { label: "Quality", value: fmtNum(q.open_inspections), note: "inspections open", flag: q.open_deviations ? `${fmtNum(q.open_deviations)} deviations open` : undefined, href: to("quality", "inspections") },
+      { label: "Dispatch", value: fmtNum(ready), note: `ready to ship · ${fmtNum(open)} in transit`, flag: d.delayed_shipments ? `${fmtNum(d.delayed_shipments)} over 5 days` : undefined, href: to("dispatch", "orders") },
+    ] as PipelineStage[];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, can]);
+
+  /* ---- production chart ---- */
+  const buckets: Bucket[] = (period?.production.buckets ?? []).map((b) => ({ start: b.week_start, planned: b.planned === null ? null : num(b.planned), actual: b.actual === null ? null : num(b.actual), orders: b.orders }));
+  const totals = buckets.reduce((a, b) => ({ p: a.p + (b.planned ?? 0), a: a.a + (b.actual ?? 0) }), { p: 0, a: 0 });
+  const enough = (period?.production.weeks_with_data ?? 0) >= 2;
+
+  const tx: TxRow[] = (period?.recent ?? []).map((r) => ({ key: `${r.kind}-${r.id}`, reference: r.reference, activity: KIND_LABEL[r.kind] ?? titleCase(r.kind), related: r.related ?? "—", date: fmtDate(r.created_at), href: open(r.kind, r.id),
+    status: <Badge tone={toneFor(r.status)}>{titleCase(r.status)}</Badge> }));
 
   const mine = approvals?.length ?? 0;
-  const loading = canSummary && summary === undefined;
-  const s = summary ?? null;
-
-  const money: Cell[] = s ? [
-    { label: "Receivables outstanding", value: fmtRupees(s.sales.receivable_outstanding), hint: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices"), href: to("accounts", "ageing-r") },
-    { label: "Revenue, last 30 days", value: fmtRupees(s.finance_extended.revenue_30d), hint: s.finance_extended.gross_margin_pct_30d === null ? "No posted revenue yet" : `${fmtPct(s.finance_extended.gross_margin_pct_30d)} gross margin`, href: to("accounts", "pnl") },
-    { label: "Purchases, last 30 days", value: fmtRupees(s.procurement.purchase_value_30d), hint: plural(s.procurement.open_purchase_orders, "open order", "open orders"), href: to("procurement", "orders") },
-    { label: "Inventory value", value: fmtRupees(s.inventory.total_value), hint: `${s.inventory.value_by_kind.length} stock classes`, href: to("inventory", "valuation") },
-  ] : [];
-  const ops: Cell[] = [
-    { label: "Awaiting your approval", value: approvals === null ? "—" : fmtNum(mine), loading: approvals === null, tone: mine ? "warning" : "neutral", hint: mine ? `Oldest ${fmtDate(approvals![0].since)}` : "Nothing waiting", href: "/approvals" },
-    ...(canSummary ? [
-      { label: "Production in progress", value: s ? fmtNum(s.production.active_orders) : "—", loading, tone: s?.production.delayed_work_orders ? "danger" : "neutral", hint: s ? (s.production.delayed_work_orders ? `${s.production.delayed_work_orders} past planned date` : "On schedule") : undefined, href: to("production", "orders") },
-      { label: "Inventory alerts", value: s ? fmtNum(s.inventory.below_reorder_level + s.inventory.expired_with_stock) : "—", loading, tone: s?.inventory.expired_with_stock ? "danger" : s?.inventory.below_reorder_level ? "warning" : "neutral", hint: s ? `${s.inventory.below_reorder_level} below reorder, ${s.inventory.expired_with_stock} expired` : undefined, href: to("inventory", "reorder") },
-      { label: "QC inspections open", value: s ? fmtNum(s.quality.open_inspections) : "—", loading, tone: view?.held ? "warning" : "neutral", hint: s ? `${plural(view?.held ?? 0, "batch", "batches")} held` : undefined, href: to("quality", "inspections") },
-      { label: "Shipments open", value: view ? fmtNum(view.shipmentsOpen) : "—", loading, tone: s?.dispatch.delayed_shipments ? "danger" : "neutral", hint: s ? (s.dispatch.delayed_shipments ? `${s.dispatch.delayed_shipments} over 5 days` : "None over 5 days") : undefined, href: to("dispatch", "shipments") },
-    ] as Cell[] : []),
-  ];
 
   return (
-    <>
-      <PageHeader title="Factory overview" description={s ? `As of ${fmtDate(s.as_of)}` : `Signed in as ${me?.full_name}${me?.department_name ? `, ${me.department_name}` : ""}`} />
-
-      {error && <div className="mb-4"><InlineNotice tone="danger">{error} Reload to try again.</InlineNotice></div>}
-      {!canSummary && <div className="mb-4"><InlineNotice>Company-wide figures need the management summary permission, which your role does not include.</InlineNotice></div>}
-
-      <div className="space-y-5">
-        {canSummary && (loading ? <div className="panel h-[112px] skeleton" /> : s && <StatStrip label="Finance" cells={money} />)}
-        <StatStrip label="Operations" cells={ops} />
-
-        {canSummary && <Section title="Order to dispatch">{loading || !view ? <div className="skeleton h-24" /> : <Flow stages={view.stages} />}</Section>}
-
-        <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
-          <div className="space-y-5 min-w-0">
-            <Section title="Pending actions" flush action={mine > 0 ? <SectionLink href="/approvals">{mine} for your approval</SectionLink> : undefined}>
-              {!canSummary ? <p className="px-5 pb-5 t-label">{mine ? `${plural(mine, "item", "items")} waiting for your decision.` : "Nothing is waiting for your decision."}</p>
-                : loading ? <SkeletonRows n={5} /> : <WorkQueue items={view?.queue ?? []} empty="No exceptions or approvals outstanding." />}
-            </Section>
-            {view && view.stock.length > 0 && (
-              <Section title="Below reorder level" flush action={to("inventory", "reorder") ? <SectionLink href={to("inventory", "reorder")!}>Reorder report</SectionLink> : undefined}>
-                <StockWatch rows={view.stock.slice(0, 6)} />
-              </Section>
-            )}
-            {canSummary && (
-              <>
-                <Section title="Work by status">
-                  {loading ? <SkeletonRows n={4} /> : (
-                    <>
-                      <StackRow label="Sales orders" items={statusItems(s?.orders_by_status)} href={to("dispatch", "orders")} empty="No sales orders yet." />
-                      <StackRow label="Production orders" items={statusItems(s?.production_by_status)} href={to("production", "orders")} empty="No production orders yet." />
-                      <StackRow label="Purchase orders" items={statusItems(s?.purchase_orders_by_status)} href={to("procurement", "orders")} empty="No purchase orders yet." />
-                      <StackRow label="Shipments" items={statusItems(s?.shipments_by_status)} href={to("dispatch", "shipments")} empty="No shipments yet." />
-                    </>
-                  )}
-                </Section>
-                <Section title="Inventory value" description={s ? `By class, total ${fmtRupees(s.inventory.total_value)}` : undefined} action={to("inventory", "valuation") ? <SectionLink href={to("inventory", "valuation")!}>Valuation</SectionLink> : undefined}>
-                  {loading ? <SkeletonRows n={2} /> : <BarRows rows={(s?.inventory.value_by_kind ?? []).map((k) => ({ label: KIND[String(k.kind).toUpperCase()] ?? titleCase(k.kind), value: num(k.value), display: fmtRupees(k.value) }))} />}
-                </Section>
-              </>
-            )}
-          </div>
-          <div className="space-y-5 min-w-0">
-            <Section title="Recent activity" flush action={canAudit ? <SectionLink href="/admin/audit">Audit log</SectionLink> : undefined}>
-              {!canAudit ? <p className="px-5 pb-5 t-label">Activity is read from the audit log, which is limited to auditors and administrators.</p>
-                : activity === null ? <SkeletonRows n={5} />
-                : activity.length === 0 ? <p className="px-5 pb-5 t-label">No business actions recorded yet.</p>
-                : <Timeline items={activity.map((a) => {
-                    const screen = RECORD_SCREEN[a.entity];
-                    return { id: a.id, action: titleCase(a.action), record: `${titleCase(a.entity)}${a.entity_id ? ` #${a.entity_id}` : ""}`, user: a.user_email?.split("@")[0] ?? "system", ago: fmtAgo(a.occurred_at), at: fmtDateTime(a.occurred_at),
-                      href: screen && a.entity_id && /^\d+$/.test(a.entity_id) ? `${screen}?open=${a.entity_id}` : undefined };
-                  })} />}
-            </Section>
-            {canSummary && (
-              <Section title="Production output" description="Completed orders, last 30 days">
-                {loading ? <SkeletonRows n={2} /> : !view || (view.planned === 0 && view.actual === 0) ? <p className="t-support">No production order was completed in the last 30 days.</p> : (
-                  <>
-                    <BarRows rows={[{ label: "Planned", value: view.planned, display: fmtNum(view.planned, 0) }, { label: "Actual", value: view.actual, display: fmtNum(view.actual, 0), tone: view.actual >= view.planned ? "success" : "warning" }]} />
-                    <p className="mt-4 t-support">{fmtNum(s?.production.completed_30d)} orders · yield {fmtPct(s?.production.average_yield_pct)} · wastage {fmtNum(s?.production.wastage_qty_30d, 1)}</p>
-                  </>
-                )}
-              </Section>
-            )}
-          </div>
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <h1 className="t-page">Factory overview</h1>
+          <p className="t-label mt-1">
+            {rangeError ? <span className="text-danger">{rangeError}</span> : <>{fmtDay(range.start)} – {fmtDate(range.end)} <span aria-hidden>·</span> {plural(daysBetween(range.start, range.end) + 1, "day", "days")}{s && <> <span aria-hidden>·</span> data as of {fmtDate(s.as_of)}</>}</>}
+          </p>
         </div>
+        {canSummary && (
+          <div className="flex flex-wrap items-center gap-2">
+            {key === "custom" && (
+              <div className="flex items-center gap-1.5">
+                <label className="sr-only" htmlFor="p-from">From</label><input id="p-from" type="date" className="input !w-[138px] !h-[30px]" value={custom.start} max={custom.end} onChange={(e) => setCustom((c) => ({ ...c, start: e.target.value }))} />
+                <span className="t-support" aria-hidden>to</span>
+                <label className="sr-only" htmlFor="p-to">To</label><input id="p-to" type="date" className="input !w-[138px] !h-[30px]" value={custom.end} min={custom.start} max={today} onChange={(e) => setCustom((c) => ({ ...c, end: e.target.value }))} />
+              </div>
+            )}
+            <Segmented<PeriodKey> label="Reporting period" value={key} onChange={setKey} options={[{ value: "30d", label: "30 days" }, { value: "90d", label: "90 days" }, { value: "fy", label: "This FY" }, { value: "custom", label: "Custom" }]} />
+            {mine > 0 && <Link href="/approvals" className="btn btn-sm">Approvals <span className="tnum text-muted">{mine}</span></Link>}
+          </div>
+        )}
+      </header>
+
+      {error && <div role="alert" className="panel px-4 py-3 text-danger text-[13px]">{error} Reload to try again.</div>}
+      {!canSummary && <p className="panel px-4 py-3 t-label">Company-wide figures need the management summary permission, which {me?.roles[0] ? `the ${me.roles[0]} role` : "your role"} does not include.</p>}
+
+      {canSummary && <MetricStrip label="Key indicators" items={metrics} />}
+
+      {canSummary && (
+        <div className="grid xl:grid-cols-[minmax(0,13fr)_minmax(0,7fr)] gap-6 items-stretch">
+          <Panel title="Production output" bodyClass="flex flex-col" meta="Completed orders by week, planned against actual units" action={enough ? <Legend items={[{ label: "Planned", color: "var(--line-strong)" }, { label: "Actual", color: "var(--accent)" }]} /> : undefined}>
+            {period === undefined ? <div className="px-5 pb-5"><Skeleton className="h-[248px]" /></div>
+              : !period ? <EmptyState title="Production output is unavailable" hint="The period figures could not be loaded." />
+              : !enough ? <EmptyState title="Not enough history to chart" hint={`Output is charted from completed production orders. This period has completed orders in ${plural(period.production.weeks_with_data, "week", "weeks")}; two are needed.`} action={to("production", "orders") ? <LinkMore href={to("production", "orders")!}>Production orders</LinkMore> : undefined} />
+              : (
+                <>
+                  <p className="px-5 -mt-1 mb-2 t-label"><span className="t-value text-fg">{fmtNum(totals.a)}</span> units made of <span className="t-value text-fg">{fmtNum(totals.p)}</span> planned{totals.p > 0 && <> <span aria-hidden>·</span> {fmtPct((totals.a / totals.p) * 100)} of plan</>}</p>
+                  <div className="px-2 pb-3 flex flex-col flex-1 min-h-0"><GroupedBars buckets={buckets} labels={["Planned", "Actual"]} unit="units" /></div>
+                </>
+              )}
+          </Panel>
+          <Panel title="Needs attention" meta={loading ? undefined : exceptions.length ? `${plural(exceptions.length, "item", "items")}, most severe first` : undefined} bodyClass="overflow-hidden">
+            {loading ? <div className="px-5 pb-5 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div> : <ExceptionList items={exceptions} empty="Nothing needs attention right now." />}
+          </Panel>
+        </div>
+      )}
+
+      {canSummary && (
+        <Block title="Order to dispatch" meta="where work is waiting">
+          {loading ? <div className="py-4"><Skeleton className="h-[96px]" /></div> : <div className="border-b border-line"><Pipeline stages={stages} /></div>}
+        </Block>
+      )}
+
+      <div className="grid xl:grid-cols-[minmax(0,13fr)_minmax(0,7fr)] gap-x-6 gap-y-8">
+        {canSummary && (
+          <Block title="Recent transactions" action={to("dispatch", "invoices") ? <LinkMore href={to("dispatch", "invoices")!}>Sales invoices</LinkMore> : undefined} className="min-w-0">
+            {period === undefined ? <div className="pt-3 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div>
+              : <TransactionTable rows={tx} empty="No documents have been created yet." />}
+          </Block>
+        )}
+        <Block title="Approvals and activity" className={`min-w-0 ${canSummary ? "" : "xl:col-span-2"}`} action={<LinkMore href="/approvals">Approvals</LinkMore>}>
+          <div className="pt-3">
+            <p className="t-label mb-1">{approvals === null ? "Checking approvals…" : mine ? <><span className="t-value text-fg">{fmtNum(mine)}</span> waiting for your decision, oldest since {fmtDate(approvals[0].since)}</> : "Nothing is waiting for your decision."}</p>
+            {approvals && approvals.slice(0, 3).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-1.5 border-t border-line row-link -mx-2 px-2 rounded-md first:mt-2"><span className="truncate text-[13px]"><span className="font-mono text-[12.5px]">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0">{fmtAgo(a.since)}</span></Link>)}
+          </div>
+          <h3 className="mt-5 mb-1 text-[11.5px] font-medium text-muted tracking-[0.02em]">Recent activity</h3>
+          {!canAudit ? <p className="t-support">Activity is read from the audit log, which is limited to auditors and administrators.</p>
+            : activity === null ? <div className="space-y-3 pt-1">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div>
+            : activity.length === 0 ? <p className="t-support">No business actions recorded yet.</p>
+            : <ActivityTimeline items={activity.map((a) => ({ id: a.id, title: titleCase(a.action), record: `${titleCase(a.entity)}${a.entity_id ? ` #${a.entity_id}` : ""}`, who: a.user_email?.split("@")[0] ?? "system", ago: fmtAgo(a.occurred_at), at: fmtDateTime(a.occurred_at), href: a.entity_id ? open(a.entity, a.entity_id) : undefined }))} />}
+        </Block>
       </div>
-    </>
+    </div>
   );
 }

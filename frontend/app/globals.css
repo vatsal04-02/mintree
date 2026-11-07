@@ -3,13 +3,15 @@
 
 /* ---- Design tokens (Mintree palette). Semantics are fixed: success/warning/danger/info mean the same everywhere. ---- */
 :root {
-  --bg: #f6f6f4;
+  --bg: #f7f7f5;
   --surface: #ffffff;
-  --surface-2: #f0f0ee;
+  --surface-2: #f1f1ef;
   --fg: #171717;
-  --muted: #737373;
-  --line: #e5e5e2;
-  --line-strong: #d4d4d0;
+  --muted: #767676;            /* the brief's #777777, nudged one step so it clears 4.5:1 on white (4.54:1) */
+  --faint: #999999;            /* tertiary text only (axis ticks, placeholders); never the sole carrier of meaning */
+  --line: #e8e8e5;
+  --line-strong: #dadad6;
+  --accent: #01877a;           /* Mintree teal: used sparingly (one chart series, links in focus), never as a fill for whole components */
   --primary: #171717;
   --primary-dark: #000000;
   --primary-fg: #ffffff;
@@ -19,18 +21,13 @@
   --info: #3f6a99;
   --sidebar: #111111;
   --sidebar-fg: #c4c4c0;
-  --sidebar-active: #2b2b2b;
+  --sidebar-active: #292929;
   --focus: #171717;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.05);
   --chart-fill: #2b2b2b;
-  --chart-track: #e5e5e2;
-  --panel-highlight: inset 0 1px 0 rgb(255 255 255 / 0.85);
-  --panel-depth: 0.16;
-  --canvas-light: rgb(255 255 255 / 0.95);
-  --canvas-tint: rgb(1 135 122 / 0.085);
-  --canvas-shade: rgb(0 0 0 / 0.075);
-  --canvas-dot: rgb(0 0 0 / 0.16);
+  --chart-track: #e8e8e5;
+  --chart-grid: #ecece9;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -39,8 +36,10 @@
   --surface-2: #1f1f1f;
   --fg: #ededeb;
   --muted: #9a9a96;
+  --faint: #6f6f6b;
   --line: #2a2a2a;
   --line-strong: #3a3a38;
+  --accent: #2bb3a3;
   --primary: #ededeb;
   --primary-dark: #ffffff;
   --primary-fg: #111111;
@@ -50,18 +49,13 @@
   --info: #7ea6d4;
   --sidebar: #090909;
   --sidebar-fg: #a8a8a4;
-  --sidebar-active: #2b2b2b;
+  --sidebar-active: #292929;
   --focus: #ededeb;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.35);
   --chart-fill: #d4d4d0;
   --chart-track: #2a2a2a;
-  --panel-highlight: inset 0 1px 0 rgb(255 255 255 / 0.05);
-  --panel-depth: 0.55;
-  --canvas-light: rgb(255 255 255 / 0.045);
-  --canvas-tint: rgb(1 135 122 / 0.10);
-  --canvas-shade: rgb(0 0 0 / 0.5);
-  --canvas-dot: rgb(255 255 255 / 0.08);
+  --chart-grid: #242424;
   color-scheme: dark;
 }
 
@@ -80,6 +74,8 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+  --color-accent: var(--accent);
+  --color-faint: var(--faint);
 }
 
 html, body { height: 100%; }
@@ -102,7 +98,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 32px; padding: 0 12px; border-radius: 6px; font-size: 13px; font-weight: 500;
   border: 1px solid var(--line); background: var(--surface); color: var(--fg);
-  transition: background-color 120ms, border-color 120ms; cursor: pointer; white-space: nowrap;
+  transition: background-color 140ms, border-color 140ms, color 140ms; cursor: pointer; white-space: nowrap;
 }
 .btn:hover:not(:disabled) { background: var(--surface-2); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -123,42 +119,37 @@ textarea.input { height: auto; padding: 8px 10px; min-height: 72px; resize: vert
 .input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 .input[aria-invalid="true"] { border-color: var(--danger); }
 
-.panel {
-  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 94%, var(--bg)) 100%);
-  border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: var(--panel-highlight), 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 24px -14px rgb(0 0 0 / var(--panel-depth));
-}
-.panel-link { transition: border-color 140ms, box-shadow 140ms, transform 140ms; }
-.panel-link:hover { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--panel-highlight), 0 2px 4px rgb(0 0 0 / 0.05), 0 16px 32px -14px rgb(0 0 0 / calc(var(--panel-depth) * 1.5)); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.panel-link { transition: border-color 140ms; }
+.panel-link:hover { border-color: var(--line-strong); }
+/* the page itself is a flat tone: separation comes from spacing and hairlines, not from backgrounds */
+.canvas { background: var(--bg); }
 
-/* Page canvas: soft light from the top-left, a faint brand tint top-right, a quiet vignette below, and a dot grid that fades out downwards. All neutral and static. */
-.canvas { position: relative; isolation: isolate; background:
-  radial-gradient(1000px 520px at 8% -10%, var(--canvas-light), transparent 62%),
-  radial-gradient(520px 420px at 92% 38%, var(--canvas-tint), transparent 70%),
-  radial-gradient(760px 480px at 100% -4%, var(--canvas-tint), transparent 64%),
-  radial-gradient(1100px 620px at 50% 118%, var(--canvas-shade), transparent 66%),
-  var(--bg); }
-.canvas::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background-image: radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 1.2px); background-size: 22px 22px;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%); mask-image: linear-gradient(180deg, #000 0%, transparent 75%); }
+/* Interaction primitives shared by the dashboards and lists. 140ms, colour only: nothing moves. */
+.row-link { transition: background-color 140ms; }
+.row-link:hover { background: var(--surface-2); }
+.hairline { border-top: 1px solid var(--line); }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.seg button { height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--muted); transition: background-color 140ms, color 140ms; }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
 
-/* Type scale. These are the maximum desktop sizes; nothing in the dashboards or modules sets a number's size on its own.
-   page title 26/32 600 · section title 16/24 600 · KPI value 28/34 500 · label 13/18 400 · supporting 12/18 400 · value (tables, lists) 13/20 500 */
-.t-page { font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: 0; }
-.t-section { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: 0; }
-.t-kpi { font-size: 28px; line-height: 34px; font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
-.t-label { font-size: 13px; line-height: 18px; font-weight: 400; color: var(--muted); }
+/* Type scale (desktop maxima). page title 26/32 600 · section 15/22 600 · KPI value 24/30 500 · label 12.5/18 400 · supporting 12/18 400 · value (tables, lists) 13/20 500.
+   Nothing sets a number's size on its own; digits are always tabular and lining. */
+.t-page { font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; }
+.t-section { font-size: 15px; line-height: 22px; font-weight: 600; letter-spacing: 0; }
+.t-kpi { font-size: 24px; line-height: 30px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.t-label { font-size: 12.5px; line-height: 18px; font-weight: 400; color: var(--muted); }
 .t-support { font-size: 12px; line-height: 18px; font-weight: 400; color: var(--muted); }
 .t-value { font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums lining-nums; }
-@media (max-width: 639px) { .t-kpi { font-size: 24px; line-height: 30px; } .t-page { font-size: 22px; line-height: 28px; } }
+@media (max-width: 639px) { .t-kpi { font-size: 21px; line-height: 28px; } .t-page { font-size: 22px; line-height: 28px; } }
 .eyebrow { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 
 .badge {
-  display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 6px;
   font-size: 11.5px; font-weight: 500; white-space: nowrap;
-  background: color-mix(in srgb, var(--tone, var(--muted)) 13%, transparent); color: var(--tone, var(--muted));
+  background: color-mix(in srgb, var(--tone, var(--muted)) 11%, transparent); color: var(--tone, var(--muted));
 }
-.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .tone-success { --tone: var(--success); } .tone-warning { --tone: var(--warning); }
 .tone-danger { --tone: var(--danger); } .tone-info { --tone: var(--info); } .tone-neutral { --tone: var(--muted); }
 

@@ -54,6 +54,45 @@ await step("management sees company-wide figures and no error state on the overv
   assert.match(body, /\d/, "the overview shows numbers");
 });
 
+await step("Overview: one strip of four indicators; money figures are not repeated elsewhere", async () => {
+  await loginAs("admin");
+  const strip = page.getByRole("region", { name: "Key indicators" });
+  await strip.waitFor();
+  await page.waitForLoadState("networkidle");
+  assert.equal(await strip.locator("li").count(), 4);
+  const money = (await strip.locator(".t-kpi").allInnerTexts()).filter((v) => v.startsWith("₹"));
+  assert.ok(money.length >= 2, "receivables and revenue are shown in rupees");
+  const body = await page.locator("main").innerText();
+  for (const v of money) assert.equal(body.split(v).length - 1, 1, `${v} appears exactly once on the page`);
+  await shot("d00-overview");
+});
+
+await step("Overview: the production chart is drawn from the API's weekly series and follows the period", async () => {
+  const [resp] = await Promise.all([page.waitForResponse((r) => r.url().includes("/analytics/overview-period")), page.goto(`${BASE}/`)]);
+  const j = await resp.json();
+  const withActual = j.production.buckets.filter((b) => b.actual !== null).length;
+  assert.ok(j.production.weeks_with_data >= 2, "the demo history has at least two weeks of completed orders");
+  const svg = page.locator('svg[aria-label*="by week"]');
+  await svg.waitFor();
+  assert.equal(await svg.locator('rect[fill="var(--accent)"]').count(), withActual, "one actual bar per week with data");
+  assert.equal(await svg.locator('rect[fill="var(--line-strong)"]').count(), withActual, "one planned bar per week with data");
+  const sums = j.production.buckets.reduce((a, b) => a + Number(b.actual ?? 0), 0);
+  assert.ok((await page.locator("main").innerText()).includes(`${sums.toLocaleString("en-IN")} units made`), "the headline total is the sum of the series");
+  const [r90] = await Promise.all([page.waitForResponse((r) => r.url().includes("/analytics/overview-period")), page.getByRole("button", { name: "90 days" }).click()]);
+  const j90 = await r90.json();
+  assert.notEqual(j90.start, j.start, "choosing 90 days asks the API for a longer period");
+  await page.waitForLoadState("networkidle");
+  assert.equal(await svg.locator('rect[fill="var(--accent)"]').count(), j90.production.buckets.filter((b) => b.actual !== null).length);
+  await shot("d00b-overview-90d");
+});
+
+await step("Overview: a role without the dashboard permission gets an honest notice, not zeros", async () => {
+  await loginAs("op");
+  await page.getByText("Company-wide figures need the management summary permission").waitFor();
+  assert.equal(await page.getByRole("region", { name: "Key indicators" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "90 days" }).count(), 0, "no period controls without data to scope");
+});
+
 await step("CRM: the pipeline shows a won, an open and a lost deal with their stages", async () => {
   await loginAs("sales");
   await open("/m/sales/opportunities");

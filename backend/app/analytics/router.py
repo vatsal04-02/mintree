@@ -1,9 +1,9 @@
 """Management analytics: every number is computed from the underlying records (no stored summaries), and each KPI names its source
 so it can be drilled into. Read-only. Figures come from several statements under READ COMMITTED, so postings that land mid-request can make
 two KPIs differ by that posting; this is an operational summary, not a closing statement (use /accounts/reports for period-end figures)."""
-from datetime import date
+from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import HTTPException, APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,45 @@ DB = Depends(get_db, scope="function")
 
 def _num(v):
     return v if v is not None else 0
+
+
+@router.get("/overview-period")
+def overview_period(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
+    """Period-scoped figures the Overview needs and the all-time summary does not carry. Read-only; business dates (Asia/Kolkata) throughout.
+    revenue: net ex-tax = invoice subtotals dated in the period minus credit-note subtotals created in it, plus the same for the previous period of equal length.
+    production: completed orders bucketed by ISO week of completion; weeks with no completed order have null planned/actual (no data), not zero.
+    recent: the latest documents across modules for the transactions table."""
+    if end < start:
+        raise HTTPException(422, "end is before start")
+    if (end - start).days > 400:
+        raise HTTPException(422, "The period cannot exceed 400 days")
+    span = (end - start).days + 1
+    prev_end, prev_start = start - timedelta(days=1), start - timedelta(days=span)
+    rev = lambda a, b: db.execute(text("""SELECT (SELECT COALESCE(sum(subtotal),0) FROM sales_invoices WHERE invoice_date BETWEEN :a AND :b)
+                                               - (SELECT COALESCE(sum(subtotal),0) FROM credit_notes WHERE business_date(created_at) BETWEEN :a AND :b) AS net,
+                                              (SELECT count(*) FROM sales_invoices WHERE invoice_date BETWEEN :a AND :b) AS invoices"""), {"a": a, "b": b}).mappings().one()
+    cur, prev = rev(start, end), rev(prev_start, prev_end)
+    weeks = {r["wk"]: r for r in db.execute(text("""SELECT date_trunc('week', business_date(completed_at))::date AS wk, count(*) AS orders, sum(planned_qty) AS planned, sum(actual_qty) AS actual
+                                                      FROM production_orders WHERE status = 'COMPLETED' AND business_date(completed_at) BETWEEN :a AND :b GROUP BY 1"""), {"a": start, "b": end}).mappings()}
+    buckets, wk = [], start - timedelta(days=start.weekday())
+    while wk <= end:
+        r = weeks.get(wk)
+        buckets.append({"week_start": wk, "orders": r["orders"] if r else 0, "planned": str(r["planned"]) if r else None, "actual": str(r["actual"]) if r else None})
+        wk += timedelta(days=7)
+    recent = [dict(r) for r in db.execute(text("""
+        SELECT * FROM (
+          SELECT 'purchase_order' AS kind, p.id, p.number AS reference, s.name AS related, p.status, p.created_at FROM purchase_orders p JOIN suppliers s ON s.id = p.supplier_id
+          UNION ALL SELECT 'production_order', o.id, o.number, i.name, o.status, o.created_at FROM production_orders o JOIN items i ON i.id = o.output_item_id
+          UNION ALL SELECT 'sales_order', so.id, so.number, c.name, so.status, so.created_at FROM sales_orders so JOIN customers c ON c.id = so.customer_id
+          UNION ALL SELECT 'shipment', sh.id, COALESCE(sh.awb, 'Shipment ' || sh.id), so.number, sh.status, sh.created_at FROM shipments sh JOIN sales_orders so ON so.id = sh.so_id
+          UNION ALL SELECT 'sales_invoice', inv.id, inv.number, c.name, CASE WHEN inv.total - inv.amount_paid - inv.credited_amount <= 0 THEN 'PAID' WHEN inv.amount_paid > 0 THEN 'PARTIAL' ELSE 'OPEN' END, inv.created_at
+            FROM sales_invoices inv JOIN customers c ON c.id = inv.customer_id
+        ) x ORDER BY created_at DESC, id DESC LIMIT 8""")).mappings()]
+    od = db.execute(text("""SELECT count(*) AS n, COALESCE(sum(i.total - i.amount_paid - i.credited_amount),0) AS amount FROM sales_invoices i JOIN customers c ON c.id = i.customer_id
+                             WHERE i.total - i.amount_paid - i.credited_amount > 0 AND business_today() > i.invoice_date + COALESCE(c.credit_days, 0)""")).mappings().one()
+    return {"overdue_invoices": {"count": od["n"], "amount": od["amount"]}, "start": start, "end": end, "previous": {"start": prev_start, "end": prev_end},
+            "revenue": {"net_ex_tax": cur["net"], "invoices": cur["invoices"], "previous_net_ex_tax": prev["net"], "previous_invoices": prev["invoices"]},
+            "production": {"granularity": "week", "buckets": buckets, "weeks_with_data": sum(1 for b in buckets if b["orders"])}, "recent": recent}
 
 
 @router.get("/management-summary")

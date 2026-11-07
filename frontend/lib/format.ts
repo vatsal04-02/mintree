@@ -39,3 +39,18 @@ export const fmtAgo = (v?: string | null, now = Date.now()) => {
   if (h < 48) return "yesterday";
   return fmtDate(v);
 };
+
+/* ---- business dates (Asia/Kolkata): the same zone the backend uses, whatever the browser's own zone is ---- */
+const IST_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" });
+/** Today's Indian calendar date as YYYY-MM-DD. */
+export const businessToday = () => IST_DAY.format(new Date());
+const parseDay = (d: string) => { const [y, m, dd] = d.split("-").map(Number); return new Date(Date.UTC(y, m - 1, dd)); };
+const dayStr = (d: Date) => d.toISOString().slice(0, 10);
+export const addDays = (d: string, n: number) => { const t = parseDay(d); t.setUTCDate(t.getUTCDate() + n); return dayStr(t); };
+export const daysBetween = (a: string, b: string) => Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86400000);
+/** First day of the Indian financial year (1 April) that contains `d`. */
+export const fyStart = (d: string) => { const [y, m] = d.split("-").map(Number); return `${m >= 4 ? y : y - 1}-04-01`; };
+/** "07 Nov": a calendar date without the year, for chart axes and compact ranges. */
+export const fmtDay = (v?: string | null) => (v ? parseDay(v.slice(0, 10)).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", timeZone: "UTC" }) : "—");
+/** Signed percentage change, e.g. "+12.4%"; null when there is nothing to compare against. */
+export const fmtDelta = (now: number, before: number) => (before > 0 ? `${now >= before ? "+" : "−"}${numFmt(1).format(Math.abs(((now - before) / before) * 100))}%` : null);

@@ -14,7 +14,8 @@ const moduleItem = (m: Module): NavItem => ({
 });
 
 export type NavChild = { href: string; label: string; perm?: string };
-export type NavItem = { href: string; label: string; icon: LucideIcon; perm?: string; anyPerm?: string[]; keywords?: string; hidden?: boolean; children?: NavChild[] };
+export type NavItem = { href: string; label: string; icon: LucideIcon; plain?: boolean;   // plain: a simple link in a long list; shows no icon unless the sidebar is collapsed to its icon rail
+  perm?: string; anyPerm?: string[]; keywords?: string; hidden?: boolean; children?: NavChild[] };
 export type NavGroup = { label: string; items: NavItem[] };
 
 export const NAV: NavGroup[] = [
@@ -52,6 +53,9 @@ export const NAV: NavGroup[] = [
     ],
   },
 ];
+
+/** Primary navigation keeps its icons; the long flat lists do not need one per row. */
+for (const g of NAV) if (["Master data", "Records", "Administration"].includes(g.label)) for (const i of g.items) if (!i.children) i.plain = true;
 
 /** Individual module screens are searchable from the command palette but not listed in the sidebar (each module has a workspace page). */
 const SCREEN_ITEMS: NavItem[] = MODULES.flatMap((m) => m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: `${m.label}: ${s.label}`, icon: m.icon, perm: s.perm, keywords: s.description, hidden: true })));
