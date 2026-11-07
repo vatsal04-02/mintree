@@ -107,6 +107,11 @@ RESOURCES: dict[str, list[str]] = {
     "admin.settings": ["read", "update"],
     # Analytics
     "analytics.dashboard": ["read"],
+    # AI layer: each is a separate switch; the AI never holds more than the signed-in user's own permissions
+    "ai.assistant": ["use"],
+    "ai.extraction": ["use"],
+    "ai.proposal": ["review"],
+    "ai.admin": ["read"],
 }
 
 
@@ -180,6 +185,11 @@ ROLES: dict[str, tuple[str, str, list[str]]] = {
 for _r in ("business_admin", "purchase_manager", "quality_manager", "rnd_manager", "production_manager", "accounts_manager", "marketing_manager", "maintenance_manager", "dispatch_manager"):
     ROLES[_r][2].append("approvals.delegation:create")
 ROLES["business_admin"][2].append("admin.settings:read")
+# AI access, deliberately narrow to start: nobody gets it by wildcard except the system administrator.
+for _r, _p in {"management": ["ai.assistant:use"], "purchase_manager": ["ai.assistant:use", "ai.extraction:use", "ai.proposal:review"],
+               "stores_manager": ["ai.assistant:use", "ai.extraction:use", "ai.proposal:review"], "accounts_manager": ["ai.assistant:use", "ai.extraction:use"],
+               "dispatch_manager": ["ai.assistant:use"], "production_manager": ["ai.assistant:use"], "quality_manager": ["ai.assistant:use"]}.items():
+    ROLES[_r][2].extend(_p)
 
 
 def role_permission_codes(role_code: str) -> set[str]:

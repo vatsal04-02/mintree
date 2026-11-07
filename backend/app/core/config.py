@@ -72,6 +72,20 @@ class Settings(BaseSettings):
     storage_root: str = "storage"
     max_upload_mb: int = 25
 
+    # AI layer (docs/AI_LAYER.md). OFF by default: nothing in the system calls a model unless an administrator enables it and supplies a key.
+    ai_enabled: bool = False                       # global kill switch: false = every /ai endpoint answers 503 and no model is called
+    ai_provider: str = "anthropic"                 # anthropic | ollama | fake (fake = scripted demo/test model, labelled as such in the UI)
+    ai_model: str = "claude-sonnet-5-5"            # assistant and briefing
+    ai_extract_model: str = "claude-haiku-5-5"     # document extraction
+    ai_api_key: str = ""                           # environment only; never stored in the database or returned by any endpoint
+    ai_base_url: str = ""                          # empty = the provider's default (https://api.anthropic.com, http://localhost:11434)
+    ai_timeout_s: float = 60.0
+    ai_max_tool_rounds: int = 6
+    ai_max_output_tokens: int = 1500
+    ai_daily_token_budget_per_user: int = 200_000  # input + output tokens per user per business day
+    ai_max_message_chars: int = 4000
+    ai_max_document_mb: int = 10
+
     # First-run bootstrap admin (used only by `python -m app.seed`)
     bootstrap_admin_email: str = "admin@example.com"  # override via MINTREE_BOOTSTRAP_ADMIN_EMAIL
     bootstrap_admin_password: str = ""
