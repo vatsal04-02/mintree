@@ -58,7 +58,11 @@ Permission enforcement is never relaxed in demo mode; `verify` proves restricted
 
 ## How the past is created
 
-History (a 45-day-old overdue invoice, a 9-day-old shipment, a PO expected 5 days ago) comes from running the real services with the application's business clock moved back (`Ctx.days_ago`). Business dates (invoice, entry, planned, expiry dates) therefore look lived-in. Two honest caveats: server-side `now()` columns (`created_at`, audit timestamps) are real time, and one demo fixture back-dates `shipments.created_at` by SQL for the "delayed shipment" exception because that column is set by the database clock. Both are visible in `backend/scripts/demo/steps.py`.
+History (a 45-day-old overdue invoice, a 9-day-old shipment, a PO expected 5 days ago) comes from running the real services with the application's business clock moved back (`Ctx.days_ago`). Business dates (invoice, entry, planned, expiry dates) therefore look lived-in. Honest caveats: server-side `now()` columns (`created_at`, audit timestamps) are real time, and one demo fixture back-dates `shipments.created_at` by SQL for the "delayed shipment" exception because that column is set by the database clock. A third fixture spreads the completion times of the five seeded production orders over five weeks (`production_orders.completed_at` is also a server-clock column), so the Overview's weekly output chart has genuine history instead of one point. All three are visible in `backend/scripts/demo/steps.py`.
+
+## Background workers
+
+The demo needs no broker. Outbox events written by the postings simply wait for a publisher; `verify` reports their number as a note (and still fails if any is dead). Start RabbitMQ and `app.workers.outbox_publisher` to deliver them (notifications from consumers appear then).
 
 ## Integration honesty
 

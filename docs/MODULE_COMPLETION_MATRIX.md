@@ -18,9 +18,9 @@ States, used strictly:
 | Alembic revisions | 23 (`0001`..`0023`) | `backend/migrations/versions` |
 | Database triggers (append-only ledgers, journal balance, frozen certificates) | 15 | `DATA_INTEGRITY.md` |
 | Integrity-suite checks | 37 (was 34) | `backend/scripts/check_integrity.py` |
-| Demo verification | 97 checks (37 integrity + 60 scenario / reconciliation / permission) | `python -m scripts.demo_data verify` |
-| Backend tests | 318 passed, 1 skipped (needs a live RabbitMQ), 0 failed | `TEST_EXECUTION_REGISTER.md` |
-| Browser tests | existing suites 16/16, 11/11, 23/23 on this code; new demo journeys 15/15 | `TEST_EXECUTION_REGISTER.md` |
+| Demo verification | 100 checks (37 integrity + 63 scenario / reconciliation / permission) | `python -m scripts.demo_data verify` |
+| Backend tests | 320 passed, 1 skipped (needs a live RabbitMQ), 0 failed | `TEST_EXECUTION_REGISTER.md` |
+| Browser tests | existing suites 16/16, 11/11, 23/23 on this code; new demo journeys 18/18 | `TEST_EXECUTION_REGISTER.md` |
 
 ## 2. Module status
 

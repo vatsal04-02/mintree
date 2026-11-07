@@ -97,7 +97,7 @@ export MINTREE_ENVIRONMENT=demo                                                 
 export MINTREE_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5433/mintree_demo     # the name must contain the word "demo"
 .venv/bin/python -m scripts.demo_data reset --confirm-reset-demo-database mintree_demo     # wipes a DEMO database only; refuses anything else
 .venv/bin/python -m scripts.demo_data init                                                  # ~40 s; running it again changes nothing
-.venv/bin/python -m scripts.demo_data verify                                                # 97 checks incl. dashboard-vs-table reconciliation and role enforcement
+.venv/bin/python -m scripts.demo_data verify                                                # 100 checks incl. dashboard-vs-table reconciliation and role enforcement
 .venv/bin/uvicorn app.main:app --port 8000                                                  # then start the frontend as above
 ```
 
@@ -108,9 +108,9 @@ Marketplace accounts are **labelled DEMO with sample orders**; the only courier 
 ## Tests
 
 ```bash
-cd backend && .venv/bin/pytest            # 318 passed + 1 skipped (needs RabbitMQ) at the last full run; real Postgres, a live 2-process server for concurrency tests, and the demo CLI end to end
+cd backend && .venv/bin/pytest            # 320 passed + 1 skipped (needs RabbitMQ) at the last full run; real Postgres, a live 2-process server for concurrency tests, and the demo CLI end to end
 cd frontend && npm run lint && ./e2e/run.sh     # 50 browser tests (Phase 0, every module screen, real UI workflows incl. scanning), hermetic DB + API + production build
-cd frontend && ./e2e/run-demo.sh                  # 15 browser journeys against a demo-seeded database (seeded records visible per role, UI actions change real state)
+cd frontend && ./e2e/run-demo.sh                  # 18 browser journeys against a demo-seeded database (seeded records visible per role, UI actions change real state)
 ```
 
 The backend suite includes permission-matrix, escalation, audit-immutability, document-integrity tests and a
