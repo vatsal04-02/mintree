@@ -93,3 +93,18 @@ def test_spare_part_cost_is_exact_decimal_not_float(login):
 def uuid_hex():
     import uuid
     return uuid.uuid4().hex[:8].upper()
+
+
+def test_masters_are_referenced_by_transactions(admin, login):
+    """Tax class -> item rate (DB-enforced), payment method -> payment, courier -> shipment."""
+    kg = uom(admin, "KG")
+    tc = admin.post("/api/masters/tax-classes", json={"code": f"TC{uuid_hex()}", "name": "GST 12", "gst_rate": "12"}).json()
+    ok = admin.post("/api/masters/items", json={"item_code": f"TX-{uuid_hex()}", "name": "Taxed", "kind": "RM", "uom_id": kg, "tax_class_id": tc["id"]})
+    assert ok.status_code == 201 and N(ok.json()["gst_rate"]) == 12, ok.text          # rate comes from the class
+    bad = admin.post("/api/masters/items", json={"item_code": f"TY-{uuid_hex()}", "name": "Mismatch", "kind": "RM", "uom_id": kg, "tax_class_id": tc["id"], "gst_rate": "18"})
+    assert bad.status_code == 422, bad.text                                              # explicit rate that contradicts the class
+    assert admin.patch(f"/api/masters/items/{ok.json()['id']}", json={"gst_rate": "5"}).status_code == 422
+    assert admin.post("/api/masters/items", json={"item_code": f"TZ-{uuid_hex()}", "name": "Ghost", "kind": "RM", "uom_id": kg, "tax_class_id": 99999999}).status_code == 422
+    frozen = admin.patch(f"/api/masters/tax-classes/{tc['id']}", json={"gst_rate": "18"})
+    assert frozen.status_code == 422                                                       # a class in use cannot silently change every item's rate
+    assert admin.patch(f"/api/masters/tax-classes/{tc['id']}", json={"name": "GST 12% (renamed)"}).status_code == 200

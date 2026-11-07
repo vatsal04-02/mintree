@@ -84,6 +84,7 @@ class Shipment(Base):
     so_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))                 # an order may ship in several shipments
     shipment_no: Mapped[int] = mapped_column(Integer, default=1, server_default="1")   # 1, 2, 3 ... within the order
     courier: Mapped[str] = mapped_column(String(30))
+    courier_partner_id: Mapped[int | None] = mapped_column(ForeignKey("courier_partners.id"))
     status: Mapped[str] = mapped_column(String(18), default="PENDING_BOOKING", server_default="PENDING_BOOKING")
     awb: Mapped[str | None] = mapped_column(String(60), unique=True)
     tracking_url: Mapped[str | None] = mapped_column(String(300))

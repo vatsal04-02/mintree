@@ -51,7 +51,7 @@ Rows marked *manual* were back-filled from observations earlier in the same work
 | 2026-11-06 20:32 | browser E2E (Playwright) - module screens | `c735ba420c+dirty` | 11 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 | 2026-11-06 20:33 | browser E2E (Playwright) - UI workflows | `c735ba420c+dirty` | 23 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
 | 2026-11-06 22:50 | backend (pytest) | `340b1843e9` | 316 | 0 | **PASS** | current | PostgreSQL 16.15 (local cluster, port 5433, UTC), Redis 7 local, no RabbitMQ, Python 3.13.18, cloud container — Final full suite of this work. 1 skipped: tests/test_outbox.py:186 (needs a live RabbitMQ). Exit code 0 |
-| 2026-11-06 22:40 | browser E2E (Playwright) - demo journeys | `340b1843e9+dirty` | 15 | 0 | **PASS** | current | Chromium (Playwright), demo-seeded DB (mintree_demo_e2e, 95/95 verification) + API + production web build, 4 vCPU sandbox — Run by hand against a freshly reset+init demo database (the first two attempts hit test-side issues: stale state from a re-run, and a dialog role); recorded after the third, clean run. e2e/run-demo.sh is the repeatable form. |
+| 2026-11-06 22:40 | browser E2E (Playwright) - demo journeys | `340b1843e9+dirty` | 15 | 0 | **PASS** | current | Chromium (Playwright), demo-seeded DB (mintree_demo_e2e, 97/97 verification) + API + production web build, 4 vCPU sandbox — Run by hand against a freshly reset+init demo database (the first two attempts hit test-side issues: stale state from a re-run, and a dialog role); recorded after the third, clean run. e2e/run-demo.sh is the repeatable form. |
 
 ## 2. Load / resilience test runs
 

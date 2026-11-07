@@ -254,3 +254,24 @@ def test_concurrent_shipments_of_one_order_are_serialised(live_users, live_serve
         assert s.scalar(text("SELECT sum(qty_reserved) FROM stock_balances WHERE item_id=:i"), {"i": f["fg"]}) == N("14")
         bad = [c for c in __import__("scripts.check_integrity", fromlist=["x"]).run_checks(s.connection())["checks"] if not c["ok"]]
         assert not bad, bad
+
+
+def test_shipment_and_payment_reference_their_masters(shop, db, login):
+    """The courier code used at dispatch resolves to courier_partners; a customer payment resolves to the configured payment method of its kind."""
+    admin = login("system_admin")
+    cp = admin.post("/api/masters/courier-partners", json={"code": "FAKE", "name": "Demo courier", "kind": "COURIER", "integration_mode": "DEMO"}).json()
+    pm = admin.post("/api/masters/payment-methods", json={"code": f"BT-{uuid.uuid4().hex[:5]}", "name": "Bank transfer", "kind": "BANK_TRANSFER", "ledger_account_code": "1100"}).json()
+    f, cust = make_fg(shop, 100, 10), make_customer()
+    o = new_so(shop, f, cust, qty="10", price="10")
+    d = ship(shop, o, version=advance(shop, o)["version"]).json()
+    assert db.scalar(text("SELECT courier_partner_id FROM shipments WHERE id=:i"), {"i": d["shipment_id"]}) == cp["id"]
+    r = shop["acct"].post("/api/accounts/payments", headers=k("pay"), json={"direction": "RECEIVED", "party_id": cust, "amount": d["invoice"]["total"], "payment_date": str(datetime.now().date()),
+                                                                         "method": "BANK_TRANSFER", "bank_account_code": "1100", "allocations": [{"invoice_id": d["invoice"]["id"], "amount": d["invoice"]["total"]}]})
+    assert r.status_code == 201, r.text
+    assert db.scalar(text("SELECT payment_method_id FROM payments WHERE number=:n"), {"n": r.json()["number"]}) == pm["id"]
+    # no configured master of that kind: the payment still posts, with no reference (masters are optional configuration, not a gate)
+    o2 = new_so(shop, f, cust, qty="5", price="10")
+    d2 = ship(shop, o2, version=advance(shop, o2)["version"]).json()
+    r2 = shop["acct"].post("/api/accounts/payments", headers=k("pay"), json={"direction": "RECEIVED", "party_id": cust, "amount": d2["invoice"]["total"], "payment_date": str(datetime.now().date()),
+                                                                          "method": "CHEQUE", "bank_account_code": "1100", "allocations": [{"invoice_id": d2["invoice"]["id"], "amount": d2["invoice"]["total"]}]})
+    assert r2.status_code == 201 and db.scalar(text("SELECT payment_method_id FROM payments WHERE number=:n"), {"n": r2.json()["number"]}) is None

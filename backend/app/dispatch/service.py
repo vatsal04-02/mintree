@@ -184,7 +184,8 @@ def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version
     plan = _shipment_plan(o, lines)
     by_id = {l.id: l for l in o.items}
     shipment_no = (db.scalar(text("SELECT COALESCE(max(shipment_no),0) FROM shipments WHERE so_id = :o"), {"o": o.id}) or 0) + 1
-    ship = Shipment(so_id=o.id, shipment_no=shipment_no, courier=courier_name)
+    ship = Shipment(so_id=o.id, shipment_no=shipment_no, courier=courier_name,
+                    courier_partner_id=db.scalar(text("SELECT id FROM courier_partners WHERE lower(code) = lower(:c) AND is_active"), {"c": courier_name}))
     db.add(ship)
     db.flush()
     legs: dict[int, list[dict]] = {}

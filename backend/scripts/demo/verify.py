@@ -87,6 +87,8 @@ def verify_all(ctx: Ctx) -> int:
         r.eq("accounts: every posted journal balances", one("SELECT count(*) FROM journal_entries WHERE total_debit <> total_credit OR total_debit <> (SELECT COALESCE(sum(debit),0) FROM journal_lines WHERE entry_id = journal_entries.id)"), 0)
         r.eq("accounts: GL payables control = unpaid supplier invoices", one("SELECT COALESCE(sum(l.credit - l.debit),0) FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = '2000'"),
              one("SELECT COALESCE(sum(total - amount_paid - credited_amount),0) FROM supplier_invoices"))
+        r.eq("masters: every payment and every shipment references its configured master", one("SELECT count(*) FROM payments WHERE payment_method_id IS NULL") + one("SELECT count(*) FROM shipments WHERE courier_partner_id IS NULL"), 0)
+        r.eq("masters: every demo item with a GST rate uses a tax class and agrees with it", one("SELECT count(*) FROM items i LEFT JOIN tax_classes t ON t.id = i.tax_class_id WHERE i.gst_rate IS NOT NULL AND (t.id IS NULL OR t.gst_rate <> i.gst_rate)"), 0)
         r.eq("accounts: sales invoice tax and totals reconcile", one("SELECT count(*) FROM sales_invoices WHERE total <> subtotal + tax_total"), 0)
         r.eq("accounts: payment allocations equal the payments they came from", one("""SELECT count(*) FROM payments p LEFT JOIN (SELECT payment_id, sum(amount) a FROM payment_allocations GROUP BY 1) x ON x.payment_id = p.id WHERE p.amount <> COALESCE(x.a,0)"""), 0)
         r.check("accounts: an overdue receivable, a half-paid payable, an unpaid payable and a credit note exist",

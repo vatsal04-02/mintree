@@ -220,7 +220,9 @@ def post_payment(db: Session, cu: CurrentUser, *, direction: str, party_id: int,
         inv.status = "PAID" if inv.amount_paid + credited == inv.total else "PARTIAL"
     n = db.execute(text("SELECT nextval('payment_number_seq')")).scalar_one()
     pay = Payment(number=f"PAY/{payment_date:%y}/{n:06d}", direction=direction, party_type="supplier" if supplier else "customer", party_id=party_id,
-                  amount=amount, payment_date=payment_date, method=method, bank_account_code=bank_account_code, reference=reference, created_by=cu.id)
+                  amount=amount, payment_date=payment_date, method=method,
+                  payment_method_id=db.scalar(text("SELECT id FROM payment_methods WHERE kind = :k AND is_active ORDER BY code LIMIT 1"), {"k": method}),
+                  bank_account_code=bank_account_code, reference=reference, created_by=cu.id)
     db.add(pay)
     db.flush()
     db.add_all(PaymentAllocation(payment_id=pay.id, invoice_type=inv_type, invoice_id=a["invoice_id"], amount=money(a["amount"])) for a in allocations)

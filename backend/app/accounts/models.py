@@ -147,6 +147,7 @@ class Payment(Base):
     amount: Mapped[Decimal] = mapped_column(MONEY)
     payment_date: Mapped[date] = mapped_column(Date)
     method: Mapped[str] = mapped_column(String(20))
+    payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("payment_methods.id"))   # the configured master of this kind, when one exists
     bank_account_code: Mapped[str] = mapped_column(String(20))
     reference: Mapped[str | None] = mapped_column(String(80))
     journal_entry_id: Mapped[int | None] = mapped_column(ForeignKey("journal_entries.id"))

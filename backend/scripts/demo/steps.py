@@ -64,6 +64,10 @@ def master_data(c: Ctx) -> dict:
     # couriers: only the in-process fake adapter is DEMO; the rest are MANUAL (booked by hand). Nothing here claims a live carrier integration.
     for code, name, mode in (("FAKE", "Demo courier (in-process fake adapter, no real carrier)", "DEMO"), ("BLUEDART", "Blue Dart (manual booking)", "MANUAL"), ("DELHIVERY", "Delhivery (manual booking)", "MANUAL")):
         c.ok(a.post("/api/masters/courier-partners", json={"code": code, "name": name, "kind": "COURIER", "integration_mode": mode}))
+    with Session(engine) as s:                                          # bootstrap fixture: every demo item is 18% cosmetics (the DB trigger checks the item rate equals the class rate)
+        from sqlalchemy import text
+        s.execute(text("UPDATE items SET tax_class_id = (SELECT id FROM tax_classes WHERE code = 'GST18-COSM') WHERE gst_rate = 18"))
+        s.commit()
     for code, name in (("WEBSITE", "Website enquiry"), ("TRADE-FAIR", "Trade fair"), ("REFERRAL", "Referral"), ("INSTAGRAM", "Instagram")):
         c.ok(a.post("/api/crm/lead-sources", json={"code": code, "name": name}))
     qa = c.u("qa")

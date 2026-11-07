@@ -65,4 +65,5 @@ History (a 45-day-old overdue invoice, a 9-day-old shipment, a PO expected 5 day
 * Marketplace accounts (Amazon, Flipkart, Myntra, Nykaa) are **DEMO accounts with sample orders**; no marketplace API is contacted and there are no credentials.
 * The only courier adapter is an in-process fake (`integration_mode=DEMO`); other couriers are `MANUAL`.
 * Marketing posts are recorded **manually** (`mode=MANUAL`); there is no Meta integration and no social-account credentials.
+* Every demo item uses the 18% cosmetics tax class; payments and shipments reference their payment-method and courier masters.
 * GST fields and summaries exist; **no GST filing, e-invoicing or government integration** is implemented.

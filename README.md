@@ -97,7 +97,7 @@ export MINTREE_ENVIRONMENT=demo                                                 
 export MINTREE_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5433/mintree_demo     # the name must contain the word "demo"
 .venv/bin/python -m scripts.demo_data reset --confirm-reset-demo-database mintree_demo     # wipes a DEMO database only; refuses anything else
 .venv/bin/python -m scripts.demo_data init                                                  # ~40 s; running it again changes nothing
-.venv/bin/python -m scripts.demo_data verify                                                # 95 checks incl. dashboard-vs-table reconciliation and role enforcement
+.venv/bin/python -m scripts.demo_data verify                                                # 97 checks incl. dashboard-vs-table reconciliation and role enforcement
 .venv/bin/uvicorn app.main:app --port 8000                                                  # then start the frontend as above
 ```
 
@@ -108,7 +108,7 @@ Marketplace accounts are **labelled DEMO with sample orders**; the only courier 
 ## Tests
 
 ```bash
-cd backend && .venv/bin/pytest            # 316 passed + 1 skipped (needs RabbitMQ) at the last full run; real Postgres, a live 2-process server for concurrency tests, and the demo CLI end to end
+cd backend && .venv/bin/pytest            # 318 passed + 1 skipped (needs RabbitMQ) at the last full run; real Postgres, a live 2-process server for concurrency tests, and the demo CLI end to end
 cd frontend && npm run lint && ./e2e/run.sh     # 50 browser tests (Phase 0, every module screen, real UI workflows incl. scanning), hermetic DB + API + production build
 cd frontend && ./e2e/run-demo.sh                  # 15 browser journeys against a demo-seeded database (seeded records visible per role, UI actions change real state)
 ```
@@ -124,7 +124,7 @@ The backend suite includes permission-matrix, escalation, audit-immutability, do
 
 * No live marketplace (Amazon, Flipkart, Myntra, Nykaa), courier, Meta, GST-portal or e-invoicing integration; adapters/ingestion and manual recording only.
 * Notifications are in-app only. Documents are stored on local disk (metadata, versions and SHA-256 in PostgreSQL).
-* The newer tax-class, payment-method and courier masters are reference data not yet referenced by transactions.
+* Tax class, payment method and courier masters are referenced by items, payments and shipments; references are optional when no master of that kind is configured.
 
 ## Design decisions & deviations from the PRD
 

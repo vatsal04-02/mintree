@@ -18,8 +18,8 @@ States, used strictly:
 | Alembic revisions | 23 (`0001`..`0023`) | `backend/migrations/versions` |
 | Database triggers (append-only ledgers, journal balance, frozen certificates) | 15 | `DATA_INTEGRITY.md` |
 | Integrity-suite checks | 37 (was 34) | `backend/scripts/check_integrity.py` |
-| Demo verification | 95 checks (37 integrity + 58 scenario / reconciliation / permission) | `python -m scripts.demo_data verify` |
-| Backend tests | 316 passed, 1 skipped (needs a live RabbitMQ), 0 failed | `TEST_EXECUTION_REGISTER.md` |
+| Demo verification | 97 checks (37 integrity + 60 scenario / reconciliation / permission) | `python -m scripts.demo_data verify` |
+| Backend tests | 318 passed, 1 skipped (needs a live RabbitMQ), 0 failed | `TEST_EXECUTION_REGISTER.md` |
 | Browser tests | existing suites 16/16, 11/11, 23/23 on this code; new demo journeys 15/15 | `TEST_EXECUTION_REGISTER.md` |
 
 ## 2. Module status
@@ -27,7 +27,7 @@ States, used strictly:
 | Module | State | Built and proven | Remaining before Complete |
 |---|---|---|---|
 | Identity, RBAC, audit | Partial | users, roles, permissions, sessions, lockout, append-only audit log, approval limits and delegation, role matrix enforced (verified for the demo roles) | a login-history *table* (logins are audit rows today); employee master; per-user department assignment and approval-authority screens not verified |
-| Master data | Partial | units **and conversions** (exact Decimal), categories, items, suppliers, customers, brands, warehouses, locations; **tax classes, payment methods, courier partners** | those three new masters are standalone reference data: **transactions do not reference them yet** (payments store `method` text, shipments `courier` text, invoices a rate); item-category hierarchy; employees |
+| Master data | Partial | units **and conversions** (exact Decimal), categories, items, suppliers, customers, brands, warehouses, locations; **tax classes, payment methods, courier partners** | tax class, payment method and courier are now referenced by items (rate enforced by a DB trigger), payments and shipments (resolved at posting, optional when no master is configured); invoice lines still copy the rate as text by design (a historical document must not change when a class does); item-category hierarchy; employees |
 | Inventory | Partial | batches, balances, append-only ledger, reservations (partial consumption for partial dispatch), valuation, stocktakes, opening stock, FEFO, QC-gated availability, concurrency tests | stock-transfer *document* (transfers are idempotent ledger postings with no header record); returning unused material from production to stock |
 | Procurement | Partial | PR approve/reject, RFQ, quotation comparison and award, PO approval limits and two-level approval, **PO amendments**, goods receipts with batches, **purchase returns**, supplier invoices (three-way match), debit notes, payments | per-line delivery schedules (one expected date per PO); supplier-performance *history* is a computed report |
 | R&D | Partial | projects, formulations (100% rule), immutable approved versions, revisions, trials, observations, four-eyes approval, BOM from an approved version, orders pinned to the version | formula-cost calculation; product-testing beyond trial observations; demo shows the formulation chain on a bulk intermediate only |
