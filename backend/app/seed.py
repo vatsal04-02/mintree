@@ -71,6 +71,12 @@ def seed(db: Session) -> str | None:
                                permissions=[perms[c] for c in sorted(role_permission_codes(code))])
             db.add(roles[code])
     roles["system_admin"].permissions = list(perms.values())  # always everything
+    # Databases created before the AI layer have the system roles without the ai.* permissions. Add those (only those, only ever additively), so
+    # upgrading does not leave the feature invisible. Other permissions an administrator removed from a role are never re-added.
+    for code, role in roles.items():
+        if code in ROLES and role.is_system and code != "system_admin":
+            have_codes = {p.code for p in role.permissions}
+            role.permissions = list(role.permissions) + [perms[c] for c in sorted(role_permission_codes(code)) if c.startswith("ai.") and c not in have_codes]
 
     have = {d.code for d in db.scalars(select(Department))}
     db.add_all(Department(code=c, name=n) for c, n in DEPARTMENTS if c not in have)

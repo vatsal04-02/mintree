@@ -55,6 +55,13 @@ browser ──► /api/ai/* ──► assistant.py ──► provider (anthropic
 
 A proposal is visible and actionable only to a reviewer who also holds the permission the underlying action needs (`procurement.pr:create`, `sales.followup:create`). Extraction additionally needs `procurement.po:read` to match; posting the invoice needs `accounts.supplier_invoice:post`, enforced by the ordinary endpoint (a purchase manager can read a draft but not post it).
 
+## 4a. Turning it on in an existing installation
+
+1. Pull the code, then `python -m alembic upgrade head` (creates the `ai_*` tables, revision 0025). Without it `/api/ai/status` fails and the assistant button stays hidden.
+2. Run `python -m app.seed` (or just restart if your start-up seeds): it adds the `ai.*` permissions to the system roles. Older databases did not have them; only the system administrator saw the feature.
+3. Set `MINTREE_AI_ENABLED=true` and, for a trial without a key, `MINTREE_AI_PROVIDER=fake` (labelled *Demo provider* in the UI). Restart the API.
+4. Rebuild/restart the web app (`npm run build`) and sign in again so the new permissions load. The **Assistant** button is in the top bar, **Document reader** and **Suggestions** are under *Assistant* in the sidebar. Until the switch is on, the button opens a panel saying it is switched off.
+
 ## 5. Configuration (environment)
 
 | Variable | Default | Meaning |
