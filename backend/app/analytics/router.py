@@ -1,12 +1,15 @@
 """Management analytics: every number is computed from the underlying records (no stored summaries), and each KPI names its source
 so it can be drilled into. Read-only. Figures come from several statements under READ COMMITTED, so postings that land mid-request can make
 two KPIs differ by that posting; this is an operational summary, not a closing statement (use /accounts/reports for period-end figures)."""
+import json
 from datetime import date, timedelta
 
-from fastapi import HTTPException, APIRouter, Depends, Query
+from fastapi import HTTPException, APIRouter, Depends, Query, Response
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core import rcache
 from app.core.db import get_db
 from app.core.deps import CurrentUser, require
 from app.core.clock import business_today
@@ -19,8 +22,34 @@ def _num(v):
     return v if v is not None else 0
 
 
+DASHBOARD_TTL_S = 15.0
+
+
+def _cached_dashboard(ns: str, key: str, compute) -> Response:
+    """Dashboards are aggregates over many tables; serving them from a 15 s cache keeps ten browsers from running the same ten queries ten times. The figures say so:
+    `meta.cached`, `meta.generated_at` and `meta.max_age_s` travel with every response (the Overview shows the as-of time). Single-flight: concurrent misses compute once."""
+    body, ver = rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)
+    if body is None:
+        with rcache.single_flight(ns, key):
+            body, ver = rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)
+            if body is None:
+                from datetime import datetime, timezone
+                data = jsonable_encoder(compute())
+                data["meta"] = {"cached": False, "generated_at": datetime.now(timezone.utc).isoformat(), "max_age_s": DASHBOARD_TTL_S}
+                body = json.dumps(data).encode()
+                rcache.store(ns, key, "ttl", body)
+                return Response(body, media_type="application/json", headers={"X-Cache": "miss"})
+    data = json.loads(body)
+    data["meta"]["cached"] = True
+    return Response(json.dumps(data).encode(), media_type="application/json", headers={"X-Cache": "hit"})
+
+
 @router.get("/overview-period")
 def overview_period(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
+    return _cached_dashboard("dash_period", f"{start}|{end}", lambda: _overview_period(start, end, db))
+
+
+def _overview_period(start: date, end: date, db: Session):
     """Period-scoped figures the Overview needs and the all-time summary does not carry. Read-only; business dates (Asia/Kolkata) throughout.
     revenue: net ex-tax = invoice subtotals dated in the period minus credit-note subtotals created in it, plus the same for the previous period of equal length.
     production: completed orders bucketed by ISO week of completion; weeks with no completed order have null planned/actual (no data), not zero.
@@ -61,6 +90,10 @@ def overview_period(start: date, end: date, db: Session = DB, _: CurrentUser = D
 @router.get("/management-summary")
 def management_summary(as_of: date | None = None, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
     d = as_of or business_today()
+    return _cached_dashboard("dash_summary", str(d), lambda: _management_summary(d, db))
+
+
+def _management_summary(d: date, db: Session):
     one = lambda sql, **p: db.execute(text(sql), {"d": d, **p}).mappings().one()
     rows = lambda sql, **p: [dict(r) for r in db.execute(text(sql), {"d": d, **p}).mappings().all()]
 

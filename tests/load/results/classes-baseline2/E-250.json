@@ -1,0 +1,274 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "ok": {
+                    "passes": 2262,
+                    "fails": 0,
+                    "name": "ok",
+                    "path": "::ok",
+                    "id": "2385b52f13b6c5244d846734f1757fa3"
+                }
+            }
+    },
+    "metrics": {
+        "iterations": {
+            "count": 2262,
+            "rate": 106.45402450360638
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 4550,
+            "value": 0
+        },
+        "vus": {
+            "value": 24,
+            "min": 0,
+            "max": 944
+        },
+        "data_sent": {
+            "count": 1863673,
+            "rate": 87707.99788183448
+        },
+        "checks": {
+            "passes": 2262,
+            "fails": 0,
+            "value": 1
+        },
+        "http_req_connecting": {
+            "max": 12.16009,
+            "avg": 0.07363789956043962,
+            "p(50)": 0,
+            "p(90)": 0.12672699999999995,
+            "p(95)": 0.2780223500000001,
+            "p(99)": 1.377920280000019
+        },
+        "http_req_waiting": {
+            "max": 4374.862291,
+            "avg": 2177.493709220006,
+            "p(50)": 2294.7367114999997,
+            "p(90)": 3371.9547816,
+            "p(95)": 3644.5506507500004,
+            "p(99)": 4065.01422871
+        },
+        "iteration_duration": {
+            "p(99)": 7195.23811271,
+            "max": 7286.42657,
+            "avg": 4380.236468361632,
+            "p(50)": 4916.904277,
+            "p(90)": 6727.418168300001,
+            "p(95)": 7048.7337757
+        },
+        "http_req_receiving": {
+            "p(95)": 0.4451371000000006,
+            "p(99)": 1.3087344600000013,
+            "max": 12.291113,
+            "avg": 0.12125709054945034,
+            "p(50)": 0.0542005,
+            "p(90)": 0.1973249
+        },
+        "data_received": {
+            "rate": 79812.61066924738,
+            "count": 1695907
+        },
+        "vus_max": {
+            "value": 957,
+            "min": 250,
+            "max": 957
+        },
+        "http_req_sending": {
+            "p(90)": 0.070635,
+            "p(95)": 0.13596745000000046,
+            "p(99)": 0.5532706000000015,
+            "max": 5.490354,
+            "avg": 0.04984719494505506,
+            "p(50)": 0.0193285
+        },
+        "http_reqs": {
+            "count": 4550,
+            "rate": 214.1316584842657
+        },
+        "dropped_iterations": {
+            "count": 739,
+            "rate": 34.778746290081834
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 4374.921287,
+            "avg": 2177.664813505491,
+            "p(50)": 2295.001832,
+            "p(90)": 3372.0072267,
+            "p(95)": 3644.65452595,
+            "p(99)": 4065.06928985
+        },
+        "http_req_blocked": {
+            "avg": 0.10187252285714292,
+            "p(50)": 0.004716,
+            "p(90)": 0.20611519999999997,
+            "p(95)": 0.41974005000000014,
+            "p(99)": 1.7779671100000034,
+            "max": 13.064267
+        },
+        "http_req_duration": {
+            "avg": 2177.664813505491,
+            "p(50)": 2295.001832,
+            "p(90)": 3372.0072267,
+            "p(95)": 3644.65452595,
+            "p(99)": 4065.06928985,
+            "max": 4374.921287
+        },
+        "http_req_tls_handshaking": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0,
+            "p(50)": 0
+        }
+    },
+    "setup_data": {
+        "itemIds": [
+            14,
+            21,
+            25,
+            24,
+            22,
+            23,
+            19,
+            18,
+            20,
+            17,
+            15,
+            16,
+            26,
+            7,
+            13,
+            8,
+            9,
+            1,
+            10,
+            11,
+            3,
+            4,
+            6,
+            5,
+            2,
+            12
+        ],
+        "sessions": [
+            {
+                "cookie": "D2bI9Xzn4vdIBGgTPZ8KYGtQB4Ijzks2CBzcLdDFdaE",
+                "csrf": "DEVf1F0vwj9OHAMHX8Gl36DT80Q9BMMTqX3-GwacTPM"
+            },
+            {
+                "csrf": "q0UKjcq23U1fP-fbWqZNMvod8-YTBySKE18x9JSrwXw",
+                "cookie": "XDhmpc1rO-d1uCkgsm-KhosIgMkJQoVQTToABKqriwM"
+            },
+            {
+                "cookie": "QrYKz0-4rMhrh7FMWmNoMO4ZpQzDob4E6_ESTSCLyEc",
+                "csrf": "58GKa2mDtDLXVJ6zmP8iIPgS5HtWJwJIEXXH4wiGDmI"
+            },
+            {
+                "cookie": "HXmz4kzj8404T0wAdJZE62UpTrMYctsw5DG8ReWAzbM",
+                "csrf": "BgfCqKtenKUrAsqK2FGITNAekawDjDge4B_7SzsXpcw"
+            },
+            {
+                "cookie": "TNjSF-5dWpoxKt_HA5DE3bS3oe6eGcF3QSxvJoPs_6M",
+                "csrf": "YtKmH4bUPC82xM7YutcqKYcOCkacrraB_UTqH0ZFNLs"
+            },
+            {
+                "cookie": "1MNcZj7YlLl69Offxs_BGOPiLiASFE7rAH2hZz8h1tw",
+                "csrf": "OOGV1vRDu3dC5qedaCHSrm4IDEdL5CACi0ZJlspJYBA"
+            },
+            {
+                "cookie": "IkYXcHnk6C9JgyZwgfHwuvs9sTvns_bziqX_6upmOrI",
+                "csrf": "SaK0CwQ2Ev_YarToAV97erZrpgvnqIGzU5iSnC2DioY"
+            },
+            {
+                "cookie": "NmlesQZjLTDdUbpj-8VwQ77fL1jD5MNJfqsFPWEbXao",
+                "csrf": "XuVHvjjpPqEXP28tU9oDZi9hsx5Du3TGRKNMVp9aF0U"
+            },
+            {
+                "cookie": "O_VZQB--hdCHl-UqM4LxLIF-Jn1w6zCA8iEAknoRtiI",
+                "csrf": "3HA7WTQxjpieEnjaIcDeW5aQIIUwf15HN_NmcRctbG8"
+            },
+            {
+                "cookie": "yebqdn5ST6vcj1RSZEyWMvmeR2vBlAZOWITLYsNO5YI",
+                "csrf": "qtNUdp-eyLm9IaB2RaUtnQvcrrG9xFHJ-p9QAYXJEHI"
+            },
+            {
+                "cookie": "BZm1NuWrKEgUlUIeZoKpBS86Jmm84tC09Aju_XsUS8c",
+                "csrf": "5961AAdJ0ATwZQ8VQaC9I725kXpDYItAmSZfMqWP8_g"
+            },
+            {
+                "cookie": "1LC445U635Zhg1_fgF_rTFomRyQ1gCcqfIkwNR596_Q",
+                "csrf": "g_D5JfLGakHxjkjj9NGW4MBasOYNrTX4hncAhmZwsIY"
+            },
+            {
+                "cookie": "mxKrvcQWvyEdHVFaV7uYGeaJkwFt8JAybtnOMyl9efY",
+                "csrf": "EakfZbycxnre8GoLRIQee6ZtRmelMdGXyPYLo_ryzv0"
+            },
+            {
+                "cookie": "fPYXXq_QjnAtvvc26hwoa0W_PdfP1wpiv81WGoZJtYk",
+                "csrf": "xaEI2PDj88U0o4hUShzbZQj3ZWCFdCWbP3ghKPcUNQ0"
+            },
+            {
+                "cookie": "qH1l-1IRs2PVNdIbsPiL7UTCEZx4gEURZ6vXKhHWxb8",
+                "csrf": "T5wJsCaKSTVKr5zLVT54yS-E1zm4SD3zQ6U24b7eWnU"
+            },
+            {
+                "cookie": "Khc_P0T9CDsJIQAa5YKgUNUQqBf18FO-dJZAxz2AKtc",
+                "csrf": "1D7DJ5SiPd2ZJR1eJgZ_nRJqcX7cJKGDhM52bude6XI"
+            },
+            {
+                "csrf": "5cdxUqU832h07EI8_vGHCNR4Ew00VdGIFYAJk_b056Y",
+                "cookie": "cb06IAAnhqZFupAdyWER8V6-MLBGhMx2KpuArC9kZdY"
+            },
+            {
+                "cookie": "8nFJs4F_lHtmgA0lTmhvHgQ6FM-pWed46VAHIIhKlkc",
+                "csrf": "dpe0DoOLTjBxFlVqTaSw-wjXsw9b09O1yZbKiX_h7hc"
+            },
+            {
+                "cookie": "UVIjL8Rw5buUIN1-__4hwCQY5-gqGbKk-6VK2Uqd70U",
+                "csrf": "DWF4kdFilIQ3mzgmY2J3F2OqT5LgrSQYMrKi3WcFIKM"
+            },
+            {
+                "cookie": "GVYJqOQ5c7eEyVT6GHuJUIhXW71Y_-MNo-vybxXjV3c",
+                "csrf": "rZ6V5-zwpKrFFdzjVRjWY5_37DYw6DewHN4u7P6hXA0"
+            },
+            {
+                "cookie": "NO9Nddhhisw6dEhTKnGHoxiFcOxbhotuA4FTqZBzYq4",
+                "csrf": "YbQuHtEbTUfOo56jn8fv3SIH6YhZMD3cqUu17N8WuCk"
+            },
+            {
+                "cookie": "Ol6qTkjfmp1EsYBOqa_FA0lQ5bPLj_cPkNb0IzUVo_Y",
+                "csrf": "-Wk8C7ryRUFEzkfiwUtct3wVdXec7IDx3PMunhg-dbw"
+            },
+            {
+                "cookie": "l7RXdqzZWWHyV6hQHD7SZr6IVVguQk9eL-lnFuxutAw",
+                "csrf": "VdqgTKsvjtlsq4GfJUyNwODhrQKBvYkCEeGshSHi9y0"
+            },
+            {
+                "cookie": "r3ixPOOcPMETejYQWrFl-fIMYsJoivzY1969Vxgvovw",
+                "csrf": "JGMxwEQUYRUrCp8W8MuObfVXzxTN2RjhueHD0PxiSZw"
+            }
+        ],
+        "wh": 1,
+        "fg": [
+            21,
+            25,
+            24,
+            22,
+            23,
+            19,
+            18,
+            20,
+            17,
+            15,
+            16,
+            26
+        ]
+    }
+}

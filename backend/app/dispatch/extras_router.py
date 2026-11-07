@@ -92,3 +92,10 @@ def scan_handover(manifest_no: str, body: ScanIn, db: Session = DB, cu: CurrentU
 @router.get("/orders/{oid}/shipment-lines")
 def shipment_lines(oid: int, db: Session = DB, _: CurrentUser = Depends(require("dispatch.return:read"))):
     return svc.shipment_lines(db, oid)
+
+
+@router.get("/shipments/{sid}/challan")
+def shipment_challan(sid: int, db: Session = DB, _: CurrentUser = Depends(require("dispatch.shipment:read"))):
+    from app.core.print_docs import challan_pdf
+    number, pdf = challan_pdf(db, sid)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{number.replace("/", "-")}-challan.pdf"'})

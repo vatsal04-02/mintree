@@ -1,0 +1,10 @@
+class C target    100/s  achieved     83.9/s  p50    46.6  p95    417.9  p99    499.4 ms  unexpected 0/1227 (0.00%)  dropped_iter 0
+class C target    250/s  achieved    163.4/s  p50  1279.1  p95   2600.6  p99   3015.2 ms  unexpected 0/2805 (0.00%)  dropped_iter 222
+class D target    100/s  achieved     85.9/s  p50    14.7  p95     31.5  p99     90.3 ms  unexpected 0/1227 (0.00%)  dropped_iter 0
+class D target    250/s  achieved    210.1/s  p50    35.1  p95    163.8  p99    202.7 ms  unexpected 0/3026 (0.00%)  dropped_iter 0
+class E target    100/s  achieved    174.7/s  p50    39.5  p95    114.9  p99    159.1 ms  unexpected 0/2428 (0.00%)  dropped_iter 0
+class E target    250/s  achieved    214.1/s  p50  2295.0  p95   3644.7  p99   4065.1 ms  unexpected 0/4550 (0.00%)  dropped_iter 739
+class F target    100/s  achieved     87.5/s  p50    19.3  p95     33.3  p99     81.8 ms  unexpected 0/1226 (0.00%)  dropped_iter 0
+class F target    250/s  achieved    212.0/s  p50   308.3  p95    638.6  p99    749.4 ms  unexpected 0/3026 (0.00%)  dropped_iter 0
+class G target    100/s  achieved     87.2/s  p50    20.4  p95     40.3  p99     84.2 ms  unexpected 0/1226 (0.00%)  dropped_iter 0
+class G target    250/s  achieved    207.6/s  p50   342.3  p95    718.0  p99    797.8 ms  unexpected 0/3027 (0.00%)  dropped_iter 0

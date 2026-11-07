@@ -102,10 +102,18 @@ def _watched():
 @event.listens_for(Session, "after_flush")
 def _flag(session: Session, _ctx) -> None:
     watched = _watched()
+    from sqlalchemy import inspect as _inspect
+    from app.administration.models import SessionRecord
     for obj in (*session.new, *session.dirty, *session.deleted):
         if isinstance(obj, watched):
             session.info["authz_dirty"] = True
             return
+        # a session row matters here only when it is revoked / its expiry moves (the per-process session cache honours the same epoch); `last_seen_at` touches must not bump it
+        if isinstance(obj, SessionRecord) and obj not in session.new:
+            h = _inspect(obj).attrs
+            if h.revoked_at.history.has_changes() or h.expires_at.history.has_changes():
+                session.info["authz_dirty"] = True
+                return
     # association-table-only changes (role_permissions / user_roles) mark their owner dirty via the relationship,
     # which is covered above; raw SQL touching these tables must call bump_epoch() explicitly.
 

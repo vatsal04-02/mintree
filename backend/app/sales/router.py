@@ -164,3 +164,12 @@ for _n, _p in (("send", "sales.quotation:send"), ("accept", "sales.quotation:acc
 @router.get("/pipeline")
 def pipeline(db: Session = DB, _: CurrentUser = Depends(require("sales.pipeline:read"))):
     return svc.pipeline(db)
+
+
+@router.get("/quotations/{qid}/pdf")
+def quotation_pdf_view(qid: int, db: Session = DB, _: CurrentUser = Depends(require("sales.quotation:read"))):
+    """Printable document with the Mintree logo; amounts are recomputed from the stored lines and the PDF is refused if they disagree with the stored total."""
+    from fastapi.responses import Response
+    from app.core.print_docs import quotation_pdf
+    number, pdf = quotation_pdf(db, qid)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{number.replace("/", "-")}.pdf"'})

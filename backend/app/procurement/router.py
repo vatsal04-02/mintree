@@ -120,3 +120,12 @@ def get_receipt(gr_id: int, db: Session = DB, _: CurrentUser = Depends(require("
             "delivery_note_no": gr.delivery_note_no, "status": gr.status, "received_at": gr.received_at,
             "lines": [{"line_no": l.line_no, "po_item_id": l.po_item_id, "item_id": l.item_id, "qty": str(l.qty), "batch_id": l.batch_id}
                       for l in gr.items]}
+
+
+@router.get("/purchase-orders/{po_id}/pdf")
+def po_pdf_view(po_id: int, db: Session = DB, _: CurrentUser = Depends(require("procurement.po:read"))):
+    """Printable document with the Mintree logo; amounts are recomputed from the stored lines and the PDF is refused if they disagree with the stored total."""
+    from fastapi.responses import Response
+    from app.core.print_docs import purchase_order_pdf
+    number, pdf = purchase_order_pdf(db, po_id)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{number.replace("/", "-")}.pdf"'})

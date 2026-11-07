@@ -12,8 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import Response, StreamingResponse
 from psycopg import errors as pgerr
 from pydantic import BaseModel
 from sqlalchemy import String, asc, cast, desc, func, or_, select
@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.audit import service as audit
+from app.core import rcache
 from app.core.db import get_db
 from app.core.deps import CurrentUser, require
 from app.core.errors import Conflict, NotFound, Unprocessable
@@ -52,6 +53,7 @@ class Resource:
     read_transform: Callable[[dict, CurrentUser], dict] | None = None
     write_guard: Callable[[dict, CurrentUser, bool], None] | None = None  # (data, user, creating)
     audit_exclude: set[str] = field(default_factory=lambda: {"created_at", "updated_at"})
+    cache_ttl_s: float = 60.0           # list responses are cached (versioned by table; see core/rcache.py); 0 disables
 
 
 def translate_integrity_error(exc: IntegrityError) -> Exception:
@@ -72,6 +74,14 @@ def _csv_safe(v: Any) -> Any:
     if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r"):
         return "'" + v
     return v
+
+
+class _NoFlight:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
 
 
 def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
@@ -130,8 +140,12 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
 
         return dep
 
+    if r.cache_ttl_s:
+        rcache.CACHED_TABLES[Model.__tablename__] = r.entity
+
     @router.get("", response_model=Page[Read])
     def list_(
+        request: Request,
         q: str | None = None,
         is_active: bool | None = None,
         include_inactive: bool = False,
@@ -142,10 +156,27 @@ def build_router(r: Resource, *, prefix: str, tags: list[str]) -> APIRouter:
         db: Session = Depends(get_db, scope="function"),
         cu: CurrentUser = Depends(require(f"{r.perm}:read")),
     ):
-        stmt = base_query(q, is_active, include_inactive, filters)
-        total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-        rows = db.scalars(sorted_stmt(stmt, sort).limit(page_size).offset((page - 1) * page_size)).unique().all()
-        return {"items": [to_out(o, cu) for o in rows], "total": total, "page": page, "page_size": page_size}
+        use_cache = bool(r.cache_ttl_s)
+        key = f"{request.url.path}?{'&'.join(sorted(request.url.query.split('&')))}|{rcache.perm_sig(cu.permissions)}" if use_cache else ""
+        ver = None
+        if use_cache:
+            body, ver = rcache.lookup(r.entity, key, r.cache_ttl_s)
+            if body is not None:
+                return Response(body, media_type="application/json", headers={"X-Cache": "hit"})
+        with (rcache.single_flight(r.entity, key) if ver is not None else _NoFlight()):
+            if ver is not None:                                            # another request may have filled it while we waited
+                body, _ = rcache.lookup(r.entity, key, r.cache_ttl_s)
+                if body is not None:
+                    return Response(body, media_type="application/json", headers={"X-Cache": "hit"})
+            stmt = base_query(q, is_active, include_inactive, filters)
+            total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+            rows = db.scalars(sorted_stmt(stmt, sort).limit(page_size).offset((page - 1) * page_size)).unique().all()
+            payload = {"items": [to_out(o, cu) for o in rows], "total": total, "page": page, "page_size": page_size}
+            if ver is None:
+                return payload                                              # caching off or Redis down: the ordinary path
+            out = Page[Read].model_validate(payload).model_dump_json().encode()        # byte-identical to FastAPI's own response_model serialisation
+            rcache.store(r.entity, key, ver, out)
+            return Response(out, media_type="application/json", headers={"X-Cache": "miss"})
 
     if r.exportable:
         @router.get("/export.csv")

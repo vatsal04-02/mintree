@@ -173,8 +173,9 @@ def invoice_pdf(db: Session, iid: int) -> tuple[str, bytes]:
     small = st["BodyText"].clone("small", fontSize=8, leading=10)
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=14 * mm, rightMargin=14 * mm, topMargin=14 * mm, bottomMargin=14 * mm, title=f"Tax Invoice {inv.number}")
-    els = [Paragraph(f"<b>{company['name'] or 'Mintree'}</b>", st["Title"]),
-           Paragraph(f"GSTIN: {company['gstin'] or '-'}<br/>{company['address'] or ''}", small), Spacer(1, 6),
+    from app.core.brand import header_flowable
+    els = [header_flowable(company["name"] or "Mintree", "TAX INVOICE", inv.number),
+           Spacer(1, 4), Paragraph(f"<b>{company['name'] or 'Mintree'}</b><br/>GSTIN: {company['gstin'] or '-'}<br/>{company['address'] or ''}", small), Spacer(1, 6),
            Paragraph(f"<b>TAX INVOICE</b> &nbsp; No: <b>{inv.number}</b> &nbsp; Date: {inv.invoice_date} &nbsp; Order: {o.number}", st["Normal"]), Spacer(1, 6),
            Table([[Paragraph(f"<b>Bill to</b><br/>{cust['name']}<br/>GSTIN: {cust['gstin'] or 'Unregistered'}<br/>{cust['billing_address'] or ''}", small),
                    Paragraph(f"<b>Ship to</b><br/>{o.shipping_address or cust['shipping_address'] or ''}", small)]], colWidths=[91 * mm, 91 * mm]), Spacer(1, 8)]

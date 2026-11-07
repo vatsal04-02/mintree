@@ -47,7 +47,9 @@ def coa_pdf(db: Session, inspection_id: int) -> tuple[str, bytes]:
     t = Table(rows, repeatRows=1, colWidths=[40 * mm, 36 * mm, 34 * mm, 28 * mm, 18 * mm, 18 * mm])
     t.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 8), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#126B61")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E4E8E4"))]))
-    doc.build([Paragraph(f"<b>{get_setting(db, 'company.name') or 'Mintree'}</b> — Certificate of Analysis", st["Title"]),
+    from app.core.brand import header_flowable
+    doc.build([header_flowable(get_setting(db, 'company.name') or 'Mintree', "CERTIFICATE OF ANALYSIS", i.number), Spacer(1, 6),
+               Paragraph(f"<b>{get_setting(db, 'company.name') or 'Mintree'}</b>", small),
                Paragraph(f"Certificate: <b>{i.number}</b> &nbsp; Stage: {i.stage}<br/>Product: <b>{b['item_code']} {b['name']}</b><br/>Batch: <b>{b['batch_no']}</b> &nbsp; Mfg: {b['mfg_date'] or '-'} &nbsp; Expiry: {b['expiry_date'] or '-'}", small),
                Spacer(1, 8), t, Spacer(1, 10),
                Paragraph(f"Disposition: <b>RELEASED</b> by {who or '-'} on {i.decided_at:%Y-%m-%d %H:%M} UTC. Specification version {spec.version_no}.", small)])

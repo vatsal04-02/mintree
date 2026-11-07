@@ -179,8 +179,8 @@ def low_stock(db, cu, a: NoArgs) -> ToolResult:
 
 
 def business_overview(db, cu, a: NoArgs) -> ToolResult:
-    from app.analytics.router import management_summary
-    raw = management_summary(as_of=None, db=db, _=cu)
+    from app.analytics.router import _management_summary
+    raw = _management_summary(business_today(), db)          # the uncached computation: the assistant must quote figures as of now
     return ToolResult(_shrink(raw), [{"label": "Overview", "href": "/"}])
 
 
