@@ -124,3 +124,13 @@ def test_briefing_is_per_user_permission_scoped_and_cached(login, ai_on, low_ite
     assert any(i["label"] == low_item["code"] for i in low["items"]) or low["count"] >= 5
     ai_on.ai_enabled = False
     assert mgmt.get("/api/ai/briefing").status_code == 409
+
+
+def test_integrity_checks_catch_ai_records_that_claim_more_than_they_have(db, make_user):
+    from scripts.check_integrity import run_checks
+    u = make_user("purchase_manager")
+    db.execute(text("INSERT INTO ai_proposals(kind, dedupe_key, title, rationale, payload, required_permission, status, decided_by) VALUES ('REORDER','x','t','r','{}','procurement.pr:create','ACCEPTED',:u)"), {"u": u.id})
+    db.execute(text("INSERT INTO ai_extractions(filename, sha256, kind, status, fields, matched, flags, provider, model, created_by) VALUES ('f','0','INVOICE','ACCEPTED','{}','{}','[]','fake','m',:u)"), {"u": u.id})
+    db.flush()
+    bad = {c["name"] for c in run_checks(db.connection())["checks"] if not c["ok"]}
+    assert {"ai_accepted_proposals_name_a_decider_and_a_result", "ai_reviewed_extractions_name_a_reviewer_and_posted_invoices_exist"} <= bad

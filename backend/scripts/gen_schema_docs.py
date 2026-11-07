@@ -16,6 +16,7 @@ DOCS = Path(__file__).resolve().parents[2] / "docs"
 
 # explicit domain ownership (table-name prefixes / names). Anything unmatched is listed under "Unassigned" so it is visible, never silently dropped.
 DOMAINS: list[tuple[str, list[str]]] = [
+    ("AI layer", ["ai_conversations", "ai_messages", "ai_tool_calls", "ai_usage", "ai_proposals", "ai_extractions", "ai_briefings"]),
     ("Platform & infrastructure", ["alembic_version", "idempotency_keys", "outbox_events", "processed_events", "job_failures", "webhook_events", "integration_logs", "document_counters", "demo_seed_steps", "company_settings", "notifications"]),
     ("Identity, access & audit", ["users", "roles", "permissions", "user_roles", "role_permissions", "sessions", "departments", "audit_logs"]),
     ("Master data", ["units_of_measure", "unit_conversions", "product_categories", "items", "suppliers", "customers", "customer_contacts", "customer_prices", "brands", "warehouses", "storage_locations",

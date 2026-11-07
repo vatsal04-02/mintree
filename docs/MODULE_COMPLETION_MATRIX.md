@@ -14,13 +14,13 @@ States, used strictly:
 
 | Fact | Value | Source |
 |---|---|---|
-| Tables / CHECK / UNIQUE / FK / indexes | see header of `DATABASE_SCHEMA_MAP.md` (140 tables at revision 0023, 0 unassigned to a domain) | generated from the migrated database |
-| Alembic revisions | 23 (`0001`..`0023`) | `backend/migrations/versions` |
+| Tables / CHECK / UNIQUE / FK / indexes | see header of `DATABASE_SCHEMA_MAP.md` (147 tables at revision 0025, 0 unassigned to a domain) | generated from the migrated database |
+| Alembic revisions | 25 (`0001`..`0025`) | `backend/migrations/versions` |
 | Database triggers (append-only ledgers, journal balance, frozen certificates) | 15 | `DATA_INTEGRITY.md` |
-| Integrity-suite checks | 37 (was 34) | `backend/scripts/check_integrity.py` |
+| Integrity-suite checks | 39 (was 37; +2 for AI records) | `backend/scripts/check_integrity.py` |
 | Demo verification | 100 checks (37 integrity + 63 scenario / reconciliation / permission) | `python -m scripts.demo_data verify` |
-| Backend tests | 320 passed, 1 skipped (needs a live RabbitMQ), 0 failed | `TEST_EXECUTION_REGISTER.md` |
-| Browser tests | existing suites 16/16, 11/11, 23/23 on this code; new demo journeys 18/18 | `TEST_EXECUTION_REGISTER.md` |
+| Backend tests | 364 passed, 1 skipped (needs a live RabbitMQ), 0 failed (44 of them cover the AI layer) | `TEST_EXECUTION_REGISTER.md` |
+| Browser tests | existing suites 16/16, 11/11, 23/23 on this code; demo journeys 18/18; AI-layer journeys 8/8 (one earlier run failed 6/8 on a layout bug and a test race, both fixed; recorded in the register) | `TEST_EXECUTION_REGISTER.md` |
 
 ## 2. Module status
 
@@ -41,11 +41,11 @@ States, used strictly:
 | Branding / Meta | Partial | campaigns, content workflow with approval, assets, manual publishing records, metrics, analytics | live publishing does not exist (and is not claimed); asset-to-content attachment |
 | Approvals, notifications, documents | Partial | approval policies/records/delegation, in-app notifications with **per-user mute** (urgent alerts cannot be muted), documents with versions and SHA-256, outbox, idempotency, job failures | e-mail/SMS/push channels do not exist; object-storage backend (local disk only) |
 | Management dashboard | Partial | one endpoint aggregating from tables; 8 headline figures recomputed independently by `verify` | not every figure is reconciled by an automated check; heavy queries are not cached |
-| AI layer | Planned (shelved by decision) | none | out of scope until separately authorised |
+| AI layer | Partial | assistant with 11 read-only permission-filtered tools, figure verification, citations, per-user budget, kill switch; document reader (invoice / delivery note → reconciled draft, human posts); deterministic suggestions (reorder, overdue follow-up) accepted through normal services; daily briefing; audit + integrity checks; red-team and browser tests; evaluation harness | **never run against a live model** (quality unmeasured); English only; PDF/image reading only with the Anthropic provider; no row-level scoping; see `AI_LAYER.md` §9 |
 
 ## 3. What changed in the system during this work (for reviewers)
 
-Timezone authority (migration 0015) · master completion (0016) · purchase returns and PO amendments (0017) · CRM pipeline (0018) · partial dispatch, packages, delivery attempts and proof of delivery (0019) · sampling plans and certificates (0020) · work centres and production plans (0021) · notification preferences (0022) · demo bookkeeping (0023). Each has its own tests; see `TEST_EXECUTION_REGISTER.md`.
+Timezone authority (migration 0015) · master completion (0016) · purchase returns and PO amendments (0017) · CRM pipeline (0018) · partial dispatch, packages, delivery attempts and proof of delivery (0019) · sampling plans and certificates (0020) · work centres and production plans (0021) · notification preferences (0022) · demo bookkeeping (0023) · masters linked into transactions (0024) · AI layer storage (0025). Each has its own tests; see `TEST_EXECUTION_REGISTER.md`.
 
 ## 4. Defects found and fixed along the way
 

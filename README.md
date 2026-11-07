@@ -10,7 +10,7 @@ Modular monolith: **FastAPI + PostgreSQL** backend, **Next.js + TypeScript + Tai
 > delivery**), CRM (**opportunities, lead conversion**), accounts (double-entry, bank matching), marketplaces (DEMO accounts) and maintenance.
 > `docs/MODULE_COMPLETION_MATRIX.md` states, module by module, what is Complete / Partial / Planned (**none is Complete yet**) and what is missing.
 > **Not built:** live marketplace, courier or Meta integrations (a fake courier adapter, CSV/JSON/webhook ingestion and manual recording only),
-> GST filing / e-invoicing, cash-flow statement, spare-parts-to-inventory link, object storage, AI.
+> GST filing / e-invoicing, cash-flow statement, spare-parts-to-inventory link, object storage. The AI layer is built but off by default and not yet evaluated against a live model (see `docs/AI_LAYER.md`).
 > **The 1,000-concurrent-operation target is NOT yet demonstrated**: see `docs/BACKEND_SCALABILITY.md`, `docs/LOAD_TEST_RESULTS.md` and `docs/PERFORMANCE_BASELINE.md`.
 > A complete demonstration dataset can be generated through the real workflows: see **Demo environment** below.
 
@@ -135,7 +135,7 @@ The backend suite includes permission-matrix, escalation, audit-immutability, do
 - **Storage**: local filesystem backend behind a `Storage` protocol. The PRD's S3-compatible backend is a drop-in implementation of the same three methods; not yet written/tested.
 - **Frontend data fetching** is plain `fetch` + local state. Fine for Phase 0; consider TanStack Query when screens share data.
 - Document links are free-form `(entity_type, entity_id)` pairs and are not yet validated against the target record.
-- Redis (permission-cache epoch, rate limits) and RabbitMQ/Celery (outbox consumers, scheduled maintenance generation) are in use; **n8n and the AI features are not built**.
+- Redis (permission-cache epoch, rate limits) and RabbitMQ/Celery (outbox consumers, scheduled maintenance generation) are in use; **n8n is not built**; the AI layer (`docs/AI_LAYER.md`) is built, off by default (`MINTREE_AI_ENABLED`).
 
 ## Operations
 
@@ -150,7 +150,7 @@ MINTREE_DATABASE_URL=postgresql://… ops/restore_check.sh ./backups/mintree-<st
 ## What is left
 
 `docs/PRD_COVERAGE.md` lists, per module, what is built, what is partial and what is not — chiefly live marketplace/courier/Meta connectors, GST e-invoice/e-way bill, partial shipments,
-AI features, S3 storage, and the 1,000-concurrent-operation load demonstration — and which of those wait on business decisions from Mintree (PRD §17).
+live-model evaluation of the AI layer, S3 storage, and the 1,000-concurrent-operation load demonstration — and which of those wait on business decisions from Mintree (PRD §17).
 
 ## Open items needing Mintree input (PRD §17)
 

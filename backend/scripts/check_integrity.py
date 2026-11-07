@@ -228,6 +228,16 @@ CHECKS: list[tuple[str, str, str]] = [
     ("ledger_is_append_only_by_construction",
      "Ledger rows carry the reversal link only once (a movement is reversed at most once)",
      """SELECT reverses_ledger_id, count(*) FROM stock_ledger WHERE reverses_ledger_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1"""),
+    ("ai_accepted_proposals_name_a_decider_and_a_result",
+     "An accepted AI proposal records who accepted it and the record it created; the record exists",
+     """SELECT p.id FROM ai_proposals p WHERE p.status = 'ACCEPTED' AND (p.decided_by IS NULL OR p.result IS NULL
+          OR (p.result->>'entity' = 'purchase_request' AND NOT EXISTS (SELECT 1 FROM purchase_requests r WHERE r.id = (p.result->>'id')::bigint))
+          OR (p.result->>'entity' = 'followup' AND NOT EXISTS (SELECT 1 FROM followups f WHERE f.id = (p.result->>'id')::bigint)))"""),
+    ("ai_reviewed_extractions_name_a_reviewer_and_posted_invoices_exist",
+     "A decided document extraction names its reviewer; an invoice it says was posted exists",
+     """SELECT e.id FROM ai_extractions e WHERE (e.status <> 'EXTRACTED' AND (e.reviewed_by IS NULL OR e.reviewed_at IS NULL))
+          OR (e.status = 'ACCEPTED' AND e.review_edits->'posted'->>'entity' = 'supplier_invoice'
+              AND NOT EXISTS (SELECT 1 FROM supplier_invoices i WHERE i.id = (e.review_edits->'posted'->>'id')::bigint))"""),
 ]
 
 SKIPPED: list[tuple[str, str]] = []

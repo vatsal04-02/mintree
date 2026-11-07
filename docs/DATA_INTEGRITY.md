@@ -8,7 +8,7 @@ Integrity is enforced in layers; each layer catches what the one above it could 
 4. **The integrity suite** (`backend/scripts/check_integrity.py`) re-derives every invariant from the tables after the fact. It runs inside the test-suite after workflows, and in `demo_data init/verify`.
 5. **Demo verification** (`backend/scripts/demo/verify.py`) adds scenario checks, dashboard-vs-table reconciliation and role-enforcement checks to the integrity suite.
 
-## Database triggers (15)
+## Database triggers (17)
 
 | Table | Trigger | Rule (message raised) |
 |---|---|---|
@@ -18,6 +18,7 @@ Integrity is enforced in layers; each layer catches what the one above it could 
 | `formulation_ingredients` | `formulation_ingredient_guard` | ingredients of formulation version % (status %) are immutable |
 | `formulation_versions` | `formulation_version_guard` | formulation version % is % and cannot be deleted |
 | `inspection_results` | `inspection_results_no_update_delete` | inspection_results is append-only; record a retest instead |
+| `items` | `items_tax_class_sync` | item gst_rate % does not match its tax class rate % |
 | `journal_entries` | `journal_entries_no_truncate` | % is append-only; post a reversal instead |
 | `journal_entries` | `journal_entries_no_update_delete` | % is append-only; post a reversal instead |
 | `journal_lines` | `journal_lines_balanced` | journal entry % is unbalanced (debit % vs credit %) |
@@ -26,9 +27,10 @@ Integrity is enforced in layers; each layer catches what the one above it could 
 | `process_checks` | `process_checks_no_update_delete` | process_checks is append-only; record a new reading instead |
 | `stock_ledger` | `stock_ledger_no_truncate` | stock_ledger is append-only; post a REVERSAL or ADJUSTMENT instead |
 | `stock_ledger` | `stock_ledger_no_update_delete` | stock_ledger is append-only; post a REVERSAL or ADJUSTMENT instead |
+| `tax_classes` | `tax_class_rate_guard` | tax class % is used by items; its rate cannot change (create a new class) |
 | `trial_observations` | `trial_observations_no_update_delete` | trial_observations is append-only; record a new reading instead |
 
-## Integrity suite: 37 checks
+## Integrity suite: 39 checks
 
 Each check is a query returning the *violating* rows; zero rows = pass.
 
@@ -71,6 +73,8 @@ Each check is a query returning the *violating* rows; zero rows = pass.
 | 35 | `completed_stages_have_no_failing_latest_process_check` | No production stage is DONE while the latest in-process reading of any of its parameters failed |
 | 36 | `posted_marketplace_settlements_have_a_recorded_receipt` | A settlement posted to the ledger has its receipt amount recorded, and its payment when cash was received |
 | 37 | `ledger_is_append_only_by_construction` | Ledger rows carry the reversal link only once (a movement is reversed at most once) |
+| 38 | `ai_accepted_proposals_name_a_decider_and_a_result` | An accepted AI proposal records who accepted it and the record it created; the record exists |
+| 39 | `ai_reviewed_extractions_name_a_reviewer_and_posted_invoices_exist` | A decided document extraction names its reviewer; an invoice it says was posted exists |
 
 ## Money, quantity and time rules
 
