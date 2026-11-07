@@ -170,7 +170,7 @@ def _summarise(tool_content: str) -> str:
     for k, v in (data.items() if isinstance(data, dict) else [("result", data)]):
         label = k.replace("_", " ")
         if isinstance(v, list):
-            lines.append(f"- {label}: {len(v)}" + ("".join(f"\n    · {show(x)}" for x in v[:5])))
+            lines.append(f"- {label}:" + ("".join(f"\n    · {show(x)}" for x in v[:5])) if v else f"- {label}: none")       # no counts: a number the tool did not return would (rightly) be flagged as unverified
         elif isinstance(v, dict):
             lines.append(f"- {label}: {show(v)}")
         elif v is not None:

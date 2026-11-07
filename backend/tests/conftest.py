@@ -37,10 +37,15 @@ def _schema():
 
 
 @pytest.fixture(autouse=True)
-def _no_stale_cached_reads():
-    """The response cache is process-wide; a test must never see another test's cached list or dashboard (cache behaviour has its own tests in test_response_cache.py)."""
+def _test_hygiene():
+    """(1) The response cache is process-wide; a test must never see another test's cached list or dashboard (cache behaviour has its own tests in test_response_cache.py).
+    (2) No publisher runs during the suite, so outbox events committed by earlier tests (live-server tests commit for real) would age past the integrity check's
+    five-minute 'stuck unpublished' limit in a long run and fail an unrelated later test. Debris older than three minutes is marked published (never deleted: other checks require every
+    goods receipt to keep its event); events from the running test are untouched."""
     from app.core import rcache
     rcache.clear()
+    with engine.begin() as c:
+        c.execute(text("UPDATE outbox_events SET status = 'published', published_at = now() WHERE status IN ('pending', 'publishing') AND created_at < now() - interval '3 minutes'"))
     yield
 
 

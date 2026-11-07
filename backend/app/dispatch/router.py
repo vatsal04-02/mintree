@@ -5,8 +5,9 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
+from app.masters.models import Customer
 
 from app.core.db import get_db
 from app.core.deps import CurrentUser, require
@@ -98,13 +99,17 @@ def create(body: SOIn, db: Session = DB, cu: CurrentUser = Depends(require("disp
 
 
 @router.get("/orders")
-def list_orders(status: str | None = None, customer_id: int | None = None, page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), db: Session = DB,
+def list_orders(status: str | None = None, customer_id: int | None = None, q: str | None = Query(None, max_length=80), page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), db: Session = DB,
                 _: CurrentUser = Depends(require("dispatch.order:read"))):
-    q = select(SalesOrder).order_by(SalesOrder.id.desc()).limit(page_size).offset((page - 1) * page_size)
+    stmt = select(SalesOrder).order_by(SalesOrder.id.desc()).limit(page_size).offset((page - 1) * page_size)
     if status:
-        q = q.where(SalesOrder.status == status)
+        stmt = stmt.where(SalesOrder.status == status)
     if customer_id:
-        q = q.where(SalesOrder.customer_id == customer_id)
+        stmt = stmt.where(SalesOrder.customer_id == customer_id)
+    if q and q.strip():
+        like = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        stmt = stmt.where(or_(SalesOrder.number.ilike(like), SalesOrder.customer_id.in_(select(Customer.id).where(Customer.name.ilike(like)))))
+    q = stmt
     return {"items": [svc.order_dict(o) for o in db.scalars(q).unique()], "page": page}
 
 

@@ -35,3 +35,33 @@ def test_shipment_lines_show_what_can_still_be_returned(shop):
     assert len(lines) == 1 and lines[0]["returnable"] == "10.000" and lines[0]["batch_no"]
     shop["disp"].post(f"/api/dispatch/returns?order_id={o['id']}", headers=k(), json={"reason": "damaged", "lines": [{"shipment_line_id": lines[0]["shipment_line_id"], "qty": "3"}]})
     assert shop["disp"].get(f"/api/dispatch/orders/{o['id']}/shipment-lines").json()[0]["returnable"] == "7.000"
+
+
+def test_list_screens_search_every_shown_column_and_stay_paginated(login):
+    c = login("management")
+    base = c.get("/api/dispatch/invoices", params={"page_size": 5}).json()
+    assert isinstance(base["items"], list)
+    if base["items"]:
+        number = base["items"][0]["number"]
+        hit = c.get("/api/dispatch/invoices", params={"q": number[-6:]}).json()["items"]
+        assert hit and all(number[-6:].lower() in str(row).lower() for row in hit)
+    assert c.get("/api/dispatch/invoices", params={"q": "zzz-no-such-thing"}).json()["items"] == []
+    for evil in ("%", "_", "'; DROP TABLE users; --", "\\"):
+        assert c.get("/api/dispatch/invoices", params={"q": evil}).status_code == 200            # wildcards are literal, SQL is parameterised
+    assert c.get("/api/dispatch/invoices", params={"q": "x" * 200}).status_code == 422
+    assert c.get("/api/procurement/goods-receipts", params={"q": "nothing-here"}).json()["items"] == []
+
+
+def test_leads_and_orders_search_beyond_the_first_page(login, db):
+    c = login("management")
+    sales = login("sales_operator")
+    for i in range(3):
+        assert sales.post("/api/crm/leads", json={"name": f"Searchable Person {i}", "company": "Zzyzx Traders", "email": f"zz{i}@example.com"}).status_code == 201
+    hit = c.get("/api/crm/leads", params={"q": "zzyzx"}).json()["items"]
+    assert len(hit) == 3 and all("Zzyzx" in (x["company"] or "") for x in hit)
+    assert c.get("/api/crm/leads", params={"q": "no-such-company-xyz"}).json()["items"] == []
+    assert c.get("/api/crm/leads", params={"q": "%"}).json()["items"] == []                    # wildcards are literal
+    first = c.get("/api/dispatch/orders", params={"page_size": 1}).json()["items"]
+    if first:
+        n = first[0]["number"]
+        assert [o["number"] for o in c.get("/api/dispatch/orders", params={"q": n}).json()["items"]] == [n]

@@ -60,12 +60,23 @@ Rows marked *manual* were back-filled from observations earlier in the same work
 | 2026-11-07 04:20 | browser E2E (Playwright) - demo journeys | `a324a47b27+dirty` | 18 | 0 | **PASS** | historical | Chromium (Playwright), demo-seeded DB + API + next dev, 4 vCPU sandbox — Includes 3 new Overview steps (four indicators with money shown once, chart bars equal the API series and follow the period, honest notice without permission) |
 | 2026-11-07 09:41 | browser E2E (Playwright) - AI layer journeys | `404ec81fbd+dirty` | 6 | 2 | **FAIL** | historical | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
 | 2026-11-07 09:43 | browser E2E (Playwright) - AI layer journeys | `404ec81fbd+dirty` | 8 | 0 | **PASS** | historical | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
-| 2026-11-07 09:55 | browser E2E (Playwright) | `816689f274+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
-| 2026-11-07 09:56 | browser E2E (Playwright) - module screens | `816689f274+dirty` | 11 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
-| 2026-11-07 09:57 | browser E2E (Playwright) - UI workflows | `816689f274+dirty` | 23 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
-| 2026-11-07 09:58 | browser E2E (Playwright) - demo journeys | `816689f274+dirty` | 18 | 0 | **PASS** | current | Chromium (Playwright), demo-seeded DB + API + production web build, 4 vCPU sandbox |
-| 2026-11-07 09:59 | browser E2E (Playwright) - AI layer journeys | `816689f274+dirty` | 8 | 0 | **PASS** | current | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
-| 2026-11-07 10:05 | backend (pytest) | `816689f274+dirty` | 364 | 0 | **PASS** | current | PostgreSQL 16 (local, port 5433), Redis, Python 3.13; 1 skipped (needs a live RabbitMQ); includes 44 AI-layer tests |
+| 2026-11-07 09:55 | browser E2E (Playwright) | `816689f274+dirty` | 16 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 09:56 | browser E2E (Playwright) - module screens | `816689f274+dirty` | 11 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 09:57 | browser E2E (Playwright) - UI workflows | `816689f274+dirty` | 23 | 0 | **PASS** | historical | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 09:58 | browser E2E (Playwright) - demo journeys | `816689f274+dirty` | 18 | 0 | **PASS** | historical | Chromium (Playwright), demo-seeded DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 09:59 | browser E2E (Playwright) - AI layer journeys | `816689f274+dirty` | 8 | 0 | **PASS** | historical | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
+| 2026-11-07 10:05 | backend (pytest) | `816689f274+dirty` | 364 | 0 | **PASS** | historical | PostgreSQL 16 (local, port 5433), Redis, Python 3.13; 1 skipped (needs a live RabbitMQ); includes 44 AI-layer tests |
+| 2026-11-07 15:13 | browser E2E (Playwright) - demo journeys | `a19fa4c84b+dirty` | 16 | 6 | **FAIL** | historical | Chromium (Playwright), demo-seeded DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:25 | browser E2E (Playwright) - demo journeys | `a19fa4c84b+dirty` | 6 | 16 | **FAIL** | historical | Chromium (Playwright), demo-seeded DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:28 | browser E2E (Playwright) - demo journeys | `a19fa4c84b+dirty` | 20 | 2 | **FAIL** | historical | Chromium (Playwright), demo-seeded DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:31 | browser E2E (Playwright) - demo journeys | `a19fa4c84b+dirty` | 22 | 0 | **PASS** | current | Chromium (Playwright), demo-seeded DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:32 | browser E2E (Playwright) | `a19fa4c84b+dirty` | 16 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:33 | browser E2E (Playwright) - module screens | `a19fa4c84b+dirty` | 11 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:34 | browser E2E (Playwright) - UI workflows | `a19fa4c84b+dirty` | 23 | 0 | **PASS** | current | Chromium (Playwright), hermetic DB + API + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:36 | browser E2E (Playwright) - AI layer journeys | `a19fa4c84b+dirty` | 4 | 4 | **FAIL** | historical | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:39 | browser E2E (Playwright) - AI layer journeys | `a19fa4c84b+dirty` | 4 | 4 | **FAIL** | historical | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
+| 2026-11-07 15:42 | browser E2E (Playwright) - AI layer journeys | `a19fa4c84b+dirty` | 8 | 0 | **PASS** | current | Chromium (Playwright), demo-seeded DB + API (scripted provider) + production web build, 4 vCPU sandbox |
+| 2026-11-07 16:00 | backend (pytest) | `a19fa4c84b+dirty` | 395 | 0 | **PASS** | current | PostgreSQL 16 (local, port 5433), Redis, Python 3.13; 1 skipped (needs a live RabbitMQ); includes the full-scale demo build, session/response-cache, Meta workspace, cash-flow, print-document and finance-concurrency tests |
 
 ## 2. Load / resilience test runs
 

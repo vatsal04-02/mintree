@@ -1,4 +1,6 @@
 """Read-only list endpoints for documents that previously could only be fetched one by one. Paginated (newest first), permission-gated like their modules."""
+import re
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -55,10 +57,25 @@ QUERIES = {
 }
 
 
+_TAIL = re.compile(r"\s+ORDER BY\s+.*?\s+LIMIT :n OFFSET :o\s*$", re.S)
+
+
+def _searchable(sql: str) -> str:
+    """The same query wrapped so `q` searches every column the list shows (whole-row text, case-insensitive), still newest first and paginated."""
+    m = _TAIL.search(sql)
+    return sql if not m else f"SELECT * FROM ({sql[:m.start()]}) t WHERE t::text ILIKE :q ORDER BY t.id DESC LIMIT :n OFFSET :o"
+
+
 def _register(path: str, perm: str, sql: str, name: str):
+    search_sql = _searchable(sql)
+
     @router.get(path, name=f"list_{name}")
-    def listing(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=200), db: Session = DB, _: CurrentUser = Depends(require(perm))):
-        rows = db.execute(text(sql), {"n": page_size, "o": (page - 1) * page_size}).mappings().all()
+    def listing(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=200), q: str | None = Query(None, max_length=80), db: Session = DB, _: CurrentUser = Depends(require(perm))):
+        if q and q.strip() and search_sql is not sql:
+            like = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            rows = db.execute(text(search_sql), {"n": page_size, "o": (page - 1) * page_size, "q": like}).mappings().all()
+        else:
+            rows = db.execute(text(sql), {"n": page_size, "o": (page - 1) * page_size}).mappings().all()
         return {"items": [{k: (str(v) if hasattr(v, "quantize") else v) for k, v in dict(r).items()} for r in rows], "page": page, "page_size": page_size}
     return listing
 

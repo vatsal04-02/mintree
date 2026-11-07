@@ -7,9 +7,10 @@ ROOT="$(cd .. && pwd)"
 PG_BASE="${E2E_PG_BASE:-postgresql://mintree:mintree@localhost:5433}"
 DB=mintree_demo_e2e
 WORK="$(mktemp -d)"; PIDS=()
-cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$WORK"; }
+cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; fuser -k 3101/tcp 8101/tcp >/dev/null 2>&1 || true; rm -rf "$WORK"; }   # `kill` only stops the npx wrapper: free the ports so a stale web server can never serve old chunks to the next run
 trap cleanup EXIT
 
+fuser -k 3101/tcp 8101/tcp >/dev/null 2>&1 || true
 psql "$PG_BASE/postgres" -qc "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB"
 export MINTREE_ENVIRONMENT=demo MINTREE_DATABASE_URL="${PG_BASE/postgresql:/postgresql+psycopg:}/$DB" MINTREE_STORAGE_ROOT="$WORK/storage"
 PY="${PY:-$ROOT/backend/.venv/bin/python}"

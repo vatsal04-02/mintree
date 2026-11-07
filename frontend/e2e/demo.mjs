@@ -103,15 +103,17 @@ await step("CRM: the pipeline shows a won, an open and a lost deal with their st
 });
 
 await step("CRM: a converted lead points at its customer; a lost lead cannot be 'won'", async () => {
-  await open("/m/sales/leads");
+  await open("/m/sales/leads?q=Studio%20Bloom");                       // lists hold the newest 100 rows; search is server-side so older records are found
   await card("Studio Bloom").getByText("Won", { exact: true }).waitFor();
   assert.equal(await card("Studio Bloom").getByRole("button", { name: /Convert/ }).count(), 0, "an already-converted lead offers no convert action");
+  await open("/m/sales/leads?q=Velvet");
   await card("Velvet Wellness").getByRole("button", { name: "Convert to customer" }).count().then((n) => assert.equal(n, 0, "a NEW lead cannot be converted yet"));
 });
 
 await step("Dispatch: the won order shipped in two shipments, each with its own invoice", async () => {
   await loginAs("disp");
-  await open("/m/dispatch/shipments");
+  await open("/m/dispatch/shipments?q=SO%2F26%2F000001");
+  await page.locator("article").filter({ hasText: "SO/26/000001" }).first().waitFor();
   const rows = await page.locator("article").filter({ hasText: "SO/26/000001" }).count();
   assert.equal(rows, 2, "order SO/26/000001 has two shipments");
   await shot("d03-shipments");
@@ -120,7 +122,7 @@ await step("Dispatch: the won order shipped in two shipments, each with its own 
 });
 
 await step("Dispatch: a failed delivery and a delayed shipment are visible as exceptions", async () => {
-  await open("/m/dispatch/shipments");
+  await open("/m/dispatch/shipments?q=FAILED_DELIVERY");
   await page.locator("article").filter({ hasText: "Failed delivery" }).first().waitFor();
 });
 
@@ -196,27 +198,87 @@ await step("approving the pending purchase order in the browser changes it in th
 
 await step("dispatching the packed order from the card posts stock and an invoice", async () => {
   await loginAs("disp");
-  await open("/m/dispatch/orders");
-  const packed = card("Packed").first();
+  const packedOrder = (await api("disp", "/dispatch/orders?status=PACKED&page_size=1")).items[0];
+  assert.ok(packedOrder, "the demo has a packed order waiting for dispatch");
+  await open(`/m/dispatch/orders?q=${encodeURIComponent(packedOrder.number)}`);
+  const packed = card(packedOrder.number).first();
   await packed.waitFor();
   const num = (await packed.innerText()).match(/SO\/\d+\/\d+/)[0];
-  const before = (await api("disp", `/dispatch/invoices?page_size=100`)).items.length;
+  const shipments = async () => (await api("disp", `/dispatch/orders/${packedOrder.id}/shipments`)).shipments;
+  assert.equal((await shipments()).length, 0, "nothing shipped yet");
   await packed.getByRole("button", { name: "Dispatch (all remaining)" }).click();
   await page.getByText("Dispatch everything still unshipped").waitFor({ timeout: 5000 });     // the action asks for confirmation before posting
   await page.getByRole("button", { name: "Dispatch (all remaining)" }).last().click();       // the modal's confirm button (the card's own button is earlier in the DOM)
   await card(num).getByText("Dispatched", { exact: true }).waitFor({ timeout: 8000 });
-  const after = (await api("disp", `/dispatch/invoices?page_size=100`)).items.length;
-  assert.equal(after, before + 1, "one new invoice was posted");
+  const after = await shipments();
+  assert.equal(after.length, 1, "one shipment was created");
+  assert.ok(after[0].invoice_number && Number(after[0].invoice_total) > 0, "and its invoice was posted");
   await shot("d07-dispatched");
 });
 
 await step("a QC inspector can record a result but is not offered the release decision", async () => {
   await loginAs("qi");
-  await open("/m/quality/inspections");
-  const open1 = page.locator("article").filter({ hasText: /Pending|In Progress/ }).first();
+  const pend = (await api("qi", "/quality/inspections?page_size=100")).items.find((i) => ["PENDING", "IN_PROGRESS"].includes(i.status));
+  assert.ok(pend, "the demo has an open inspection");
+  await open(`/m/quality/inspections?q=${encodeURIComponent(pend.number)}`);
+  const open1 = page.locator("article").filter({ hasText: pend.number }).first();
   await open1.waitFor();
   assert.ok(await open1.getByRole("button", { name: "Record result" }).count() >= 1);
   assert.equal(await open1.getByRole("button", { name: "Decide" }).count(), 0, "inspectors cannot decide");
+});
+
+
+// ---------------------------------------------------------------- performance & completeness milestone
+await step("Meta workspace: every asset is labelled as a simulated sandbox record and nothing reads Connected", async () => {
+  await loginAs("mkt");
+  await open("/m/branding/meta");
+  const body = await page.locator("main").innerText();
+  assert.match(body, /Simulated sandbox record/);
+  assert.doesNotMatch(body, /Connected and verified/);
+  assert.ok((await page.locator("article").count()) >= 4, "business, page, Instagram and ad account are listed");
+  await shot("d20-meta-workspace");
+});
+
+await step("a running campaign can be paused and the change is real (checked through the API)", async () => {
+  await open("/m/branding/campaigns");
+  const camps = await api("mkt", "/branding/campaigns");
+  const running = camps.find((c) => c.status === "RUNNING");
+  assert.ok(running, "demo data has a running campaign");
+  const c = card(running.name).first();
+  await c.getByRole("button", { name: "Pause" }).click();
+  const dlg = page.getByRole("dialog");
+  if (await dlg.count()) await dlg.getByRole("button", { name: /Pause|Confirm|Submit|Save/ }).last().click();
+  await page.waitForLoadState("networkidle");
+  const after = (await api("mkt", "/branding/campaigns")).find((x) => x.id === running.id);
+  assert.equal(after.status, "PAUSED");
+});
+
+await step("the cash-flow statement opens, reconciles and is not an error state", async () => {
+  await loginAs("acct");
+  await open("/m/accounts/cashflow");
+  await page.waitForLoadState("networkidle");
+  const body = await page.locator("main").innerText();
+  assert.match(body, /closing/i);
+  assert.equal(await page.locator("main [role=alert]").filter({ hasText: /\S/ }).count(), 0);
+  await shot("d21-cash-flow");
+});
+
+await step("approved purchase orders offer a printable PO that opens as a PDF", async () => {
+  await loginAs("buyer");
+  await open("/m/procurement/orders");
+  const approved = (await api("buyer", "/procurement/purchase-orders?status=APPROVED&page_size=1")).items?.[0] ?? (await api("buyer", "/procurement/purchase-orders?page_size=100")).items.find((p) => ["APPROVED", "RECEIVED", "PARTIALLY_RECEIVED"].includes(p.status));
+  assert.ok(approved, "the demo has an approved purchase order");
+  await open(`/m/procurement/orders?q=${encodeURIComponent(approved.number)}`);
+  const btn = card(approved.number).first().getByRole("button", { name: "Print PO" });
+  await btn.waitFor();
+  const [popup] = await Promise.all([page.waitForEvent("popup"), btn.click()]);
+  await popup.waitForLoadState("commit").catch(() => {});
+  const url = popup.url() && popup.url() !== "about:blank" ? popup.url() : `${BASE}/api/procurement/purchase-orders/${approved.id}/pdf`;
+  assert.match(url, /\/api\/procurement\/purchase-orders\/\d+\/pdf/);
+  await popup.close();
+  const r = await page.context().request.get(url);
+  assert.equal(r.status(), 200);
+  assert.equal((await r.body()).subarray(0, 5).toString(), "%PDF-");
 });
 
 await step("no unexpected browser console errors", async () => assert.deepEqual(consoleErrors, []));

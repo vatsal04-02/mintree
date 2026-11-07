@@ -3,7 +3,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.audit import service as audit
@@ -73,10 +73,14 @@ def create_lead(body: LeadIn, db: Session = DB, cu: CurrentUser = Depends(requir
 
 
 @router.get("/leads")
-def leads(status: str | None = None, page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), db: Session = DB, _: CurrentUser = Depends(require("crm.lead:read"))):
-    q = select(Lead).order_by(Lead.id.desc()).limit(page_size).offset((page - 1) * page_size)
+def leads(status: str | None = None, q: str | None = Query(None, max_length=80), page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), db: Session = DB, _: CurrentUser = Depends(require("crm.lead:read"))):
+    stmt = select(Lead).order_by(Lead.id.desc()).limit(page_size).offset((page - 1) * page_size)
     if status:
-        q = q.where(Lead.status == status)
+        stmt = stmt.where(Lead.status == status)
+    if q and q.strip():
+        like = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        stmt = stmt.where(or_(Lead.name.ilike(like), Lead.company.ilike(like), Lead.email.ilike(like), Lead.phone.ilike(like)))
+    q = stmt
     return {"items": [lead_dict(l) for l in db.scalars(q)], "page": page}
 
 

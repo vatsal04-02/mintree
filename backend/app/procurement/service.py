@@ -177,7 +177,7 @@ def po_dict(po: PurchaseOrder) -> dict:
     return {"id": po.id, "number": po.number, "status": po.status, "version": po.version, "supplier_id": po.supplier_id,
             "total_amount": str(po.total_amount), "expected_date": po.expected_date,
             "items": [{"id": i.id, "line_no": i.line_no, "item_id": i.item_id, "qty_ordered": str(i.qty_ordered),
-                       "qty_received": str(i.qty_received), "unit_price": str(i.unit_price), "tax_rate": str(i.tax_rate)} for i in po.items]}
+                       "qty_received": str(i.qty_received), "qty_invoiced": str(i.qty_invoiced), "unit_price": str(i.unit_price), "tax_rate": str(i.tax_rate)} for i in po.items]}
 
 
 # ------------------------------------------------------------------ goods receipt

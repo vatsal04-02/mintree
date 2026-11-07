@@ -18,6 +18,7 @@ from pathlib import Path
 
 from sqlalchemy import select, text
 
+import app.models  # noqa: F401  (every table must be registered before any flush)
 from app.administration.models import User
 from app.ai import assistant, extraction
 from app.ai.models import AiToolCall

@@ -7,7 +7,7 @@ ROOT="$(cd .. && pwd)"
 PG_BASE="${E2E_PG_BASE:-postgresql://mintree:mintree@localhost:5433}"
 DB_URL="postgresql+psycopg://mintree:mintree@localhost:5433/mintree_e2e"
 WORK="$(mktemp -d)"; PIDS=()
-cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$WORK"; }
+cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; fuser -k 3100/tcp 8100/tcp >/dev/null 2>&1 || true; rm -rf "$WORK"; }
 trap cleanup EXIT
 
 psql "$PG_BASE/postgres" -qc "DROP DATABASE IF EXISTS mintree_e2e" -c "CREATE DATABASE mintree_e2e"

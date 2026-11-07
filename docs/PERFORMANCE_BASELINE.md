@@ -1,5 +1,8 @@
 # Performance Baseline
 
+> ## Update — performance & completeness milestone (commit `23ef16bf05` baseline → `f38ef22`)
+> The per-traffic-class baseline for this milestone (A cacheable reads, B uncached reads, C dashboards, D writes, E hot stock, F/G postings) was re-measured on the same 4-vCPU box with the larger demo dataset and is in `PERFORMANCE_BENCHMARK_RESULTS.md` (before vs after, worker sweep, sustained run, Redis-outage and API-restart drills). Headline: cacheable reads ≈ 175–250 → ≈ 500–790 req/s, dashboards ≈ 85–160 → ≈ 420–620 req/s; uncached reads and postings remain ≈ 200–360 req/s. **10,000 req/s is still not demonstrated.** The numbers below are the earlier milestone's and are kept as history.
+
 > ## Verdict (read this first)
 > **The 1,000-concurrent-operation target is NOT demonstrated.** It has not been run at its specified size/duration, and
 > it has not been run on a staging environment. On the shared 4-vCPU sandbox used here, 1,000 clients get 0 failures and

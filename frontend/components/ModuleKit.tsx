@@ -9,7 +9,7 @@ import { fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from "@/lib/format"
 import { defaultParam, toneFor, type Action, type Col, type Create, type Field, type Param, type RefKey, type Row, type Screen } from "@/lib/modules";
 import { DataTable, type Col as TCol } from "./DataTable";
 import { ScanButton, ScanDialog, resolveCode } from "./Scanner";
-import { Badge, ConfirmDialog, Drawer, EmptyState, useToast } from "./ui";
+import { Badge, ConfirmDialog, Drawer, EmptyState, useDebounced, useToast } from "./ui";
 
 /* ------------------------------------------------------------------ reference pickers */
 const REFS: Record<RefKey, { api: string; params?: Record<string, string>; label: (r: Row) => string }> = {
@@ -447,6 +447,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const [status, setStatus] = useState("");
   const sp = useSearchParams();
   const [q, setQ] = useState(sp.get("q") ?? "");
+  const dq = useDebounced(q, 300);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<{ title: string; data: any } | null>(null);
   const [act, setAct] = useState<{ a: Action; row: Row } | null>(null);
@@ -463,11 +464,12 @@ export function ListScreen({ screen }: { screen: Screen }) {
       const params: Record<string, string> = { ...(def.params ?? {}) };
       if (def.paged !== false && !params.page_size && !params.limit) params.page_size = "100";
       if (status && def.status?.param) params[def.status.param] = status;
+      if (dq.trim() && def.paged !== false) params.q = dq.trim();          // server-side search: the list holds only the newest 100 rows, so searching must reach the older ones
       setRows(asRows(await api<any>(def.api, { params })).map((r, i) => (r.id === undefined ? { id: i + 1, ...r } : r)));
       setError(null);
     } catch (e) { setError(e instanceof ApiError ? e.message : "Failed to load"); }
     finally { setLoading(false); }
-  }, [def, status]);
+  }, [def, status, dq]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); setShown(48); }, [q, status]);
 
@@ -482,7 +484,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
 
   async function openHref(href: string, label: string) {
     if (!href.startsWith("/api")) { router.push(href); return; }
-    if (/\/(pdf|coa)$/.test(href) || href.startsWith("/api/labels/")) { window.open(href, "_blank", "noopener"); return; }
+    if (/\/(pdf|coa|challan)$/.test(href) || href.startsWith("/api/labels/")) { window.open(href, "_blank", "noopener"); return; }
     try { setView({ title: label, data: await api(href.replace(/^\/api/, "")) }); } catch (e) { toast("error", e instanceof ApiError ? e.message : "Could not open"); }
   }
   async function run(a: Action, row: Row, values?: Row) {

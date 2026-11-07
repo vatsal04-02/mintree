@@ -114,7 +114,7 @@ def challan_pdf(db: Session, shipment_id: int) -> tuple[str, bytes]:
                             "WHERE sl.shipment_id = :i ORDER BY sl.id"), {"i": shipment_id}).mappings().all()
     pk = db.execute(text("SELECT package_no, weight_kg, contents FROM shipment_packages WHERE shipment_id = :i ORDER BY package_no"), {"i": shipment_id}).mappings().all()
     co = _company(db)
-    number = s["shipment_no"] or f"SHP-{s['id']}"
+    number = f"{s['order_no']}/S{s['shipment_no']}" if s["shipment_no"] else f"SHP-{s['id']}"
     rows = [["#", "Item", "Description", "Batch", "Expiry", "Qty"]] + [[n, l["item_code"], l["name"], l["batch_no"] or "-", l["expiry_date"] or "-", _q(l["qty"], 3).rstrip("0").rstrip(".")] for n, l in enumerate(lines, 1)]
     els = [header_flowable(co["name"] or "Mintree", "DELIVERY CHALLAN", number), Spacer(1, 6),
            Paragraph(f"<b>{co['name'] or 'Mintree'}</b><br/>GSTIN: {co['gstin'] or '-'}<br/>{co['address'] or ''}", small), Spacer(1, 6),

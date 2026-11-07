@@ -156,3 +156,9 @@ live-model evaluation of the AI layer, S3 storage, and the 1,000-concurrent-oper
 
 Approval hierarchies, physical warehouse structure, QC specs, courier partners, GST registrations, marketplace
 seller/API access, Meta assets, user counts, hosting model.
+
+
+## Performance, demo scale and brand (latest milestone)
+* Per-class load results, before/after and the honest 10,000 req/s verdict: `docs/PERFORMANCE_BENCHMARK_RESULTS.md`; design: `docs/PERFORMANCE_ARCHITECTURE.md`; reproduce with `tests/load/run_classes.sh`.
+* Demo at scale (130+ sales orders, 126 marketplace orders, 125 CRM leads+opportunities, a simulated Meta workspace): `docs/DEMO_DATA_COVERAGE.md`; `python -m scripts.demo_data init|verify|report|reset`.
+* Issue register (fixed / open): `docs/ISSUE_REGISTER.md`; brand asset usage: `docs/BRAND_ASSET_USAGE.md`.

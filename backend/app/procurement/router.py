@@ -65,13 +65,18 @@ def create_po(body: s.POCreate, db: Session = DB, cu: CurrentUser = Depends(requ
 
 
 @router.get("/purchase-orders")
-def list_po(status: str | None = None, supplier_id: int | None = None, page: int = Query(1, ge=1),
+def list_po(status: str | None = None, supplier_id: int | None = None, q: str | None = Query(None, max_length=80), page: int = Query(1, ge=1),
             page_size: int = Query(25, ge=1, le=100), db: Session = DB, _: CurrentUser = Depends(require("procurement.po:read"))):
     stmt = select(PurchaseOrder)
     if status:
         stmt = stmt.where(PurchaseOrder.status == status)
     if supplier_id:
         stmt = stmt.where(PurchaseOrder.supplier_id == supplier_id)
+    if q and q.strip():
+        from sqlalchemy import or_
+        from app.masters.models import Supplier
+        like = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        stmt = stmt.where(or_(PurchaseOrder.number.ilike(like), PurchaseOrder.supplier_id.in_(select(Supplier.id).where(Supplier.name.ilike(like)))))
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(stmt.order_by(PurchaseOrder.id.desc()).limit(page_size).offset((page - 1) * page_size)).unique().all()
     return {"items": [svc.po_dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}

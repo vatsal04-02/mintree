@@ -61,16 +61,30 @@ def test_dashboard_is_cached_for_15s_and_says_so(login):
     assert login("production_operator").get("/api/analytics/management-summary").status_code == 403
 
 
-def test_single_flight_lets_one_request_compute(login):
-    import threading
-    c = login("stores_manager")
-    results = []
-    def go():
-        results.append(c.get("/api/masters/categories", params={"page_size": 77}).headers.get("x-cache"))
-    ts = [threading.Thread(target=go) for _ in range(5)]
+def test_single_flight_lets_one_request_compute():
+    """Concurrent misses for one key: the first computes, the others wait and then find its result. (Unit level: the request-level helper shares one DB session in tests.)"""
+    import threading, time
+    computed, results = [], []
+    barrier = threading.Barrier(6)
+
+    def request():
+        barrier.wait(10)
+        body, ver = rcache.lookup("sf", "k", 60, check_version=False)
+        if body is not None:
+            results.append("hit"); return
+        with rcache.single_flight("sf", "k"):
+            body, _ = rcache.lookup("sf", "k", 60, check_version=False)
+            if body is not None:
+                results.append("hit"); return
+            time.sleep(0.2)                                   # the expensive query
+            computed.append(1)
+            rcache.store("sf", "k", "ttl", b"{}")
+            results.append("miss")
+
+    ts = [threading.Thread(target=request) for _ in range(6)]
     [t.start() for t in ts]
     [t.join() for t in ts]
-    assert results.count("miss") == 1 and results.count("hit") == len(results) - 1
+    assert len(computed) == 1 and results.count("miss") == 1 and results.count("hit") == 5
 
 
 def test_bounded_memory():
