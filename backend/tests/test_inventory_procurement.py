@@ -308,3 +308,33 @@ def test_permissions_for_inventory_and_procurement(people, login):
     assert p["prod"].post("/api/procurement/purchase-orders", json={}).status_code == 403
     assert login("management").get("/api/inventory/balances").status_code == 200
     assert login("management").post("/api/inventory/issues", headers={"Idempotency-Key": "key-perm-0003"}, json={}).status_code == 403
+
+
+def test_adjustment_on_unreleased_stock_stays_blocked(people, db):
+    """Quality status governs eligibility: a count or manual adjustment on a QUARANTINED / REJECTED batch can never create available stock, and a released batch is unaffected."""
+    p, m = people, mk_master("RM")
+    po = po_to_approved(p["buyer"], p["admin"], m)
+    gr = receive(p["stores"], po, m["wh1"], "100", "DN-9101", "key-blk-gr-0001").json()["lines"][0]       # arrives QUARANTINE: 100 physical, 100 blocked
+    adj = p["admin"].post("/api/inventory/adjustments", headers={"Idempotency-Key": "key-blk-adj-0001"},
+                          json={"balance_id": gr["balance_id"], "delta": "3", "reason": "stock found during count", "source_id": 91})
+    assert adj.status_code == 201, adj.text
+    t = avail(p["stores"], m["item_id"])
+    assert (N(t["physical"]), N(t["blocked"]), N(t["available"])) == (103, 103, 0), "found stock on a quarantined batch must stay blocked"
+    adj = p["admin"].post("/api/inventory/adjustments", headers={"Idempotency-Key": "key-blk-adj-0002"},
+                          json={"balance_id": gr["balance_id"], "delta": "-2", "reason": "damaged in the store", "source_id": 92})
+    assert adj.status_code == 201, adj.text
+    t = avail(p["stores"], m["item_id"])
+    assert (N(t["physical"]), N(t["blocked"]), N(t["available"])) == (101, 101, 0), "a loss on blocked stock reduces the blocked quantity"
+    led = p["admin"].get("/api/inventory/ledger", params={"item_id": m["item_id"]}).json()["items"]
+    found = next(x["id"] for x in led if x["movement_type"] == "ADJUSTMENT" and N(x["qty_delta"]) == 3)
+    assert p["admin"].post(f"/api/inventory/ledger/{found}/reverse", headers={"Idempotency-Key": "key-blk-rev-0001"}, json={"reason": "count was wrong"}).status_code == 201
+    t = avail(p["stores"], m["item_id"])
+    assert (N(t["physical"]), N(t["blocked"]), N(t["available"])) == (98, 98, 0), "reversing the gain removes it from blocked as well"
+    # once released, the remaining stock becomes available and an adjustment behaves as before
+    assert qc(p["qc"], gr["batch_id"], "RELEASED", "key-blk-qc-0001").status_code in (200, 201)
+    t = avail(p["stores"], m["item_id"])
+    assert (N(t["physical"]), N(t["blocked"]), N(t["available"])) == (98, 0, 98)
+    assert p["admin"].post("/api/inventory/adjustments", headers={"Idempotency-Key": "key-blk-adj-0003"},
+                           json={"balance_id": gr["balance_id"], "delta": "2", "reason": "found on the shelf", "source_id": 93}).status_code == 201
+    t = avail(p["stores"], m["item_id"])
+    assert (N(t["physical"]), N(t["blocked"]), N(t["available"])) == (100, 0, 100)

@@ -168,9 +168,14 @@ def adjust(db: Session, *, balance_id: int, delta, reason: str, source_id: int, 
     bal = repo.lock_balances(db, [balance_id]).get(balance_id)
     if not bal:
         raise NotFound("Stock balance")
-    repo.add_ledger(db, balance=bal, qty_delta=d, movement_type="ADJUSTMENT", source_type="adjustment", source_id=source_id,
+    # Quality status governs eligibility: stock found on (or lost from) a batch that is not RELEASED stays blocked, so a count or manual
+    # adjustment can never turn quarantined, held or rejected stock into available stock.
+    qc, blocked_now = db.execute(text("SELECT ib.qc_status, sb.qty_blocked FROM stock_balances sb LEFT JOIN inventory_batches ib ON ib.id = sb.batch_id WHERE sb.id = :b"),
+                                 {"b": balance_id}).one()
+    blocked = Decimal(0) if qc in (None, "RELEASED") else (d if d > 0 else -min(-d, Decimal(str(blocked_now))))
+    repo.add_ledger(db, balance=bal, qty_delta=d, blocked_delta=blocked, movement_type="ADJUSTMENT", source_type="adjustment", source_id=source_id,
                     actor_id=actor_id, reason=reason)
-    repo.apply_delta(db, balance_id, physical=d)
+    repo.apply_delta(db, balance_id, physical=d, blocked=blocked)
     return {"balance_id": balance_id, "delta": str(d)}
 
 
