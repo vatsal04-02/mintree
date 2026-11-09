@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 /** Building blocks for the operational dashboards. Every figure goes through <Figure> and every label/support line through the same three slots,
  *  so a number looks the same wherever it appears: 28/34 weight 500, tabular, never resized for its length.
  *  Components receive already-formatted text from lib/format.ts (fmtRupees, fmtNum, fmtPct); they never format or restyle numbers themselves. */
@@ -7,7 +7,7 @@ import { ChevronRight } from "lucide-react";
 import { fmtNum } from "@/lib/format";
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
-const FILL: Record<Tone, string> = { success: "var(--success)", warning: "var(--warning)", danger: "var(--danger)", info: "var(--info)", neutral: "var(--chart-fill)" };
+const FILL: Record<Tone, string> = { success: "var(--brand)", warning: "var(--gold)", danger: "var(--danger)", info: "var(--c-slate)", neutral: "var(--chart-fill)" };   // chart fills: teal, gold, red, slate, deep teal. Text tones stay on the AA colours below.
 const TEXT: Record<Tone, string> = { success: "text-success", warning: "text-warning", danger: "text-danger", info: "text-info", neutral: "text-muted" };
 
 /** The one KPI number style. Plain numbers are grouped by the shared formatter; money and percentages arrive already formatted (fmtRupees, fmtPct). */
@@ -42,7 +42,7 @@ export type Cell = { label: string; value: string | number; hint?: string; tone?
 /** Three stacked slots. The cell element is a subgrid spanning three rows of its parent grid, so within a row of cards the labels share one baseline row,
  *  the numbers share the next and the notes the last, even when one label wraps to two lines. Nothing is centred and nothing is resized for its length. */
 const CELL = "grid grid-rows-subgrid row-span-3 gap-y-0 content-start";
-function CellBody({ label, value, hint, tone, loading }: Cell) {
+function CellBody({ label, value, hint, tone, loading, size = "lg" }: Cell & { size?: "lg" | "md" }) {
   return (
     <>
       <div className="t-label line-clamp-2" title={label}>{label}</div>
@@ -58,15 +58,16 @@ function CellBody({ label, value, hint, tone, loading }: Cell) {
 /** One panel holding several KPIs separated by hairlines. Columns never narrow below the width of the longest realistic figure (crore-scale rupees at 28px);
  *  a strip that cannot fit its cells in one row wraps to a second row instead of clipping. Two columns on phones. */
 export function StatStrip({ cells, label }: { cells: Cell[]; label: string }) {
+  const n = cells.length, size = n >= 5 ? "md" : "lg";
   return (
     <section aria-label={label} className="panel overflow-hidden">
-      <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(224px,1fr))]">
+      <div className={`grid grid-cols-2 ${n <= 5 ? "lg:grid-cols-[repeat(var(--n),minmax(0,1fr))]" : "sm:grid-cols-[repeat(auto-fit,minmax(224px,1fr))]"}`} style={{ ["--n" as string]: n }}>
         {cells.map((c, idx) => {
           const wide = cells.length % 2 === 1 && idx === cells.length - 1 ? "col-span-2 sm:col-span-1" : "";   // an odd last cell fills the row on phones
-          const cls = `${CELL} bg-surface p-4 sm:p-5 shadow-[inset_-1px_0_0_var(--line),inset_0_-1px_0_var(--line)] ${wide}`;   // hairlines drawn per cell, so a wrapped last row has no grey fill
+          const cls = `${CELL} bg-surface p-4 sm:p-5 shadow-[inset_-1px_0_0_var(--line),inset_0_-1px_0_var(--line)] ${wide} ${idx === 0 && n >= 4 ? "cell-hero" : ""}`;   // hairlines drawn per cell, so a wrapped last row has no grey fill
           return c.href
-            ? <Link key={c.label} href={c.href} className={`${cls} hover:bg-surface-2 transition-colors`}><CellBody {...c} /></Link>
-            : <div key={c.label} className={cls}><CellBody {...c} /></div>;
+            ? <Link key={c.label} href={c.href} className={`${cls} hover:brightness-105 transition-[filter]`}><CellBody {...c} size={size} /></Link>
+            : <div key={c.label} className={cls}><CellBody {...c} size={size} /></div>;
         })}
       </div>
     </section>
@@ -77,8 +78,8 @@ export function StatStrip({ cells, label }: { cells: Cell[]; label: string }) {
 export function Metric(c: Omit<Cell, "loading">) {
   const cls = `${CELL} pb-6`;
   return c.href
-    ? <Link href={c.href} className={`${cls} hover:opacity-80 transition-opacity`}><CellBody {...c} /></Link>
-    : <div className={cls}><CellBody {...c} /></div>;
+    ? <Link href={c.href} className={`${cls} hover:opacity-80 transition-opacity`}><CellBody {...c} size="md" /></Link>
+    : <div className={cls}><CellBody {...c} size="md" /></div>;
 }
 export function MetricGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-x-8 gap-y-0 -mb-6">{children}</div>;
@@ -243,3 +244,4 @@ export function InlineNotice({ tone = "neutral", children }: { tone?: Tone; chil
 export function SkeletonRows({ n = 4 }: { n?: number }) {
   return <div className="px-5 pb-5 space-y-3" aria-busy="true">{Array.from({ length: n }).map((_, i) => <div key={i} className="skeleton h-4" />)}</div>;
 }
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lock, Plus } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -80,7 +80,7 @@ export default function RolesPage() {
                     const grp = res.split(".")[0];
                     const newGroup = i === 0 || byResource[i - 1][0].split(".")[0] !== grp;
                     return [
-                      newGroup && <tr key={`g-${grp}`}><td colSpan={ACTIONS.length + 1} className="!h-8 bg-surface-2/60 text-[11px] uppercase tracking-wider text-muted font-semibold">{GROUP_LABEL[grp] ?? grp}</td></tr>,
+                      newGroup && <tr key={`g-${grp}`}><td colSpan={ACTIONS.length + 1} className="!h-8 bg-surface-2/60 text-[12px] text-muted font-medium">{GROUP_LABEL[grp] ?? grp}</td></tr>,
                       <tr key={res}>
                         <td>{RES_LABEL(res)}</td>
                         {ACTIONS.map((a) => {
@@ -123,3 +123,4 @@ function NewRole({ open, onClose, onCreated }: { open: boolean; onClose: () => v
     </Drawer>
   );
 }
+

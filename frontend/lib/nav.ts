@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, ScanText, Lightbulb, type LucideIcon } from "lucide-react";
+﻿import { LayoutDashboard, Package, Tags, Ruler, Truck, Users2, Tag, Warehouse, MapPin, FileText, UserCog, ShieldCheck, Building2, ScrollText, Inbox, Bell, ScanText, Lightbulb, type LucideIcon } from "lucide-react";
 import { MODULES, MODULE_BY_ID, type Module } from "./modules";
 
 /** Which sidebar group each module sits in; the admin tools module is appended to Administration below. */
@@ -10,7 +10,7 @@ const MODULE_GROUPS: [string, string[]][] = [
 ];
 const moduleItem = (m: Module): NavItem => ({
   href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}`,
-  children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
+  children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...(m.id === "sales" ? [{ href: "/crm/board", label: "Pipeline board", perm: "crm.opportunity:read" }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
 });
 
 export type NavChild = { href: string; label: string; perm?: string };
@@ -66,3 +66,4 @@ const SCREEN_ITEMS: NavItem[] = MODULES.flatMap((m) => m.screens.map((s) => ({ h
 
 export const ALL_NAV_ITEMS = [...NAV.flatMap((g) => g.items.map((i) => ({ ...i, group: g.label }))), ...SCREEN_ITEMS.map((i) => ({ ...i, group: "Screens" }))];
 export const visible = (i: NavItem, can: (p: string) => boolean) => (!i.perm || can(i.perm)) && (!i.anyPerm || i.anyPerm.some(can));
+

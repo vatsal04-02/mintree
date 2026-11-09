@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { addDays, businessToday, daysBetween, fmtAgo, fmtDate, fmtDateTime, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees, fyStart, titleCase } from "@/lib/format";
+import { addDays, businessToday, daysBetween, formatName, fmtAgo, fmtDate, fmtDateTime, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees, fyStart, titleCase } from "@/lib/format";
 import { toneFor } from "@/lib/modules";
 import { num, plural, screenHref, SHIPMENT_FINAL, sumStatus, usePeriod, useSummary } from "@/lib/summary";
+import { Package, Receipt, TrendingUp, Factory } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { ActivityTimeline, Block, EmptyState, ExceptionList, GroupedBars, Legend, LinkMore, MetricStrip, Panel, Pipeline, Segmented, Skeleton, TransactionTable, type Bucket, type Exception, type Metric, type PipelineStage, type TxRow } from "@/components/blocks";
 
@@ -53,11 +54,11 @@ export default function Overview() {
     const attention = s.inventory.below_reorder_level + s.inventory.expired_with_stock + s.quality.batches_on_hold + s.quality.batches_quarantined;
     const delta = period ? fmtDelta(num(period.revenue.net_ex_tax), num(period.revenue.previous_net_ex_tax)) : null;
     return [
-      { label: "Receivables outstanding", value: fmtRupees(s.sales.receivable_outstanding), note: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices"), href: to("accounts", "ageing-r") },
-      period === undefined ? { label: "Net revenue, ex-tax", value: "", loading: true }
-        : { label: `Net revenue, ex-tax`, value: period ? fmtRupees(period.revenue.net_ex_tax) : "—", note: !period ? "Unavailable" : delta ? `${delta} on the previous ${daysBetween(period.previous.start, period.previous.end) + 1} days` : period.revenue.invoices ? plural(period.revenue.invoices, "invoice", "invoices") : "No invoices in this period", href: to("accounts", "pnl") },
-      { label: "Production orders active", value: fmtNum(s.production.active_orders), note: s.production.delayed_work_orders ? `${fmtNum(s.production.delayed_work_orders)} past planned date` : "On schedule", noteTone: s.production.delayed_work_orders ? "danger" : undefined, href: to("production", "orders") },
-      { label: "Inventory needing attention", value: fmtNum(attention), note: attention ? [s.inventory.below_reorder_level && `${fmtNum(s.inventory.below_reorder_level)} below reorder`, (s.quality.batches_on_hold + s.quality.batches_quarantined) && `${fmtNum(s.quality.batches_on_hold + s.quality.batches_quarantined)} held`, s.inventory.expired_with_stock && `${fmtNum(s.inventory.expired_with_stock)} expired`].filter(Boolean).join(" · ") : "Nothing flagged", noteTone: s.inventory.expired_with_stock ? "danger" : undefined, href: to("inventory", "reorder") },
+      { label: "Receivables outstanding", icon: Receipt, value: fmtRupees(s.sales.receivable_outstanding), note: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices"), href: to("accounts", "ageing-r") },
+      period === undefined ? { label: "Net revenue, ex-tax", value: "", loading: true, hero: true }
+        : { label: `Net revenue, ex-tax`, hero: true, icon: TrendingUp, value: period ? fmtRupees(period.revenue.net_ex_tax) : "—", note: !period ? "Unavailable" : period.revenue.invoices ? plural(period.revenue.invoices, "invoice", "invoices") : "No invoices in this period", delta: period && delta ? { text: `${delta} vs prev ${daysBetween(period.previous.start, period.previous.end) + 1}d`, tone: /^[+−]0(\.0)?%$/.test(delta) ? "neutral" : delta.startsWith("+") ? "success" : "danger" } : undefined, href: to("accounts", "pnl") },
+      { label: "Production orders active", icon: Factory, value: fmtNum(s.production.active_orders), note: s.production.delayed_work_orders ? `${fmtNum(s.production.delayed_work_orders)} past planned date` : "On schedule", noteTone: s.production.delayed_work_orders ? "danger" : undefined, href: to("production", "orders") },
+      { label: "Inventory needing attention", icon: Package, value: fmtNum(attention), note: attention ? [s.inventory.below_reorder_level && `${fmtNum(s.inventory.below_reorder_level)} below reorder`, (s.quality.batches_on_hold + s.quality.batches_quarantined) && `${fmtNum(s.quality.batches_on_hold + s.quality.batches_quarantined)} held`, s.inventory.expired_with_stock && `${fmtNum(s.inventory.expired_with_stock)} expired`].filter(Boolean).join(" · ") : "Nothing flagged", noteTone: s.inventory.expired_with_stock ? "danger" : undefined, href: to("inventory", "reorder") },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, period, can]);
@@ -81,7 +82,7 @@ export default function Overview() {
       { key: "pr", label: "Purchase requests awaiting approval", value: fmtNum(pr.purchase_requests_awaiting_approval), severity: "medium", href: to("procurement", "requests") },
       { key: "po", label: "Purchase orders awaiting approval", value: fmtNum(pr.purchase_orders_awaiting_approval), severity: "medium", href: to("procurement", "orders") },
       { key: "ret", label: "Customer returns awaiting action", value: fmtNum(d.returns_open), severity: "medium", href: to("dispatch", "returns") },
-      ...s.low_stock.slice(0, 3).map((l): Exception => ({ key: `low-${l.item_code}`, label: l.name, detail: `${l.item_code} · below reorder level`, value: `${fmtNum(l.available, 1)} of ${fmtNum(l.reorder_level, 1)}`, severity: "medium", href: to("inventory", "reorder") })),
+      ...s.low_stock.slice(0, 3).map((l): Exception => ({ key: `low-${l.item_code}`, label: formatName(l.name), detail: `${l.item_code} · below reorder level`, value: `${fmtNum(l.available, 1)} of ${fmtNum(l.reorder_level, 1)}`, severity: "medium", ratio: num(l.available) / (num(l.reorder_level) || 1), href: to("inventory", "reorder") })),
     ];
     return list.filter((e) => e.value !== undefined && e.value !== "0").slice(0, 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,12 +96,12 @@ export default function Overview() {
     const ready = sumStatus(s.orders_by_status, (x) => ["PACKED", "PARTIALLY_DISPATCHED"].includes(x));
     const open = sumStatus(s.shipments_by_status, (x) => !SHIPMENT_FINAL.includes(x));
     return [
-      { label: "Procurement", value: fmtNum(pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval), note: "awaiting approval", href: to("procurement", "orders") },
-      { label: "Goods receipt", value: fmtNum(pr.open_purchase_orders), note: "orders awaiting delivery", flag: pr.late_deliveries ? `${fmtNum(pr.late_deliveries)} late` : undefined, href: to("procurement", "receipts") },
+      { label: "Procurement", active: pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval > 0, value: fmtNum(pr.purchase_requests_awaiting_approval + pr.purchase_orders_awaiting_approval), note: "awaiting approval", href: to("procurement", "orders") },
+      { label: "Goods receipt", active: pr.open_purchase_orders > 0, alert: pr.late_deliveries > 0 ? "danger" : undefined, value: fmtNum(pr.open_purchase_orders), note: "orders awaiting delivery", flag: pr.late_deliveries ? `${fmtNum(pr.late_deliveries)} late` : undefined, href: to("procurement", "receipts") },
       { label: "Inventory", value: fmtRupees(inv.total_value), note: "stock on hand at cost", flag: inv.expiring_within_90_days ? `${fmtNum(inv.expiring_within_90_days)} batches expire within 90 days` : undefined, href: to("inventory", "valuation") },
-      { label: "Production", value: fmtNum(queued), note: "queued to start", href: to("production", "orders") },
-      { label: "Quality", value: fmtNum(q.open_inspections), note: "inspections open", flag: q.open_deviations ? `${fmtNum(q.open_deviations)} deviations open` : undefined, href: to("quality", "inspections") },
-      { label: "Dispatch", value: fmtNum(ready), note: `ready to ship · ${fmtNum(open)} in transit`, flag: d.delayed_shipments ? `${fmtNum(d.delayed_shipments)} over 5 days` : undefined, href: to("dispatch", "orders") },
+      { label: "Production", active: queued > 0, value: fmtNum(queued), note: "queued to start", href: to("production", "orders") },
+      { label: "Quality", active: q.open_inspections > 0, alert: q.open_deviations > 0 ? "warn" : undefined, value: fmtNum(q.open_inspections), note: "inspections open", flag: q.open_deviations ? `${fmtNum(q.open_deviations)} deviations open` : undefined, href: to("quality", "inspections") },
+      { label: "Dispatch", active: ready > 0 || open > 0, alert: d.delayed_shipments > 0 ? "danger" : undefined, value: fmtNum(ready), note: `ready to ship · ${fmtNum(open)} in transit`, flag: d.delayed_shipments ? `${fmtNum(d.delayed_shipments)} over 5 days` : undefined, href: to("dispatch", "orders") },
     ] as PipelineStage[];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, can]);
@@ -108,7 +109,7 @@ export default function Overview() {
   /* ---- production chart ---- */
   const buckets: Bucket[] = (period?.production.buckets ?? []).map((b) => ({ start: b.week_start, planned: b.planned === null ? null : num(b.planned), actual: b.actual === null ? null : num(b.actual), orders: b.orders }));
   const totals = buckets.reduce((a, b) => ({ p: a.p + (b.planned ?? 0), a: a.a + (b.actual ?? 0) }), { p: 0, a: 0 });
-  const enough = (period?.production.weeks_with_data ?? 0) >= 2;
+  const enough = (period?.production.weeks_with_data ?? 0) >= 1;
 
   const tx: TxRow[] = (period?.recent ?? []).map((r) => ({ key: `${r.kind}-${r.id}`, reference: r.reference, activity: KIND_LABEL[r.kind] ?? titleCase(r.kind), related: r.related ?? "—", date: fmtDate(r.created_at), href: open(r.kind, r.id),
     status: <Badge tone={toneFor(r.status)}>{titleCase(r.status)}</Badge> }));
@@ -116,8 +117,8 @@ export default function Overview() {
   const mine = approvals?.length ?? 0;
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+    <div className="space-y-4">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-2">
         <div className="min-w-0">
           <h1 className="t-page">Factory overview</h1>
           <p className="t-label mt-1">
@@ -134,7 +135,7 @@ export default function Overview() {
               </div>
             )}
             <Segmented<PeriodKey> label="Reporting period" value={key} onChange={setKey} options={[{ value: "30d", label: "30 days" }, { value: "90d", label: "90 days" }, { value: "fy", label: "This FY" }, { value: "custom", label: "Custom" }]} />
-            {mine > 0 && <Link href="/approvals" className="btn btn-sm">Approvals <span className="tnum text-muted">{mine}</span></Link>}
+            {mine > 0 && <Link href="/approvals" className="btn btn-sm">Approvals <span className="inline-grid place-items-center h-5 min-w-5 px-1 rounded-full bg-ink text-[var(--fg-on-ink)] text-[11px] font-semibold">{mine}</span></Link>}
           </div>
         )}
       </header>
@@ -145,15 +146,16 @@ export default function Overview() {
       {canSummary && <MetricStrip label="Key indicators" items={metrics} />}
 
       {canSummary && (
-        <div className="grid xl:grid-cols-[minmax(0,13fr)_minmax(0,7fr)] gap-6 items-stretch">
-          <Panel title="Production output" bodyClass="flex flex-col" meta="Completed orders by week, planned against actual units" action={enough ? <Legend items={[{ label: "Planned", color: "var(--line-strong)" }, { label: "Actual", color: "var(--accent)" }]} /> : undefined}>
+        <div className={`grid gap-4 ${(period?.production.weeks_with_data ?? 0) >= 3 ? "xl:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]" : "xl:grid-cols-2"} ${enough ? "items-stretch" : "items-start"}`}>
+          <Panel title="Production output" className={enough ? "" : "min-h-[220px]"} bodyClass="flex flex-col" meta="Completed orders by week, planned against actual units" action={enough ? <Legend items={[{ label: "Planned", color: "var(--butter-deep)" }, { label: "Actual", color: "var(--chart-actual)" }]} /> : undefined}>
             {period === undefined ? <div className="px-5 pb-5"><Skeleton className="h-[248px]" /></div>
               : !period ? <EmptyState title="Production output is unavailable" hint="The period figures could not be loaded." />
-              : !enough ? <EmptyState title="Not enough history to chart" hint={`Output is charted from completed production orders. This period has completed orders in ${plural(period.production.weeks_with_data, "week", "weeks")}; two are needed.`} action={to("production", "orders") ? <LinkMore href={to("production", "orders")!}>Production orders</LinkMore> : undefined} />
+              : !enough ? <EmptyState title="No completed production yet" hint="Output is charted from completed production orders. None were completed in this period." action={to("production", "orders") ? <LinkMore href={to("production", "orders")!}>Production orders</LinkMore> : undefined} />
               : (
                 <>
                   <p className="px-5 -mt-1 mb-2 t-label"><span className="t-value text-fg">{fmtNum(totals.a)}</span> units made of <span className="t-value text-fg">{fmtNum(totals.p)}</span> planned{totals.p > 0 && <> <span aria-hidden>·</span> {fmtPct((totals.a / totals.p) * 100)} of plan</>}</p>
                   <div className="px-2 pb-3 flex flex-col flex-1 min-h-0"><GroupedBars buckets={buckets} labels={["Planned", "Actual"]} unit="units" /></div>
+                  {period.production.weeks_with_data === 1 && <p className="px-5 pb-4 t-support">Add one more completed week to see a trend.</p>}
                 </>
               )}
           </Panel>
@@ -164,12 +166,12 @@ export default function Overview() {
       )}
 
       {canSummary && (
-        <Block title="Order to dispatch" meta="where work is waiting">
-          {loading ? <div className="py-4"><Skeleton className="h-[96px]" /></div> : <div className="border-b border-line"><Pipeline stages={stages} /></div>}
+        <Block bare className="pt-4" title="Order to dispatch" meta="where work is waiting">
+          {loading ? <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[112px] !rounded-2xl" />)}</div> : <Pipeline stages={stages} />}
         </Block>
       )}
 
-      <div className="grid xl:grid-cols-[minmax(0,13fr)_minmax(0,7fr)] gap-x-6 gap-y-8">
+      <div className="grid xl:grid-cols-[minmax(0,13fr)_minmax(0,7fr)] gap-4 pt-4">
         {canSummary && (
           <Block title="Recent transactions" action={to("dispatch", "invoices") ? <LinkMore href={to("dispatch", "invoices")!}>Sales invoices</LinkMore> : undefined} className="min-w-0">
             {period === undefined ? <div className="pt-3 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div>
@@ -178,10 +180,10 @@ export default function Overview() {
         )}
         <Block title="Approvals and activity" className={`min-w-0 ${canSummary ? "" : "xl:col-span-2"}`} action={<LinkMore href="/approvals">Approvals</LinkMore>}>
           <div className="pt-3">
-            <p className="t-label mb-1">{approvals === null ? "Checking approvals…" : mine ? <><span className="t-value text-fg">{fmtNum(mine)}</span> waiting for your decision, oldest since {fmtDate(approvals[0].since)}</> : "Nothing is waiting for your decision."}</p>
+            <p className="t-label mb-1">{approvals === null ? "Checking approvals…" : mine ? <><span className="badge tone-warning">{fmtNum(mine)} waiting for your decision, oldest since {fmtDate(approvals[0].since)}</span></> : "Nothing is waiting for your decision."}</p>
             {approvals && approvals.slice(0, 3).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-1.5 border-t border-line row-link -mx-2 px-2 rounded-md first:mt-2"><span className="truncate text-[13px]"><span className="font-mono text-[12.5px]">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0">{fmtAgo(a.since)}</span></Link>)}
           </div>
-          <h3 className="mt-5 mb-1 text-[11.5px] font-medium text-muted tracking-[0.02em]">Recent activity</h3>
+          <h3 className="eyebrow mt-5 mb-2">Recent activity</h3>
           {!canAudit ? <p className="t-support">Activity is read from the audit log, which is limited to auditors and administrators.</p>
             : activity === null ? <div className="space-y-3 pt-1">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div>
             : activity.length === 0 ? <p className="t-support">No business actions recorded yet.</p>
