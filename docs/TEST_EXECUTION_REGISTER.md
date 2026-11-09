@@ -145,4 +145,4 @@ Per-run artefacts (metadata: commit, machine, PostgreSQL settings, dataset sizes
 
 **Environment note.** `test_demo_system.py` asserts the CLI prints no JSON log lines; without Redis the authz-epoch bump logs an ERROR line and the test fails. Run Redis (`docker run -d -p 6379:6379 redis:7`) for the suite. Not a product defect.
 
-**Not run in this milestone:** the browser (Playwright) suites in `frontend/e2e/` and the full backend suite. Only the two files above were run. The new Balance sheet screen was checked once in a real browser (renders, balanced).
+**Not run in this milestone:** the browser (Playwright) suites in `frontend/e2e/` and the full backend suite. Only the two files above were run. The existing Balance sheet screen was checked once in a real browser (renders; assets equal liabilities plus equity). A duplicate declaration of it that I briefly added to `lib/modules.ts` raised a React duplicate-key warning and was removed.

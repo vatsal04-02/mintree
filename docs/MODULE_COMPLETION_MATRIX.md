@@ -73,7 +73,7 @@ Load tests for the new workloads and any staging-hardware run; query-plan analys
 
 1. **Notifications.** Only these kinds are emitted: PO submitted / second approval / amendment, RFQ quotation / award, goods receipt posted, PO approved, order dispatched, follow-up assigned, delivery failed, failed process check. Low stock, QC hold, production delay and completion, invoice overdue, payment received, maintenance due and marketplace sync failure are *not* generated. Needs an alert sweep plus event hooks.
 2. **Maintenance spare parts** are recorded with a cost against the work order but do not consume inventory stock.
-3. **No per-account general-ledger screen** (the API `/accounts/reports/ledger/{code}` exists). A Balance sheet screen was added.
+3. **No per-account general-ledger screen** (the API `/accounts/reports/ledger/{code}` exists). (The Balance sheet screen already existed; an earlier note here that one was added was wrong.)
 4. **Approvals** are a pending list with history; there is no approval-limit matrix beyond the two policies and no multi-stage chain beyond second approval on POs.
 5. **Retained earnings figure on the Balance sheet** is shown without the ₹ sign (cosmetic).
 6. **Playwright journeys**: `frontend/e2e/` has Phase 0, module, workflow, AI and demo suites. They were not re-run or extended in this milestone, so the 20 journeys in the demo brief are not individually proven in a browser here.
