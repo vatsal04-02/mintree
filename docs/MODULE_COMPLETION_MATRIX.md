@@ -61,3 +61,19 @@ Timezone authority (migration 0015) · master completion (0016) · purchase retu
 ## 5. Not done in this work (explicitly)
 
 Load tests for the new workloads and any staging-hardware run; query-plan analysis and dashboard caching; the full Docker stack run; browser tests that *create* partial shipments, opportunities or plans (the demo journeys read them and drive two actions); UI for PO amendments and for creating a purchase return; linking the new masters into transactions; cash-flow statement; live integrations of every kind.
+
+
+## Addendum 2026-11-09: demo depth and remaining gaps
+
+**Seeded to at least 12 primary records** (`report`): purchase requests (12, every state), RFQs (12), supplier quotations (18), development projects (12), formulations (12), approved BOMs (13), deviations (12), certificates of analysis (12), equipment (12), maintenance work orders (14), customer contacts (12), customer complaints (14), documents (14, with 17 versions and 14 record links), approval decisions (30), notifications (135), plus the earlier volumes (262 sales orders, 133 marketplace orders, 141 shipments, 481 journal entries).
+
+**Still below 12, stated plainly:** purchase returns 5, debit notes 1, credit notes 7, production plans 5, stock counts 4, shipment packages 2, proofs of delivery 1, bank transactions 7, marketplace settlements 9, publishing records 9.
+
+**Product gaps found while auditing against the demo brief** (none hidden by seeding):
+
+1. **Notifications.** Only these kinds are emitted: PO submitted / second approval / amendment, RFQ quotation / award, goods receipt posted, PO approved, order dispatched, follow-up assigned, delivery failed, failed process check. Low stock, QC hold, production delay and completion, invoice overdue, payment received, maintenance due and marketplace sync failure are *not* generated. Needs an alert sweep plus event hooks.
+2. **Maintenance spare parts** are recorded with a cost against the work order but do not consume inventory stock.
+3. **No per-account general-ledger screen** (the API `/accounts/reports/ledger/{code}` exists). A Balance sheet screen was added.
+4. **Approvals** are a pending list with history; there is no approval-limit matrix beyond the two policies and no multi-stage chain beyond second approval on POs.
+5. **Retained earnings figure on the Balance sheet** is shown without the ₹ sign (cosmetic).
+6. **Playwright journeys**: `frontend/e2e/` has Phase 0, module, workflow, AI and demo suites. They were not re-run or extended in this milestone, so the 20 journeys in the demo brief are not individually proven in a browser here.

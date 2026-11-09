@@ -40,7 +40,26 @@ COVERAGE: list[tuple[str, str, str, int | None]] = [
     ("Meta (simulated)", "Campaign + content records", "SELECT (SELECT count(*) FROM marketing_campaigns) + (SELECT count(*) FROM content_calendar)", 30),
     ("Meta (simulated)", "Simulated daily metrics", "SELECT count(*) FROM campaign_metrics WHERE source = 'DEMO'", None),
     ("Maintenance", "Equipment / work orders", "SELECT (SELECT count(*) FROM equipment) + (SELECT count(*) FROM maintenance_work_orders)", None),
-    ("Audit", "Audit log rows", "SELECT count(*) FROM audit_logs", None),
+    # ---- depth (depth.py): the 12-record minimum per module, as measured from the tables
+    ("Procurement", "Purchase requests (every state)", "SELECT count(*) FROM purchase_requests", 12),
+    ("Procurement", "RFQs", "SELECT count(*) FROM rfqs", 12),
+    ("Procurement", "Supplier quotations", "SELECT count(*) FROM quotations", 12),
+    ("Procurement", "Purchase returns", "SELECT count(*) FROM purchase_returns", None),
+    ("R&D", "Development projects", "SELECT count(*) FROM development_projects", 12),
+    ("R&D", "Formulations", "SELECT count(*) FROM formulations", 12),
+    ("R&D", "Formulation versions", "SELECT count(*) FROM formulation_versions", None),
+    ("Production", "Approved BOMs", "SELECT count(*) FROM boms WHERE status = 'ACTIVE'", 12),
+    ("Production", "Production plans", "SELECT count(*) FROM production_plans", None),
+    ("Quality", "Deviations", "SELECT count(*) FROM deviations", 12),
+    ("Quality", "Certificates of analysis", "SELECT count(*) FROM certificates_of_analysis", 12),
+    ("Inventory", "Stock counts (approved or cancelled)", "SELECT count(*) FROM stocktakes", None),
+    ("CRM", "Customer contacts", "SELECT count(*) FROM customer_contacts", 12),
+    ("CRM", "Customer complaints", "SELECT count(*) FROM complaints", 12),
+    ("Maintenance", "Equipment", "SELECT count(*) FROM equipment", 12),
+    ("Maintenance", "Work orders", "SELECT count(*) FROM maintenance_work_orders", 12),
+    ("Documents", "Documents (with versions and links)", "SELECT count(*) FROM documents", 12),
+    ("Approvals", "Approval decisions recorded", "SELECT count(*) FROM approval_records", 12),
+    ("Notifications", "Notifications delivered to users", "SELECT count(*) FROM user_notifications", 12),    ("Audit", "Audit log rows", "SELECT count(*) FROM audit_logs", None),
 ]
 
 

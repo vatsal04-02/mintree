@@ -59,3 +59,10 @@ MINTREE_ENVIRONMENT=demo MINTREE_DATABASE_URL=… python -m scripts.demo_data re
 
 ## Reconciliation proven by `verify`
 AR control account = open sales invoices; AP control account = open supplier invoices; inventory accounts = stock valuation + work in progress; every journal balances; every stock balance equals its ledger; plus 30+ further integrity checks and role-permission checks (117 in total).
+
+
+## Depth top-up (2026-11-09)
+
+Twelve further steps (`scripts/demo/depth.py`, 33 steps in all, ≈ 3.5 minutes from an empty demo database) bring the thin modules up to the 12-record minimum, all through the real API: 9 purchase requests, 11 RFQs with quotations (4 awarded to orders), 4 more QC-rejected receipts returned to the supplier, 11 formulations and projects in every state (draft, awaiting approval, approved, revised, reformulated after a failed trial), 8 more BOMs and 4 plans, 11 deviations through raised → investigated → CAPA → verified → closed (closed by a different person, as the product requires), 11 certificates of analysis, 6 complaints, 8 machines with calibrations, preventive schedules and 9 breakdowns, customer contacts brought up to 12, 4 stock counts, and 14 documents uploaded and linked (3 with a second version, each downloaded back and checked).
+
+Re-measure with `python -m scripts.demo_data report`; the remaining small tables are listed in `MODULE_COMPLETION_MATRIX.md`.

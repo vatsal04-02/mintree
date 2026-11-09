@@ -129,3 +129,20 @@ All load runs below were executed on a **shared 4-vCPU sandbox** (k6, API worker
 * **p0-ORIGINAL-46c82cc-1w-100vu** — Manual back-fill from the saved k6 summary (the harness did not exist yet). Pre-harness runs have no integrity/metadata record; the k6 'integrity' was not applicable (Phase 0 had no inventory).
 
 Per-run artefacts (metadata: commit, machine, PostgreSQL settings, dataset sizes, workload; k6 summary; Prometheus snapshots; system CPU/RSS; integrity report; API/publisher/worker logs) are in `tests/load/results/<label>/`.
+
+
+## 2026-11-09: demo depth top-up (12-record minimum per module)
+
+| Run | Command | Result |
+|---|---|---|
+| Clean build from an empty demo database | `reset --confirm-reset-demo-database mintree_demo` then `init` | 33 steps, ≈ 3.5 min, **117/117 verification checks pass** |
+| Idempotency | second `init` | creates nothing; 117/117 |
+| Coverage | `python -m scripts.demo_data report` | every target met, exit 0 |
+| Demo system tests | `pytest tests/test_demo_system.py` (Redis running) | 13 passed |
+| Inventory and procurement tests | `pytest tests/test_inventory_procurement.py` | 13 passed (includes the new regression test below) |
+
+**Defect found by `verify` and fixed.** A stock-count or manual adjustment that *adds* stock to a QUARANTINE, HOLD or REJECTED batch increased available stock (`adjust()` moved physical stock but never blocked stock), so unreleased stock became issuable. Fixed in `app/inventory/service.py`: blocked stock now tracks physical stock on any batch that is not RELEASED. Regression test `test_adjustment_on_unreleased_stock_stays_blocked`; it fails without the fix (available 3) and passes with it.
+
+**Environment note.** `test_demo_system.py` asserts the CLI prints no JSON log lines; without Redis the authz-epoch bump logs an ERROR line and the test fails. Run Redis (`docker run -d -p 6379:6379 redis:7`) for the suite. Not a product defect.
+
+**Not run in this milestone:** the browser (Playwright) suites in `frontend/e2e/` and the full backend suite. Only the two files above were run. The new Balance sheet screen was checked once in a real browser (renders, balanced).

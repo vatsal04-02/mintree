@@ -69,6 +69,7 @@ def cmd_init(args) -> int:
     _migrate_and_seed()
     import scripts.demo.steps  # noqa: F401  (registers the steps)
     import scripts.demo.scale  # noqa: F401  (registers the at-scale steps)
+    import scripts.demo.depth  # noqa: F401  (registers the depth top-up steps)
     with Session(engine) as db:
         if not db.get(DemoSeedStep, MARKER):
             db.add(DemoSeedStep(step_key=MARKER, detail={"purpose": "demonstration database", "password_policy": "documented demo password"}))
@@ -88,6 +89,7 @@ def cmd_verify(args) -> int:
     guard.check_demo_target(s.environment, s.database_url)
     import scripts.demo.steps  # noqa: F401
     import scripts.demo.scale  # noqa: F401
+    import scripts.demo.depth  # noqa: F401
     ctx = Ctx()
     load_refs(ctx)
     from scripts.demo.verify import verify_all
@@ -99,6 +101,7 @@ def cmd_status(args) -> int:
     name = guard.check_demo_target(s.environment, s.database_url)
     import scripts.demo.steps  # noqa: F401
     import scripts.demo.scale  # noqa: F401
+    import scripts.demo.depth  # noqa: F401
     ctx = Ctx()
     done = load_refs(ctx)
     print(f"Demo database '{name}': marker {'present' if MARKER in done else 'ABSENT'}")
@@ -136,3 +139,4 @@ def run(argv: list[str] | None = None) -> int:
     r.set_defaults(fn=cmd_reset)
     args = p.parse_args(argv)
     return args.fn(args)
+
