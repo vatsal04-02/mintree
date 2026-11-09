@@ -54,3 +54,7 @@ export const fyStart = (d: string) => { const [y, m] = d.split("-").map(Number);
 export const fmtDay = (v?: string | null) => (v ? parseDay(v.slice(0, 10)).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", timeZone: "UTC" }) : "—");
 /** Signed percentage change, e.g. "+12.4%"; null when there is nothing to compare against. */
 export const fmtDelta = (now: number, before: number) => (before > 0 ? `${now >= before ? "+" : "−"}${numFmt(1).format(Math.abs(((now - before) / before) * 100))}%` : null);
+
+/** Names that arrive in ALL CAPS ("COCOA BUTTER") are shown in title case; mixed-case names, codes and short acronyms are left alone. */
+export const formatName = (s: string) =>
+  /[a-z]/.test(s) ? s : s.split(/(\s+)/).map((w) => (/\d/.test(w) || /^[A-Z]{1,3}$/.test(w) || /^\s*$/.test(w) ? w : w.charAt(0) + w.slice(1).toLowerCase())).join("");
