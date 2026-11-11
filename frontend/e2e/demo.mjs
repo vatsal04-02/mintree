@@ -37,7 +37,7 @@ async function loginAs(user) {
 }
 const nav = () => page.getByRole("navigation", { name: "Main" });
 const open = async (path) => { await page.goto(`${BASE}${path}`); await page.getByRole("heading", { level: 1 }).waitFor(); await page.waitForLoadState("networkidle"); };
-const card = (text) => page.locator("article").filter({ hasText: text });
+const card = (text) => page.locator("article, tbody tr").filter({ hasText: text });
 const api = async (user, path, init = {}) => {                      // independent read of the backend, as the same user, to confirm what the UI did
   const ctx = page.context();
   const r = await ctx.request.fetch(`${BASE}/api${path}`, { method: init.method ?? "GET", headers: { "X-CSRF-Token": (await ctx.cookies()).find((c) => /csrf/i.test(c.name))?.value ?? "" }, data: init.data });
@@ -114,17 +114,17 @@ await step("CRM: a converted lead points at its customer; a lost lead cannot be 
 await step("Dispatch: the won order shipped in two shipments, each with its own invoice", async () => {
   await loginAs("disp");
   await open("/m/dispatch/shipments?q=SO%2F26%2F000001");
-  await page.locator("article").filter({ hasText: "SO/26/000001" }).first().waitFor();
-  const rows = await page.locator("article").filter({ hasText: "SO/26/000001" }).count();
+  await page.locator("article, tbody tr").filter({ hasText: "SO/26/000001" }).first().waitFor();
+  const rows = await page.locator("article, tbody tr").filter({ hasText: "SO/26/000001" }).count();
   assert.equal(rows, 2, "order SO/26/000001 has two shipments");
   await shot("d03-shipments");
   await open("/m/dispatch/invoices");
-  assert.ok((await page.locator("article").count()) >= 8, "invoices are listed");
+  assert.ok((await page.locator("article, tbody tr").count()) >= 8, "invoices are listed");
 });
 
 await step("Dispatch: a failed delivery and a delayed shipment are visible as exceptions", async () => {
   await open("/m/dispatch/shipments?q=FAILED_DELIVERY");
-  await page.locator("article").filter({ hasText: "Failed delivery" }).first().waitFor();
+  await page.locator("article, tbody tr").filter({ hasText: "Failed delivery" }).first().waitFor();
 });
 
 await step("Quality: a released inspection has a frozen certificate; the rejected lot is on record", async () => {
@@ -178,7 +178,7 @@ await step("the buyer cannot reach accounts even by URL", async () => {
   await page.goto(`${BASE}/m/accounts/payments`);
   await page.waitForLoadState("networkidle");
   const txt = (await page.locator("body").innerText()).toLowerCase();
-  assert.ok(/not allowed|permission|forbidden|access/.test(txt) || !(await page.locator("article").count()), "no payment data is shown");
+  assert.ok(/not allowed|permission|forbidden|access/.test(txt) || !(await page.locator("article, tbody tr").count()), "no payment data is shown");
 });
 
 // ---------------------------------------------------------------- actions drive real state
@@ -222,7 +222,7 @@ await step("a QC inspector can record a result but is not offered the release de
   const pend = (await api("qi", "/quality/inspections?page_size=100")).items.find((i) => ["PENDING", "IN_PROGRESS"].includes(i.status));
   assert.ok(pend, "the demo has an open inspection");
   await open(`/m/quality/inspections?q=${encodeURIComponent(pend.number)}`);
-  const open1 = page.locator("article").filter({ hasText: pend.number }).first();
+  const open1 = page.locator("article, tbody tr").filter({ hasText: pend.number }).first();
   await open1.waitFor();
   assert.ok(await open1.getByRole("button", { name: "Record result" }).count() >= 1);
   assert.equal(await open1.getByRole("button", { name: "Decide" }).count(), 0, "inspectors cannot decide");
@@ -236,7 +236,7 @@ await step("Meta workspace: every asset is labelled as a simulated sandbox recor
   const body = await page.locator("main").innerText();
   assert.match(body, /Simulated sandbox record/);
   assert.doesNotMatch(body, /Connected and verified/);
-  assert.ok((await page.locator("article").count()) >= 4, "business, page, Instagram and ad account are listed");
+  assert.ok((await page.locator("article, tbody tr").count()) >= 4, "business, page, Instagram and ad account are listed");
   await shot("d20-meta-workspace");
 });
 

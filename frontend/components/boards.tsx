@@ -3,25 +3,9 @@
  *  and a card per record that says what the record is about, not just its number. Figures and rows come from the *-board endpoints in module_dashboards.py. */
 import { fmtDate, fmtMoney, fmtNum, fmtPct, fmtRupees, titleCase } from "@/lib/format";
 import { toneFor, type Action, type Row } from "@/lib/modules";
+import { Strip } from "./kpi";
 
 const EDGE: Record<string, string> = { success: "var(--brand)", warning: "var(--amber)", danger: "var(--danger)", info: "var(--info)", neutral: "var(--line-strong)" };
-type Card = { label: string; value: string; chip?: string; tone?: string; foot: string; accent?: string };
-
-function Strip({ cards }: { cards: Card[] | null }) {
-  if (!cards) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-[118px] !rounded-xl" />)}</div>;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">
-      {cards.map((c) => (
-        <section key={c.label} className="panel kpi-card p-4 pt-[18px] flex flex-col" style={{ "--kpi-accent": c.accent ?? "var(--brand-bright)" } as React.CSSProperties} aria-label={c.label}>
-          <span className="label-caps">{c.label}</span>
-          <div className="mt-1.5 flex items-center gap-2.5 min-w-0"><span className="t-kpi tabular-nums">{c.value}</span>{c.chip && <span className={`badge tone-${c.tone ?? "neutral"} shrink-0`}>{c.chip}</span>}</div>
-          <span className="t-support mt-1.5">{c.foot}</span>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 function Buttons({ actions, onAction, r }: { actions: Action[]; onAction: (a: Action, r: Row) => void; r: Row }) {
   return <>{actions.map((a, i) => <button key={`${a.label}-${i}`} className={`btn btn-sm ${["Approve", "Release", "Complete"].includes(a.label) ? "btn-primary" : a.danger ? "btn-danger" : ""}`} onClick={() => onAction(a, r)}>{a.labelFn ? a.labelFn(r) : a.label}</button>)}</>;
 }

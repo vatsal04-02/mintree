@@ -379,11 +379,13 @@ def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procur
     last_price = """(SELECT pi.unit_price FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
                       WHERE pi.item_id = i.id AND po.status NOT IN ('DRAFT', 'CANCELLED') ORDER BY po.id DESC LIMIT 1)"""
     materials = _rows(db, f"""
-        SELECT i.id, i.item_code, i.name, i.kind, i.description, u.code AS uom, i.reorder_level,
+        SELECT i.id, i.item_code, i.name, i.kind, i.description, u.code AS uom, i.reorder_level, c.name AS category,
                COALESCE(sum(b.qty_physical), 0) AS on_hand, COALESCE(sum(b.qty_reserved), 0) AS allocated, COALESCE(sum(b.qty_available), 0) AS free,
-               {last_supplier} AS vendor, {last_city} AS vendor_city, {last_price} AS last_price
-          FROM items i LEFT JOIN stock_balances b ON b.item_id = i.id LEFT JOIN units_of_measure u ON u.id = i.uom_id
-         WHERE i.is_active AND i.kind IN ('RM', 'PM') GROUP BY i.id, u.code
+               {last_supplier} AS vendor, {last_city} AS vendor_city, {last_price} AS last_price,
+               (SELECT COALESCE(sum(pi.qty_ordered - pi.qty_received), 0) FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
+                 WHERE pi.item_id = i.id AND po.status IN ('APPROVED', 'PARTIALLY_RECEIVED')) AS on_order
+          FROM items i LEFT JOIN stock_balances b ON b.item_id = i.id LEFT JOIN units_of_measure u ON u.id = i.uom_id LEFT JOIN product_categories c ON c.id = i.category_id
+         WHERE i.is_active AND i.kind IN ('RM', 'PM') GROUP BY i.id, u.code, c.name
          ORDER BY (COALESCE(sum(b.qty_available), 0) < COALESCE(i.reorder_level, 0)) DESC, i.kind, i.item_code""")
     for m in materials:
         lvl, free = float(m["reorder_level"] or 0), float(m["free"] or 0)
@@ -394,6 +396,12 @@ def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procur
                                (SELECT count(*) FROM goods_receipts g WHERE g.po_id = po.id) AS receipts
                           FROM purchase_orders po JOIN suppliers s ON s.id = po.supplier_id WHERE po.{open_po}
                          ORDER BY po.expected_date NULLS LAST, po.id LIMIT 1""")
+    inbound_list = _rows(db, f"""SELECT po.id, po.number, po.status, po.expected_date, s.name AS supplier, (business_today() - po.expected_date) AS days_late,
+                                        COALESCE(sum(pi.qty_ordered), 0) AS ordered, COALESCE(sum(pi.qty_received), 0) AS received
+                                   FROM purchase_orders po JOIN suppliers s ON s.id = po.supplier_id JOIN purchase_order_items pi ON pi.po_id = po.id
+                                  WHERE po.{open_po} GROUP BY po.id, s.name ORDER BY po.expected_date NULLS LAST, po.id LIMIT 8""")
+    for r in inbound_list:
+        r["pending"] = float(r["ordered"]) - float(r["received"])
     vendors = _rows(db, """SELECT s.name, count(g.id) AS receipts, round(100.0 * count(*) FILTER (WHERE g.received_at::date <= po.expected_date) / NULLIF(count(g.id), 0), 1) AS on_time_pct
                              FROM goods_receipts g JOIN purchase_orders po ON po.id = g.po_id JOIN suppliers s ON s.id = po.supplier_id
                             GROUP BY s.name ORDER BY count(g.id) DESC LIMIT 3""")
@@ -410,6 +418,8 @@ def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procur
         "open_order_value": one(f"SELECT COALESCE(sum(total_amount), 0) FROM purchase_orders WHERE {open_po}"),
         "approved_suppliers": one("SELECT count(*) FROM suppliers WHERE approval_status = 'APPROVED' AND is_active"),
         "priority": [m for m in materials if m["state"] == "BELOW"][:4],
+        "replenish": [m for m in materials if m["state"] in ("BELOW", "SOON")][:8],
+        "inbound_list": inbound_list,
         "inbound": nxt[0] if nxt else None,
         "materials": materials,
         "vendors": vendors,
@@ -543,7 +553,10 @@ def pr_board(status: str | None = None, page_size: int = 100, db: Session = DB, 
             l["short"] = float(l["free"]) < float(l["qty"])          # stock on hand would not cover this request
         sourced = "PO" if p["po_number"] else "RFQ" if p["rfq_number"] else None
         out.append({**p, "lines": lines, "line_count": len(lines), "item_name": lines[0]["name"] if lines else None, "sourced": sourced,
-                    "sourcing": p["po_number"] or p["rfq_number"], "lines_label": f"{len(lines)} item{'' if len(lines) == 1 else 's'}"})
+                    "sourcing": p["po_number"] or p["rfq_number"], "lines_label": f"{len(lines)} item{'' if len(lines) == 1 else 's'}",
+                    "qty_label": (f"{float(lines[0]['qty']):g} {str(lines[0]['uom'] or '').lower()}" + (f" +{len(lines) - 1}" if len(lines) > 1 else "")) if lines else None,
+                    "available_label": f"{float(lines[0]['free']):g} {str(lines[0]['uom'] or '').lower()}" if lines else None,
+                    "next_action": {"DRAFT": "Submit", "SUBMITTED": "Approve or reject", "APPROVED": "Raise RFQ or PO" if not sourced else f"Sourced: {p['po_number'] or p['rfq_number']}"}.get(p["status"], "—")})
     counts = _by(db, "SELECT status, count(*) FROM purchase_requests GROUP BY 1")
     counts["ALL"] = sum(counts.values())
     one = lambda sql: _one(db, sql)
@@ -753,3 +766,43 @@ def wastage_board(start: date, end: date, db: Session = DB, _: CurrentUser = Dep
     return {"period": rep["period"], "total_value": float(rep["total_value_at_cost"]), "records": sum(int(r["records"]) for r in rep["by_category"]),
             "by_category": [{"category": r["category"], "department": r["department"], "qty": float(r["qty"]), "records": r["records"], "value": float(r["value_at_cost"])} for r in rep["by_category"]],
             "orders_completed": agg[0], "planned_units": _num(agg[1]), "made_units": _num(agg[2]), "avg_yield": _num(agg[3]), "lowest_yield_orders": orders}
+
+
+@router.get("/inventory/hub")
+def inventory_hub(db: Session = DB, _: CurrentUser = Depends(require("inventory.stock:read"))):
+    """The inventory landing page: stock value by class, warehouse occupancy, items at or near their reorder level (with what is already on order),
+    batches that expire soonest while still holding stock, the latest stock movements and the items holding the most value."""
+    on_order = """(SELECT COALESCE(sum(pi.qty_ordered - pi.qty_received), 0) FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
+                    WHERE pi.item_id = i.id AND po.status IN ('APPROVED', 'PARTIALLY_RECEIVED'))"""
+    reorder = _rows(db, f"""
+        SELECT i.id, i.item_code, i.name, i.kind, u.code AS uom, i.reorder_level, COALESCE(sum(b.qty_available), 0) AS free, {on_order} AS on_order
+          FROM items i LEFT JOIN stock_balances b ON b.item_id = i.id LEFT JOIN units_of_measure u ON u.id = i.uom_id
+         WHERE i.is_active AND COALESCE(i.reorder_level, 0) > 0
+         GROUP BY i.id, u.code HAVING COALESCE(sum(b.qty_available), 0) < i.reorder_level * 1.5
+         ORDER BY COALESCE(sum(b.qty_available), 0) / i.reorder_level, i.item_code LIMIT 8""")
+    for r in reorder:
+        r["state"] = "BELOW" if float(r["free"]) < float(r["reorder_level"]) else "SOON"
+    expiring = _rows(db, """
+        SELECT b.id, b.batch_no, i.item_code, i.name, w.code AS warehouse, b.qc_status, b.expiry_date, (b.expiry_date - business_today()) AS days_left,
+               sum(s.qty_physical) AS qty, u.code AS uom
+          FROM inventory_batches b JOIN stock_balances s ON s.batch_id = b.id AND s.qty_physical > 0 JOIN items i ON i.id = b.item_id
+          JOIN warehouses w ON w.id = s.warehouse_id LEFT JOIN units_of_measure u ON u.id = i.uom_id
+         WHERE b.expiry_date IS NOT NULL GROUP BY b.id, i.id, w.code, u.code ORDER BY b.expiry_date, b.batch_no LIMIT 6""")
+    movements = _rows(db, """
+        SELECT l.id, l.posted_at, l.movement_type, l.qty_delta, l.source_type, i.item_code, i.name, w.code AS warehouse, b.batch_no, u.code AS uom
+          FROM stock_ledger l JOIN items i ON i.id = l.item_id JOIN warehouses w ON w.id = l.warehouse_id
+          LEFT JOIN inventory_batches b ON b.id = l.batch_id LEFT JOIN units_of_measure u ON u.id = i.uom_id
+         ORDER BY l.id DESC LIMIT 8""")
+    warehouses = _rows(db, """
+        SELECT w.id, w.code, w.name, count(*) FILTER (WHERE s.qty_physical > 0) AS lines, count(DISTINCT s.item_id) FILTER (WHERE s.qty_physical > 0) AS items,
+               COALESCE(sum(s.qty_physical), 0) AS qty, COALESCE(sum(s.qty_blocked), 0) AS blocked, COALESCE(sum(s.qty_reserved), 0) AS reserved
+          FROM warehouses w LEFT JOIN stock_balances s ON s.warehouse_id = w.id WHERE w.is_active GROUP BY w.id ORDER BY 4 DESC, w.code""")
+    top_value = _rows(db, """SELECT i.id, i.item_code, i.name, i.kind, v.qty, v.value FROM item_valuation v JOIN items i ON i.id = v.item_id
+                              WHERE v.qty > 0 ORDER BY v.value DESC LIMIT 6""")
+    return {
+        "stock_value": _one(db, "SELECT COALESCE(sum(value), 0) FROM item_valuation"),
+        "value_by_kind": _by(db, "SELECT i.kind, COALESCE(sum(v.value), 0) FROM item_valuation v JOIN items i ON i.id = v.item_id WHERE v.qty > 0 GROUP BY 1 ORDER BY 2 DESC"),
+        "movements_7d": _one(db, "SELECT count(*) FROM stock_ledger WHERE posted_at > now() - interval '7 days'"),
+        "movements_by_type_30d": _by(db, "SELECT movement_type, count(*) FROM stock_ledger WHERE posted_at > now() - interval '30 days' GROUP BY 1 ORDER BY 2 DESC"),
+        "reorder": reorder, "expiring": expiring, "movements": movements, "warehouses": warehouses, "top_value": top_value,
+    }

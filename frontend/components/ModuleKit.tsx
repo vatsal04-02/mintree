@@ -14,6 +14,7 @@ import { PrCard, PrSummary } from "./pr";
 import { OrderCard, OrdersSummary } from "./orders";
 import { PoCard, PoSummary } from "./po";
 import { BOARDS, WastageView } from "./boards";
+import { ModuleDashboard } from "./ModuleDashboard";
 import { Badge, ConfirmDialog, Drawer, EmptyState, useDebounced, useToast } from "./ui";
 
 /* ------------------------------------------------------------------ reference pickers */
@@ -294,19 +295,35 @@ export function ReportView({ data, depth = 0, parent = "" }: { data: any; depth?
   const nested = Object.entries(data).filter(([, v]) => v !== null && typeof v === "object");
   return (
     <div className={depth ? "space-y-3" : "space-y-5"}>
-      {scalars.length > 0 && (
-        <dl className={`grid gap-x-2.5 gap-y-0 ${depth === 0 ? "grid-cols-2 md:grid-cols-12" : "grid-cols-2 md:grid-cols-3"} [&>*]:mb-2.5`}>
-          {scalars.map(([k, v], idx) => {
-            const mk = depth > 0 && MONEYISH.test(parent) && !/(count|qty|days)/i.test(parent) ? parent : k;   // children of a money block inherit its name
+      {scalars.length > 0 && depth === 0 && (() => {
+        /* headline figures: one panel divided by hairlines (1px gaps over the line colour), four to a row; blank cells close a short last row */
+        const fill = (4 - (scalars.length % 4)) % 4;
+        return (
+          <dl className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[var(--line)] border border-line rounded-[10px] overflow-hidden" style={{ boxShadow: "var(--shadow-md)" }}>
+            {scalars.map(([k, v]) => {
+              const numeric = typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18);
+              const label = fieldLabel(k).replace(/ %$/, "").replace(/\bfollowups?\b/gi, (m) => (m.toLowerCase().endsWith("s") ? "follow-ups" : "follow-up")).replace(/\b(\d+)d\b/, "($1 days)");
+              const shown = show(k, v, numeric);
+              return (
+                <div key={k} className="bg-[var(--card)] px-4 py-3 min-w-0">
+                  <dt className="text-[0.75rem] font-medium text-muted truncate" title={label}>{label}</dt>
+                  <dd className={`mt-1 truncate ${numeric ? "t-kpi tabular-nums" : "t-value"}`} title={String(shown)}>{shown}</dd>
+                </div>
+              );
+            })}
+            {Array.from({ length: fill }).map((_, i) => <div key={`fill-${i}`} className="bg-[var(--card)] hidden md:block" aria-hidden />)}
+          </dl>
+        );
+      })()}
+      {scalars.length > 0 && depth > 0 && (
+        <dl className="grid gap-x-2.5 gap-y-0 grid-cols-2 md:grid-cols-3 [&>*]:mb-2.5">
+          {scalars.map(([k, v]) => {
+            const mk = MONEYISH.test(parent) && !/(count|qty|days)/i.test(parent) ? parent : k;   // children of a money block inherit its name
             const numeric = typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18);
-            const head = depth === 0 && numeric;
-            const label = fieldLabel(k).replace(/ %$/, "").replace(/\bfollowups?\b/gi, (m) => (m.toLowerCase().endsWith("s") ? "follow-ups" : "follow-up")).replace(/\b(\d+)d\b/, "($1 days)");
-            const shown = show(mk, v, head);
-            // top-level tiles sit four to a row on a 12-column grid; a short last row shares the full width so it leaves no hole
-            const rem = scalars.length % 4, inLast = idx >= scalars.length - rem;
-            const span = depth !== 0 ? "" : !inLast || rem === 0 ? "md:col-span-3" : rem === 3 ? "md:col-span-4" : rem === 2 ? "md:col-span-6" : "md:col-span-12";
+            const label = fieldLabel(k);
+            const shown = show(mk, v);
             return (
-              <div key={k} className={`panel ${depth === 0 ? "kpi-card" : ""} p-4 min-w-0 grid grid-rows-subgrid row-span-2 gap-y-0 content-start ${span}`}>
+              <div key={k} className="panel p-4 min-w-0 grid grid-rows-subgrid row-span-2 gap-y-0 content-start">
                 <dt className="label-caps line-clamp-2" title={label}>{label}</dt>
                 <dd className={`${numeric ? "" : "t-value"} mt-2 break-words`}>{numeric ? <span className="kpi-fit"><span className="t-kpi" style={{ "--n": String(String(shown).length) } as React.CSSProperties} title={String(shown)}>{shown}</span></span> : shown}</dd>
               </div>
@@ -609,7 +626,8 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const [scanAct, setScanAct] = useState<{ a: Action; row: Row } | null>(null);
   const [countRow, setCountRow] = useState<Row | null>(null);
   const [result, setResult] = useState<any>(null);
-  const [view_, setViewMode] = useState<"table" | "cards" | "board">(def.view ?? "cards");
+  const [view_, setViewMode] = useState<"table" | "cards" | "board">(def.view ?? "table");
+  const [sort, setSort] = useState<string>("");
   const [shown, setShown] = useState(48);
   const [meta, setMeta] = useState<{ counts?: Record<string, number>; summary?: any } | null>(null);   // tab counts and the figures strip, when the endpoint sends them
 
@@ -634,9 +652,19 @@ export function ListScreen({ screen }: { screen: Screen }) {
     let r = rows;
     if (status && !def.status?.param) r = r.filter((x) => x.status === status);
     if (q.trim()) { const t = q.toLowerCase(); r = r.filter((x) => JSON.stringify(x).toLowerCase().includes(t)); }
+    if (sort) {
+      const key = sort.replace(/^-/, ""), dir = sort.startsWith("-") ? -1 : 1;
+      const num = (v: any) => (v === null || v === undefined || v === "" ? null : typeof v === "number" ? v : /^-?\d+(\.\d+)?$/.test(String(v)) ? Number(v) : null);
+      r = [...r].sort((a, b) => {
+        const x = a[key], y = b[key];
+        if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+        const nx = num(x), ny = num(y);
+        return (nx !== null && ny !== null ? nx - ny : String(x).localeCompare(String(y), "en-IN", { numeric: true })) * dir;
+      });
+    }
     return r;
-  }, [rows, q, status, def.status?.param]);
-  const pageSize = 25;
+  }, [rows, q, status, def.status?.param, sort]);
+  const pageSize = 50;
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   async function openHref(href: string, label: string) {
@@ -675,7 +703,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, rows, loading]);
   const visible = (r: Row) => (def.actions ?? []).filter((a) => (!a.perm || can(a.perm)) && (!a.when || a.when(r)));
-  const columns: TCol<Row & { id: number }>[] = def.cols.map((c) => ({ key: c.key, label: c.label, render: (r) => cell(c, r), align: c.kind === "money" || c.kind === "number" ? "right" : undefined }));
+  const columns: TCol<Row & { id: number }>[] = def.cols.filter((c) => rows.length === 0 || c.kind === "badge" || rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")).map((c) => ({ key: c.key, label: c.label, sortKey: c.key, render: (r) => cell(c, r), align: c.kind === "money" || c.kind === "number" ? "right" : undefined }));
 
   const rfq = def.layout === "rfq";
   function exportBids() {
@@ -710,7 +738,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
         {screen.create && can(screen.create.perm) && <CreateButton create={screen.create} onDone={load} onResult={(r) => setResult({ title: screen.create!.title ?? screen.label, data: r })} />}
       </div>
       {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : view_ === "table" ? (
-        <DataTable columns={columns} rows={pageRows as (Row & { id: number })[]} loading={loading} page={page} pageSize={pageSize} total={filtered.length} onPage={setPage}
+        <DataTable columns={columns} rows={pageRows as (Row & { id: number })[]} loading={loading} sort={sort} onSort={(v) => { setSort(v); setPage(1); }} page={page} pageSize={pageSize} total={filtered.length} onPage={setPage}
           onRowClick={openDetail} empty={<EmptyState title="Nothing here yet" hint={screen.create ? `Use “${screen.create.label}” to add the first one.` : "Records appear here as work happens in other modules."} />}
           rowActions={def.actions ? (r) => (
             <div className="flex justify-end gap-1">
@@ -788,7 +816,7 @@ export function ReportScreen({ screen, initial }: { screen: Screen; initial?: Re
           <button className="btn btn-primary" disabled={loading || missing}>{loading ? "Loading…" : "Run report"}</button>
         </form>
       )}
-      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : loading && !data ? <div className="skeleton h-40" /> : data ? (def.layout === "wastage" ? <WastageView data={data} /> : <ReportView data={data} />) : missing ? <EmptyState title="Enter the details above" hint="Then run the report." /> : null}
+      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : loading && !data ? <div className="skeleton h-40" /> : data ? (def.layout === "wastage" ? <WastageView data={data} /> : def.layout === "dashboard" ? <ModuleDashboard data={data} /> : <ReportView data={data} />) : missing ? <EmptyState title="Enter the details above" hint="Then run the report." /> : null}
     </>
   );
 }

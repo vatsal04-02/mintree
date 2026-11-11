@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { fmtDate, fmtMoney, fmtNum, fmtRupees, titleCase } from "@/lib/format";
 import { toneFor, type Action, type Row } from "@/lib/modules";
+import { Strip } from "./kpi";
 
 const EDGE: Record<string, string> = { success: "var(--brand)", warning: "var(--amber)", danger: "var(--danger)", info: "var(--info)", neutral: "var(--line-strong)" };
 const PLATFORM: Record<string, { name: string; color: string }> = {
@@ -12,24 +13,14 @@ const PLATFORM: Record<string, { name: string; color: string }> = {
 type Summary = { received_30d: number; value_30d: number; exceptions: number; exception_value: number; converted: number; total: number; channels: number; unmapped_skus: number };
 
 export function OrdersSummary({ summary }: { summary: Summary | null | undefined }) {
-  if (!summary) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-[118px] !rounded-xl" />)}</div>;
+  if (!summary) return <Strip cards={null} />;
   const cards = [
     { label: "Orders received, 30 days", value: fmtNum(summary.received_30d), chip: `${fmtNum(summary.channels)} channel${summary.channels === 1 ? "" : "s"}`, tone: "info", foot: "Imported from connected marketplaces", accent: "var(--info)" },
     { label: "Order value, 30 days", value: fmtRupees(summary.value_30d), chip: "Excl. exceptions", tone: "neutral", foot: "Orders that can be fulfilled", accent: "var(--brand-bright)" },
     { label: "In exception queue", value: fmtNum(summary.exceptions), chip: summary.exceptions ? `${fmtRupees(summary.exception_value)} held` : "Nothing held", tone: summary.exceptions ? "danger" : "success", foot: summary.exceptions ? `${fmtNum(summary.unmapped_skus)} unmapped SKU${summary.unmapped_skus === 1 ? "" : "s"} to fix` : "Every order mapped", accent: "var(--danger)" },
     { label: "Converted to sales orders", value: `${fmtNum(summary.converted)} of ${fmtNum(summary.total)}`, chip: summary.total ? `${fmtNum(Math.round((summary.converted / summary.total) * 100))}%` : "—", tone: "success", foot: "Orders ready for picking and dispatch", accent: "var(--brand-bright)" },
   ];
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">
-      {cards.map((c) => (
-        <section key={c.label} className="panel kpi-card p-4 pt-[18px] flex flex-col" style={{ "--kpi-accent": c.accent } as React.CSSProperties} aria-label={c.label}>
-          <span className="label-caps">{c.label}</span>
-          <div className="mt-1.5 flex items-center gap-2.5 min-w-0"><span className="t-kpi tabular-nums">{c.value}</span><span className={`badge tone-${c.tone} shrink-0`}>{c.chip}</span></div>
-          <span className="t-support mt-1.5">{c.foot}</span>
-        </section>
-      ))}
-    </div>
-  );
+  return <Strip cards={cards} />;
 }
 
 export function OrderCard({ r, actions, onAction, onOpen }: { r: Row; actions: Action[]; onAction: (a: Action, r: Row) => void; onOpen: (r: Row) => void }) {

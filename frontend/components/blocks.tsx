@@ -244,32 +244,23 @@ export type PipelineStage = { label: string; value: string; note: string; flag?:
 /** Procurement to dispatch as numbered stage boxes in one panel. Each box has a coloured top edge (green when work is waiting, amber or red when it needs action),
  *  the stage number, its name, how many items wait there and a one-line status. The whole box is the link. */
 export function Pipeline({ stages }: { stages: PipelineStage[] }) {
-  // the stage holding the most waiting work (and not already flagged) is the "current" one: mint edge and wash, as in the dispatch stepper
-  const num = (v: string) => Number(v.replace(/[^\d.]/g, "")) || 0;
-  const busiest = stages.reduce((best, s, i) => (!s.alert && num(s.value) > (best < 0 ? 0 : num(stages[best].value)) ? i : best), -1);
+  /* A compact rail: one panel, one cell per stage divided by hairlines. The count carries the cell; a late or short flag is the only coloured text. */
   return (
-    <section className="panel p-4" aria-label="Order to dispatch workflow">
-      <ol className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+    <section className="panel overflow-hidden" aria-label="Order to dispatch workflow">
+      <ol className={`grid grid-cols-2 md:grid-cols-3 ${stages.length === 5 ? "xl:grid-cols-5" : stages.length === 4 ? "xl:grid-cols-4" : "xl:grid-cols-6"} gap-px bg-[var(--line)]`}>
         {stages.map((s, i) => {
-          const state = s.alert === "danger" ? "step-danger" : s.alert === "warn" ? "step-warn" : i === busiest ? "step-active" : "";
-          const flagColor = s.alert === "warn" ? "!text-warning" : "!text-danger";
+          const flagColor = s.alert === "warn" ? "text-warning" : "text-danger";
           const body = (
-            <div className={`step ${state} kpi-card h-full px-3.5 pt-[15px] pb-3 flex flex-col gap-0.5 transition-colors ${s.href && state !== "step-active" ? "hover:bg-[var(--card-hover)]" : ""}`} style={{ "--kpi-accent": s.alert === "danger" ? "var(--danger)" : s.alert === "warn" ? "var(--amber)" : i === busiest ? "var(--brand-bright)" : "var(--line-strong)" } as React.CSSProperties}>
-              <div className="flex items-center gap-1.5">
-                <span className={`label-caps ${i === busiest ? "!text-brand" : ""}`}>Stage {String(i + 1).padStart(2, "0")}{i === busiest ? " · Current" : ""}</span>
-                {s.alert && <span className="w-2 h-2 rounded-full ml-auto shrink-0" style={{ background: s.alert === "danger" ? "var(--danger)" : "var(--amber)" }} aria-hidden />}
-              </div>
-              <div className="font-heading text-[0.875rem] font-bold leading-5 truncate">{s.label}</div>
-              <div className="flex items-baseline justify-between gap-2 mt-1">
-                <span className="t-stage tabular-nums" style={{ color: s.value === "0" ? "var(--subtle)" : i === busiest ? "var(--brand)" : "var(--fg)" }}>{s.value}</span>
-              </div>
-              <div className="t-support">{s.note}</div>
-              <div className={`t-support min-h-[18px] font-semibold ${s.flag ? flagColor : ""}`}>{s.flag ?? " "}</div>
+            <div className={`h-full bg-[var(--card)] px-4 py-3 flex flex-col transition-colors ${s.href ? "hover:bg-[#fafbfa]" : ""}`}>
+              <span className="text-[0.75rem] font-medium text-muted">{String(i + 1).padStart(2, "0")} · {s.label}</span>
+              <span className="t-stage tabular-nums mt-1" style={{ color: s.value === "0" ? "var(--faint)" : "var(--fg)" }}>{s.value}</span>
+              <span className="t-support">{s.note}</span>
+              {s.flag && <span className={`text-[0.75rem] font-medium mt-0.5 ${flagColor}`}>{s.flag}</span>}
             </div>
           );
           return (
-            <li key={s.label} className="min-w-0">
-              {s.href ? <Link href={s.href} className="block h-full rounded-[10px]" aria-label={`${s.label}: ${s.value} ${s.note}${s.flag ? `, ${s.flag}` : ""}`}>{body}</Link> : body}
+            <li key={s.label} className="min-w-0 bg-[var(--card)]">
+              {s.href ? <Link href={s.href} className="block h-full" aria-label={`${s.label}: ${s.value} ${s.note}${s.flag ? `, ${s.flag}` : ""}`}>{body}</Link> : body}
             </li>
           );
         })}

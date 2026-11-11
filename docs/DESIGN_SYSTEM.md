@@ -1,5 +1,7 @@
 # Mintree Botanical Precision design system
 
+> **Superseded.** The app now uses the Rapport visual language described in [DESIGN.md](DESIGN.md). This file is kept for history only.
+
 The visual language of the Mintree Factory OS content area. It was supplied as two specifications ("Botanical Precision ERP" and "Mintree Beauty ERP — Global
 Design System & Component Specification", v2.4.0) and is implemented in `frontend/app/globals.css` (the block headed "Mintree Botanical Precision design
 system") and the shared components listed at the end. The sidebar keeps its own deep-teal design and is not governed by this document.

@@ -28,7 +28,7 @@ export type Param = { name: string; label: string; type: "date" | "text" | "sele
 export type Screen = {
   id: string; label: string; description: string; perm: string;
   list?: { api: string; params?: Record<string, string>; itemsKey?: string; cols: Col[]; status?: { param?: string; options: string[] }; detail?: (r: Row) => string; actions?: Action[]; paged?: boolean; view?: "table" | "cards"; layout?: "rfq" | "pr" | "orders" | "po" | "returns" | "prod" | "wc" | "bom" };
-  report?: { api: string; params?: Param[]; layout?: "wastage" };
+  report?: { api: string; params?: Param[]; layout?: "wastage" | "dashboard" };
   create?: Create;
 };
 export type Module = { id: string; label: string; icon: LucideIcon; description: string; dashboard?: { api: string; perm: string }; screens: Screen[] };
@@ -55,7 +55,7 @@ export const MODULES: Module[] = [
     dashboard: { api: "/procurement/dashboard", perm: "procurement.po:read" },
     screens: [
       { id: "requests", label: "Purchase requests", description: "Material requests awaiting approval and conversion.", perm: "procurement.pr:read",
-        list: { api: "/procurement/pr-board", layout: "pr", detail: (r) => `/procurement/purchase-requests/${r.id}`, cols: [{ key: "number", label: "Number", kind: "mono" }, { key: "item_name", label: "Item" }, { key: "lines_label", label: "Lines" }, { key: "requester", label: "Requested by" }, { key: "status", label: "Status", kind: "badge" }, { key: "required_by", label: "Required by", kind: "date" }], status: { param: "status", options: ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "CLOSED"] },
+        list: { api: "/procurement/pr-board", layout: "pr", detail: (r) => `/procurement/purchase-requests/${r.id}`, cols: [{ key: "number", label: "Request", kind: "mono" }, { key: "created_at", label: "Requested on", kind: "date" }, { key: "requester", label: "Requested by" }, { key: "department", label: "Department" }, { key: "item_name", label: "Material" }, { key: "qty_label", label: "Quantity" }, { key: "available_label", label: "In stock" }, { key: "required_by", label: "Required by", kind: "date" }, { key: "status", label: "Status", kind: "badge" }], status: { param: "status", options: ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "CLOSED"] },
           actions: [{ label: "Submit", path: (r) => `/procurement/purchase-requests/${r.id}/submit`, versioned: true, when: st("DRAFT"), perm: "procurement.pr:update" },
             { label: "Approve", path: (r) => `/procurement/purchase-requests/${r.id}/approve`, versioned: true, when: st("SUBMITTED"), perm: "procurement.pr:approve" },
             { label: "Reject", path: (r) => `/procurement/purchase-requests/${r.id}/reject`, versioned: true, when: st("SUBMITTED"), perm: "procurement.pr:approve", danger: true, fields: [{ name: "reason", label: "Reason", type: "textarea", required: true }] }] },
@@ -313,7 +313,7 @@ export const MODULES: Module[] = [
           actions: [{ label: "Investigate", path: (r) => `/crm/complaints/${r.id}/update`, when: st("OPEN"), perm: "crm.complaint:update", body: () => ({ status: "INVESTIGATING" }) },
             { label: "Resolve", path: (r) => `/crm/complaints/${r.id}/update`, when: st("OPEN", "INVESTIGATING"), perm: "crm.complaint:update", fields: [{ name: "resolution", label: "Resolution", type: "textarea", required: true }], body: (r, v) => ({ status: "RESOLVED", resolution: v.resolution }) }] },
         create: { label: "Log complaint", perm: "crm.complaint:create", path: "/crm/complaints", fields: [{ name: "customer_id", label: "Customer", type: "ref", ref: "customers", required: true }, { name: "batch_id", label: "Batch id", type: "number" }, { name: "description", label: "Description", type: "textarea", required: true }] } },
-      { id: "pipeline", label: "Pipeline summary", description: "Lead conversion, quotations and overdue follow-ups.", perm: "sales.pipeline:read", report: { api: "/sales/pipeline" } },
+      { id: "pipeline", label: "Pipeline summary", description: "Lead conversion, quotations and overdue follow-ups.", perm: "sales.pipeline:read", report: { api: "/sales/pipeline", layout: "dashboard" } },
     ],
   },
   {

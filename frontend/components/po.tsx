@@ -4,29 +4,20 @@
 import Link from "next/link";
 import { fmtDate, fmtMoney, fmtNum, fmtRupees, titleCase } from "@/lib/format";
 import { toneFor, type Action, type Row } from "@/lib/modules";
+import { Strip } from "./kpi";
 
 const EDGE: Record<string, string> = { success: "var(--brand)", warning: "var(--amber)", danger: "var(--danger)", info: "var(--info)", neutral: "var(--line-strong)" };
 type Summary = { open_value: number; open_count: number; pending_count: number; pending_value: number; due_soon: number; overdue: number; received_30d: number; received_value_30d: number };
 
 export function PoSummary({ summary }: { summary: Summary | null | undefined }) {
-  if (!summary) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-[118px] !rounded-xl" />)}</div>;
+  if (!summary) return <Strip cards={null} />;
   const cards = [
     { label: "Open commitments", value: fmtRupees(summary.open_value), chip: `${fmtNum(summary.open_count)} open PO${summary.open_count === 1 ? "" : "s"}`, tone: "info", foot: "Approved and part-received orders", accent: "var(--info)" },
     { label: "Awaiting approval", value: fmtNum(summary.pending_count), chip: summary.pending_count ? fmtRupees(summary.pending_value) : "All clear", tone: summary.pending_count ? "warning" : "success", foot: "Orders waiting for a second approver", accent: "var(--amber)" },
     { label: "Due within 7 days", value: fmtNum(summary.due_soon), chip: summary.overdue ? `${fmtNum(summary.overdue)} overdue` : "None overdue", tone: summary.overdue ? "danger" : "success", foot: "Open orders by expected date", accent: "var(--brand-bright)" },
     { label: "Received, 30 days", value: fmtNum(summary.received_30d), chip: fmtRupees(summary.received_value_30d), tone: "success", foot: "Orders fully received", accent: "var(--brand-bright)" },
   ];
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">
-      {cards.map((c) => (
-        <section key={c.label} className="panel kpi-card p-4 pt-[18px] flex flex-col" style={{ "--kpi-accent": c.accent } as React.CSSProperties} aria-label={c.label}>
-          <span className="label-caps">{c.label}</span>
-          <div className="mt-1.5 flex items-center gap-2.5 min-w-0"><span className="t-kpi tabular-nums">{c.value}</span><span className={`badge tone-${c.tone} shrink-0`}>{c.chip}</span></div>
-          <span className="t-support mt-1.5">{c.foot}</span>
-        </section>
-      ))}
-    </div>
-  );
+  return <Strip cards={cards} />;
 }
 
 export function PoCard({ r, actions, onAction, onOpen }: { r: Row; actions: Action[]; onAction: (a: Action, r: Row) => void; onOpen: (r: Row) => void }) {

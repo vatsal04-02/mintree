@@ -10,12 +10,15 @@ import { screenHref } from "@/lib/summary";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { ModuleDashboard } from "@/components/ModuleDashboard";
 import { ManagementDashboard } from "@/components/ManagementDashboard";
+import { CommercialInsights } from "@/components/insights";
 import { OmniScreen, ProductionScreen, PurchaseScreen } from "@/components/screens";
+import { InventoryScreen } from "@/components/inventory";
 
 /** Modules with a purpose-built screen (docs/DESIGN_SYSTEM.md screens 2-4) and the permission each needs; the rest use the generic dashboard. */
 const SCREENS: Record<string, { perm: string; Screen: typeof ProductionScreen }> = {
   production: { perm: "production.order:read", Screen: ProductionScreen },
   procurement: { perm: "procurement.po:read", Screen: PurchaseScreen },
+  inventory: { perm: "inventory.stock:read", Screen: InventoryScreen },
   ecommerce: { perm: "ecommerce.order:read", Screen: OmniScreen },
 };
 
@@ -36,8 +39,8 @@ export default function ModulePage({ params }: { params: Promise<{ module: strin
   return (
     <>
       {custom ? <custom.Screen to={to} />
-        : isManagement ? <><ManagementDashboard /><h2 className="t-section mt-8 mb-3">Full reports</h2></>
-        : <PageHeader eyebrow={`Factory Plant 01 / ${mod.label}`} title={mod.label} description={mod.description} tag={dash ? <span className="tag tag-dot">Live data</span> : undefined} />}
+        : isManagement ? <><ManagementDashboard /><div className="mt-6"><CommercialInsights /></div><h2 className="t-section mt-8 mb-3">Full reports</h2></>
+        : <PageHeader title={mod.label} description={mod.description} />}
       {!custom && dash && Object.keys(dash).length > 0 && <ModuleDashboard data={dash} />}
       {custom && <h2 className="label-caps mt-8 mb-3">All {mod.label.toLowerCase()} screens</h2>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

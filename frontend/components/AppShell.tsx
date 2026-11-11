@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScanLine, MessageSquareText, Bell as BellIcon, Menu, ChevronDown, ChevronRight, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun , Monitor } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { personaFor } from "@/lib/persona";
 import { Logo } from "./Logo";
 import { ALL_NAV_ITEMS, NAV, visible } from "@/lib/nav";
 import { api, type Page } from "@/lib/api";
@@ -39,6 +40,7 @@ function useOutside(ref: React.RefObject<HTMLElement | null>, fn: () => void, on
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { me, can, logout } = useAuth();
+  const persona = personaFor(me?.email);
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
@@ -122,10 +124,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="p-3 shrink-0">
           <div className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-2xl" style={{ background: "var(--ink-2)" }}>
-            <div className="w-8 h-8 rounded-full grid place-items-center text-[0.75rem] font-semibold shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }} aria-hidden>
-              {me?.full_name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
-            </div>
-            {!collapsed && <div className="min-w-0 leading-tight flex-1"><div className="text-white text-[0.75rem] truncate">{me?.full_name}</div><div className="text-[0.75rem] text-white/80 truncate">{me?.roles[0] ?? "No role"} · Mintree</div></div>}
+            {persona
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={persona.photo} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-white/25" />
+              : <div className="w-8 h-8 rounded-full grid place-items-center text-[0.75rem] font-semibold shrink-0" style={{ background: "var(--sidebar-active)", color: "#fff" }} aria-hidden>
+                  {me?.full_name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+                </div>}
+            {!collapsed && <div className="min-w-0 leading-tight flex-1"><div className="text-white text-[0.8125rem] truncate">{persona?.name ?? me?.full_name}</div><div className="text-[0.75rem] text-white/80 truncate">{persona?.title ?? `${me?.roles[0] ?? "No role"} · Mintree`}</div></div>}
           </div>
           <button onClick={toggleNav} className="hidden md:flex items-center gap-2.5 h-9 px-3 mt-1 rounded-full w-full text-[0.75rem] hover:bg-white/[0.06]" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {collapsed ? <PanelLeftOpen size={16} /> : <><PanelLeftClose size={16} />Collapse</>}
@@ -146,6 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function Header({ current, theme, toggleTheme, themeCustom, useSystemTheme, logout, onMenu, menuOpen, aiStatus, onAssist }: { current?: string; theme: string; toggleTheme: () => void; themeCustom: boolean; useSystemTheme: () => void; logout: () => void; onMenu: () => void; menuOpen: boolean; aiStatus: ReturnType<typeof useAssistantStatus>; onAssist: () => void }) {
   const { me, can } = useAuth();
+  const persona = personaFor(me?.email);
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [create, setCreate] = useState(false);
@@ -193,13 +199,17 @@ function Header({ current, theme, toggleTheme, themeCustom, useSystemTheme, logo
       )}
       <div className="relative" ref={menuRef}>
         <button onClick={() => setMenu((v) => !v)} className="flex items-center gap-2 h-10 pl-1.5 pr-3 rounded-full border border-line bg-surface hover:border-line-strong transition-colors" aria-haspopup="menu" aria-expanded={menu}>
-          <span className="w-7 h-7 rounded-full grid place-items-center text-[0.75rem] font-semibold bg-primary text-[var(--primary-fg)]">{me?.full_name[0]}</span>
+          {persona
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={persona.photo} alt="" className="w-7 h-7 rounded-full object-cover" />
+            : <span className="w-7 h-7 rounded-full grid place-items-center text-[0.75rem] font-semibold bg-primary text-[var(--primary-fg)]">{me?.full_name[0]}</span>}
           <ChevronDown size={13} className="text-muted" />
         </button>
         {menu && (
           <div role="menu" className="anim-fade absolute right-0 mt-1.5 w-60 panel shadow-xl z-40">
             <div className="px-3 py-2.5 border-b border-line">
-              <div className="font-medium text-[0.8125rem] truncate">{me?.full_name}</div>
+              <div className="font-medium text-[0.8125rem] truncate">{persona?.name ?? me?.full_name}</div>
+              {persona && <div className="text-muted text-[0.75rem] truncate">{persona.title}</div>}
               <div className="text-muted text-[0.75rem] truncate">{me?.email}</div>
               <div className="text-muted text-[0.75rem] mt-0.5">{me?.department_name ?? "No department"} · {me?.roles.join(", ") || "No role"}</div>
             </div>

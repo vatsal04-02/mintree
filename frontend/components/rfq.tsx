@@ -5,13 +5,14 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { fmtDate, fmtMoney, fmtNum, fmtPct, fmtRupees, titleCase } from "@/lib/format";
 import { toneFor, type Action, type Row } from "@/lib/modules";
+import { Strip } from "./kpi";
 
 const EDGE: Record<string, string> = { success: "var(--brand)", warning: "var(--amber)", danger: "var(--danger)", info: "var(--info)", neutral: "var(--line-strong)" };
 
 type Summary = { awaited_quotes: number; open_rfqs: number; suppliers_invited: number; variance_pct: number | null; variance_sample: number; quotes_recorded: number; invitations: number; awarded_value: number; awarded_count: number };
 
 export function RfqSummary({ summary }: { summary: Summary | null | undefined }) {
-  if (!summary) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-[118px] !rounded-xl" />)}</div>;
+  if (!summary) return <Strip cards={null} />;
   const v = summary.variance_pct;
   const resp = summary.invitations ? (summary.quotes_recorded / summary.invitations) * 100 : null;
   const cards = [
@@ -20,17 +21,7 @@ export function RfqSummary({ summary }: { summary: Summary | null | undefined })
     { label: "Quote response", value: resp === null ? "—" : fmtPct(resp, 0), chip: `${fmtNum(summary.quotes_recorded)} of ${fmtNum(summary.invitations)}`, tone: resp !== null && resp < 50 ? "warning" : "success", foot: "Invitations answered by suppliers", accent: "var(--c-slate, #64748b)" },
     { label: "Awarded value", value: fmtRupees(summary.awarded_value), chip: `${fmtNum(summary.awarded_count)} awarded`, tone: "success", foot: "Purchase orders raised from awards", accent: "var(--brand-bright)" },
   ];
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">
-      {cards.map((c) => (
-        <section key={c.label} className="panel kpi-card p-4 pt-[18px] flex flex-col" style={{ "--kpi-accent": c.accent } as React.CSSProperties} aria-label={c.label}>
-          <span className="label-caps">{c.label}</span>
-          <div className="mt-1.5 flex items-center gap-2.5 min-w-0"><span className="t-kpi tabular-nums">{c.value}</span><span className={`badge tone-${c.tone} shrink-0`}>{c.chip}</span></div>
-          <span className="t-support mt-1.5">{c.foot}</span>
-        </section>
-      ))}
-    </div>
-  );
+  return <Strip cards={cards} />;
 }
 
 const KIND: Record<string, string> = { RM: "Raw material", PM: "Packaging material", FG: "Finished goods", SFG: "Bulk" };

@@ -4,11 +4,13 @@
  *  lib/demo-telemetry.ts and carry a visible "Simulated"/"sim" mark. */
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Gauge, ShieldCheck, Boxes, CalendarClock, CheckCircle2, ClipboardList, Droplets, FileText, Layers, Package, Plus, Printer, Search, Settings2, Truck, User, Wrench, Zap } from "lucide-react";
+import { CheckCircle2, ClipboardList, FileText, Package, Plus, Printer, Search, Truck } from "lucide-react";
 import { fmtDate, fmtNum, fmtPct, fmtRupees, titleCase } from "@/lib/format";
-import { CHANNEL_SLA, COURIER_SLA, DISPATCH_CUTOFF, EQUIPMENT_TILES, MRP_NOTE, PLANT, VESSEL_TILES, WEIGH_SCALE } from "@/lib/demo-telemetry";
+import { Strip } from "./kpi";
+import { Pipeline } from "./blocks";
+import { COURIER_SLA, EQUIPMENT_TILES, PLANT, WEIGH_SCALE } from "@/lib/demo-telemetry";
 import { Sim, useShared, type Row } from "./command";
-import { InView, Ring } from "./fx";
+
 
 type To = (m: string, s: string) => string | undefined;
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -29,20 +31,7 @@ function Head({ eyebrow, tags, title, description, aside, actions }: { eyebrow?:
     </div>
   );
 }
-function StatTile({ icon: Icon, label, value, extra, sim }: { icon: React.ComponentType<{ size?: number }>; label: string; value: React.ReactNode; extra?: React.ReactNode; sim?: boolean }) {
-  return (
-    <div className="panel px-3.5 py-3 flex items-center gap-3 min-w-[12rem]">
-      <span className="icon-sq" aria-hidden><Icon size={17} /></span>
-      <div className="min-w-0">
-        <p className="label-caps flex items-center gap-1.5 whitespace-nowrap">{label}{sim && <span className="normal-case tracking-normal font-semibold text-[#92400e]">· sim</span>}</p>
-        <p className="font-heading font-extrabold text-[1rem] leading-6">{value}{extra && <span className="ml-1.5 text-[0.75rem] font-bold text-success">{extra}</span>}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================== Production & Batch Runs */
-const ORDER_EDGE: Record<string, string> = { IN_PROGRESS: "var(--brand-bright)", RELEASED: "#3b82f6", PLANNED: "var(--line-strong)" };
+/* ================================================================== Production */
 export function ProductionScreen({ to }: { to: To }) {
   const d = useShared<Row>("/production/floor");
   const [tab, setTab] = useState<"active" | "scheduled">("active");
@@ -50,89 +39,85 @@ export function ProductionScreen({ to }: { to: To }) {
   const orders: Row[] = d?.orders ?? [];
   const active = orders.filter((o) => o.status !== "PLANNED"), scheduled = orders.filter((o) => o.status === "PLANNED");
   const shown = (tab === "active" ? active : scheduled).filter((o) => !q || `${o.number} ${o.item_name} ${o.item_code}`.toLowerCase().includes(q.toLowerCase()));
-  const running = n(d?.counts?.IN_PROGRESS);
   const ordersHref = to("production", "orders");
   return (
     <>
-      <Head eyebrow="Factory Plant 01 / Production & Batches"
-        tags={<><span className="tag">GMP Grade ISO-22716</span><span className="tag tag-mono">Plant-01: Cleanroom ISO 7</span></>}
-        title="Production & Batch Runs" description="Real-time supervision of active compounding vessels, automated filling lines and calibrated batch records."
-        aside={<div className="grid gap-2.5 sm:grid-cols-3">
-          <StatTile icon={Layers} label="Active batches" value={`${fmtNum(running)} Running`} />
-          <StatTile icon={Gauge} label="Plant overall OEE" value={PLANT.oee} extra={PLANT.oeeDelta} sim />
-          <StatTile icon={Droplets} label="USP water index" value={PLANT.waterIndex} sim />
-        </div>} />
-
-      <section className="panel p-3 mb-4 flex flex-wrap items-center gap-3 justify-between" aria-label="Batch filters">
-        <div className="seg" role="tablist" aria-label="Batches">
-          <button type="button" role="tab" aria-pressed={tab === "active"} aria-selected={tab === "active"} onClick={() => setTab("active")}>Active batch runs ({active.length})</button>
-          <button type="button" role="tab" aria-pressed={tab === "scheduled"} aria-selected={tab === "scheduled"} onClick={() => setTab("scheduled")}>Scheduled work orders ({scheduled.length})</button>
-          {ordersHref && <Link href={`${ordersHref}?status=COMPLETED`} className="px-3.5 inline-flex items-center text-[0.8125rem] font-medium text-muted hover:text-fg">Batch manufacturing records</Link>}
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-5">
+        <div className="min-w-0">
+          <h1 className="t-page">Production</h1>
+          <p className="t-label mt-1">Batches on the floor, the work queued behind them, equipment and material dispensing.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="relative"><span className="sr-only">Filter batches</span><Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden /><input className="input !h-9 !pl-8 !w-56" placeholder="Filter batch #, SKU or lot…" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+        <div className="flex flex-wrap gap-2">
+          {ordersHref && <Link href={`${ordersHref}?status=COMPLETED`} className="btn">Batch records</Link>}
           {ordersHref && <Link href={ordersHref} className="btn btn-primary gap-1.5"><Plus size={15} />New production batch</Link>}
         </div>
-      </section>
+      </div>
 
-      {d === undefined ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skel key={i} h="h-80" />)}</div>
+      <Strip cards={d === undefined ? null : [
+        { label: "Running now", value: fmtNum(n(d?.counts?.IN_PROGRESS)), foot: "Batches in progress on the floor" },
+        { label: "Released", value: fmtNum(n(d?.counts?.RELEASED)), foot: "Ready to start" },
+        { label: "Scheduled", value: fmtNum(scheduled.length), foot: scheduled[0]?.planned_date ? `Next on ${fmtDate(scheduled[0].planned_date)}` : "Nothing planned" },
+        { label: "Plant OEE", value: PLANT.oee, chip: "Simulated reading", tone: "warning", foot: "Not connected to line telemetry" },
+      ]} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div className="seg" role="tablist" aria-label="Batches">
+          <button type="button" role="tab" aria-pressed={tab === "active"} aria-selected={tab === "active"} onClick={() => setTab("active")}>On the floor ({active.length})</button>
+          <button type="button" role="tab" aria-pressed={tab === "scheduled"} aria-selected={tab === "scheduled"} onClick={() => setTab("scheduled")}>Scheduled ({scheduled.length})</button>
+        </div>
+        <label className="relative"><span className="sr-only">Filter batches</span><Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden /><input className="input !h-9 !pl-8 !w-56" placeholder="Batch number, product or SKU…" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+      </div>
+
+      {d === undefined ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skel key={i} h="h-56" />)}</div>
         : shown.length === 0 ? <p className="panel p-6 t-label">No {tab === "active" ? "running or released" : "scheduled"} batch matches.</p> : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {shown.map((o, i) => {
+          {shown.map((o) => {
             const stages: Row[] = o.stages ?? [];
             const done = stages.filter((s) => s.status === "COMPLETED").length;
             const cur = stages.find((s) => s.status === "IN_PROGRESS") ?? stages.find((s) => s.status === "PENDING");
             const issuePct = n(o.required_qty) ? Math.min(100, Math.round((n(o.issued_qty) / n(o.required_qty)) * 100)) : 0;
             const live = o.status === "IN_PROGRESS";
-            const label = live ? "Live blending" : o.status === "RELEASED" ? "Released to floor" : `Scheduled${o.planned_date ? ` (${fmtDate(o.planned_date)})` : ""}`;
             return (
-              <article key={o.id} className="panel kpi-card p-4 flex flex-col gap-3" style={{ "--kpi-accent": ORDER_EDGE[o.status] } as React.CSSProperties}>
-                <div className="flex items-center gap-2">
-                  <span className="tag tag-mono">#{o.number}</span>
-                  <span className={`text-[0.75rem] font-bold ${live ? "text-success" : "text-muted"} inline-flex items-center gap-1.5`}>{live && <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-live)]" />}{label}</span>
+              <article key={o.id} className="panel p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[0.8125rem] font-semibold">{o.number}</span>
+                  <span className={`badge tone-${live ? "success" : o.status === "RELEASED" ? "info" : "neutral"}`}>{live ? "In progress" : o.status === "RELEASED" ? "Released" : "Planned"}</span>
                 </div>
                 <div>
-                  <h3 className="font-heading font-bold text-[0.9375rem] leading-5">{o.item_name}</h3>
-                  <p className="t-support">SKU: {o.item_code} · Batch vol: {fmtNum(n(o.planned_qty))} {o.uom ?? "units"}</p>
+                  <h3 className="text-[0.9375rem] font-semibold leading-5">{o.item_name}</h3>
+                  <p className="t-support mt-0.5">{o.item_code} · {fmtNum(n(o.planned_qty))} {String(o.uom ?? "units").toLowerCase()}{o.planned_date ? ` · planned ${fmtDate(o.planned_date)}` : ""}</p>
                 </div>
-                <div className="tile">
-                  <div className="flex items-baseline justify-between gap-2"><span className="tile-label">Material issued</span><span className="font-mono text-[0.75rem] font-bold">{fmtNum(n(o.issued_qty), 1)} / {fmtNum(n(o.required_qty), 1)} ({issuePct}%)</span></div>
-                  <div className="progress mt-2"><span className="bar-grow-x" style={{ width: `${issuePct}%` }} /></div>
+                <div>
+                  <div className="flex justify-between t-support"><span>Materials issued</span><span className="font-mono text-fg">{issuePct}%</span></div>
+                  <div className="progress mt-1"><span style={{ width: `${issuePct}%` }} /></div>
                 </div>
-                <dl className="space-y-2 text-[0.8125rem]">
-                  <div className="flex gap-2.5"><Zap size={14} className="text-muted mt-0.5 shrink-0" aria-hidden /><dt className="text-muted w-28 shrink-0">Active stage</dt><dd className="font-semibold min-w-0">{cur ? titleCase(cur.name) : "All stages complete"} <span className="text-muted font-medium">· {done} of {stages.length}</span></dd></div>
-                  <div className="flex gap-2.5"><User size={14} className="text-muted mt-0.5 shrink-0" aria-hidden /><dt className="text-muted w-28 shrink-0">Operator</dt><dd className="font-semibold truncate">{cur?.operator ?? "Not yet assigned"}</dd></div>
-                  <div className="flex gap-2.5"><Settings2 size={14} className="text-muted mt-0.5 shrink-0" aria-hidden /><dt className="text-muted w-28 shrink-0">Vessel & zone</dt><dd className="font-mono text-[0.75rem] font-semibold truncate">{cur?.equipment ?? cur?.work_centre ?? `BOM #${o.bom_id}`}</dd></div>
-                  <div className="flex gap-2.5"><ShieldCheck size={14} className="text-muted mt-0.5 shrink-0" aria-hidden /><dt className="text-muted w-28 shrink-0">QC checkpoint</dt><dd>{o.yield_pct ? <span className="badge tone-success">Yield {fmtPct(n(o.yield_pct))}</span> : <span className={`badge ${live ? "tone-warning" : "tone-neutral"}`}>{live ? "In-process QC pending" : "Not started"}</span>}</dd></div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.8125rem]">
+                  <dt className="text-muted">Stage</dt><dd className="font-medium truncate">{cur ? titleCase(cur.name) : "All complete"} <span className="text-muted">· {done} of {stages.length}</span></dd>
+                  <dt className="text-muted">Operator</dt><dd className="font-medium truncate">{cur?.operator ?? "Not assigned"}</dd>
+                  <dt className="text-muted">Quality</dt><dd className="font-medium truncate">{o.yield_pct ? `Yield ${fmtPct(n(o.yield_pct))}` : live ? "In-process QC pending" : "Not started"}</dd>
                 </dl>
-                <div className="grid grid-cols-3 gap-2">
-                  {(live ? VESSEL_TILES[i % VESSEL_TILES.length] : [{ label: "Planned", value: `${fmtNum(n(o.planned_qty))}` }, { label: "Materials", value: `${fmtNum(n(o.materials))} lines` }, { label: "Planned date", value: o.planned_date ? fmtDate(o.planned_date) : "—" }]).map((t) => (
-                    <div key={t.label} className="tile !px-2.5 text-center min-w-0"><span className="tile-label truncate" title={t.label}>{t.label}</span><span className="tile-value !text-[0.8125rem]">{t.value}</span></div>
-                  ))}
-                </div>
-                {live && <p className="t-support -mt-1 text-[#92400e]">Instrument readings above are simulated.</p>}
-                <div className="card-foot !mt-auto">
-                  {ordersHref && <Link href={`${ordersHref}?open=${o.id}`} className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-brand hover:underline"><FileText size={14} />View batch record</Link>}
-                  <a href={`/api/labels/production-order/${o.id}`} target="_blank" rel="noopener" className="btn btn-sm">Job card label</a>
+                <div className="mt-auto pt-3 border-t border-line flex items-center justify-between gap-2">
+                  {ordersHref && <Link href={`${ordersHref}?open=${o.id}`} className="text-[0.8125rem] font-medium text-brand hover:underline">Open batch record</Link>}
+                  <a href={`/api/labels/production-order/${o.id}`} target="_blank" rel="noopener" className="btn btn-sm">Job card</a>
                 </div>
               </article>
             );
           })}
           {tab === "active" && !q && shown.length % 3 !== 0 && (
-            <article className={`panel p-4 flex flex-col gap-3 ${shown.length % 3 === 1 ? "xl:col-span-2" : ""}`} aria-label="Next scheduled work orders">
-              <div className="flex items-center justify-between gap-2"><span className="label-caps">Next scheduled</span><span className="tag tag-mono">{fmtNum(scheduled.length)} planned</span></div>
-              {scheduled.length === 0 ? <p className="t-support">No work orders are scheduled. Plan one from production orders.</p> : (
-                <ul className="divide-y divide-line">
+            <article className={`panel p-4 flex flex-col ${shown.length % 3 === 1 ? "xl:col-span-2" : ""}`} aria-label="Next scheduled work orders">
+              <div className="flex items-baseline justify-between gap-2"><h3 className="text-[0.9375rem] font-semibold">Next scheduled</h3><span className="t-support">{fmtNum(scheduled.length)} planned</span></div>
+              {scheduled.length === 0 ? <p className="t-support mt-2">No work orders are scheduled.</p> : (
+                <ul className="mt-2 divide-y divide-line">
                   {scheduled.slice(0, 5).map((o) => (
-                    <li key={o.id} className="py-2.5">
-                      <div className="flex items-center justify-between gap-2"><span className="tag tag-mono">#{o.number}</span><span className="t-support whitespace-nowrap inline-flex items-center gap-1"><CalendarClock size={12} aria-hidden />{o.planned_date ? fmtDate(o.planned_date) : "Not dated"}</span></div>
-                      <p className="mt-1 text-[0.8125rem] font-semibold truncate" title={o.item_name}>{titleCase(String(o.item_name ?? ""))} <span className="t-support font-medium">· {fmtNum(n(o.planned_qty))} {o.uom ?? "units"}</span></p>
+                    <li key={o.id} className="py-2 flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                      <span className="min-w-0 truncate"><span className="font-mono text-[0.75rem] text-muted mr-2">{o.number}</span>{titleCase(String(o.item_name ?? ""))}</span>
+                      <span className="t-support shrink-0">{o.planned_date ? fmtDate(o.planned_date) : "Not dated"}</span>
                     </li>
                   ))}
                 </ul>
               )}
-              <div className="card-foot !mt-auto">
-                <button type="button" onClick={() => setTab("scheduled")} className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-brand hover:underline">View all scheduled</button>
+              <div className="mt-auto pt-3 border-t border-line flex items-center justify-between gap-2">
+                <button type="button" onClick={() => setTab("scheduled")} className="text-[0.8125rem] font-medium text-brand hover:underline">View all scheduled</button>
                 {ordersHref && <Link href={ordersHref} className="btn btn-sm">Plan a batch</Link>}
               </div>
             </article>
@@ -141,53 +126,48 @@ export function ProductionScreen({ to }: { to: To }) {
       )}
 
       {d && (d.equipment ?? []).length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3 mt-4">
-          {(d.equipment as Row[]).map((e, i) => {
-            const t = EQUIPMENT_TILES[i % EQUIPMENT_TILES.length];
-            return (
-              <article key={e.id} className="panel p-4 flex flex-col gap-3">
-                <div className="flex items-start gap-3">
-                  <span className="icon-sq" aria-hidden><Wrench size={16} /></span>
-                  <div className="min-w-0 flex-1"><h3 className="font-heading font-bold text-[0.9375rem] leading-5 truncate" title={e.name}>{e.name}</h3><p className="t-support font-mono truncate">{e.asset_id}{e.location ? ` · ${e.location}` : ""}</p></div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">{t.tiles.map((x) => <div key={x.label} className="tile !px-2.5 min-w-0"><span className="tile-label truncate" title={x.label}>{x.label}</span><span className="tile-value truncate">{x.value}</span></div>)}</div>
-                <div className="mt-auto flex items-center justify-between gap-2 text-[0.8125rem]">
-                  <span className="inline-flex items-center gap-1.5 text-muted"><CalendarClock size={14} aria-hidden />Next PM due</span>
-                  <span className="font-mono font-semibold">{e.next_pm ? fmtDate(e.next_pm) : e.calibration_due ? `Calib. ${fmtDate(e.calibration_due)}` : "Not scheduled"}</span>
-                </div>
-                <div className="pt-3 border-t border-line flex items-center justify-between gap-2"><span className="t-support truncate">{t.health} <span className="text-[#92400e]">· sim</span></span><span className={`badge shrink-0 ${e.status === "OPERATIONAL" ? "tone-success" : e.status === "BREAKDOWN" ? "tone-danger" : "tone-warning"}`}>{titleCase(e.status)}</span></div>
-              </article>
-            );
-          })}
-        </div>
+        <section className="panel overflow-hidden mt-4" aria-label="Equipment">
+          <header className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-3"><div><h2 className="t-section">Equipment</h2><p className="t-support">Status and the next preventive maintenance. Health readings are simulated.</p></div>{to("maintenance", "equipment") && <Link href={to("maintenance", "equipment")!} className="text-[0.8125rem] font-medium text-brand hover:underline shrink-0">All equipment</Link>}</header>
+          <div className="overflow-x-auto"><table className="dt">
+            <thead><tr><th>Equipment</th><th>Location</th><th>Status</th><th>Next maintenance</th><th>Health <span className="text-[#8a5a00] font-normal">· sim</span></th></tr></thead>
+            <tbody>{(d.equipment as Row[]).map((e, i) => (
+              <tr key={e.id}>
+                <td><span className="block font-medium">{e.name}</span><span className="block t-support font-mono">{e.asset_id}</span></td>
+                <td className="text-muted">{e.location ?? "—"}</td>
+                <td><span className={`badge tone-${e.status === "OPERATIONAL" ? "success" : e.status === "BREAKDOWN" ? "danger" : "warning"}`}>{titleCase(e.status)}</span></td>
+                <td>{e.next_pm ? fmtDate(e.next_pm) : e.calibration_due ? `Calibration ${fmtDate(e.calibration_due)}` : <span className="text-muted">Not scheduled</span>}</td>
+                <td className="text-muted">{EQUIPMENT_TILES[i % EQUIPMENT_TILES.length].health}</td>
+              </tr>))}
+            </tbody></table></div>
+        </section>
       )}
 
       {d && d.dispensing_order && (
-        <section className="panel mt-4" aria-label="Dispensing and raw material traceability">
-          <header className="flex flex-wrap items-start justify-between gap-3 p-5 pb-3">
+        <section className="panel overflow-hidden mt-4" aria-label="Dispensing and lot traceability">
+          <header className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><h2 className="t-section">Dispensing & Raw Material Traceability (Lot Allocation)</h2><span className="tag tag-mono">Active lot: #{d.dispensing_order.number}</span></div>
-              <p className="t-support mt-0.5">Materials issued to {d.dispensing_order.item_name}, each against the lot it came from and the person who issued it.</p>
+              <h2 className="t-section">Dispensing &amp; lot traceability</h2>
+              <p className="t-support mt-0.5">Materials issued to {d.dispensing_order.item_name} ({d.dispensing_order.number}), each against its lot and the person who issued it.</p>
             </div>
             <div className="flex gap-2">
-              <a href={`/api/labels/production-order/${d.dispensing_order.id}`} target="_blank" rel="noopener" className="btn btn-sm gap-1.5"><Printer size={14} />Print weighing slip</a>
-              {ordersHref && <Link href={`${ordersHref}?open=${d.dispensing_order.id}`} className="btn btn-sm gap-1.5"><FileText size={14} />Open batch record</Link>}
+              <a href={`/api/labels/production-order/${d.dispensing_order.id}`} target="_blank" rel="noopener" className="btn btn-sm gap-1.5"><Printer size={14} />Weighing slip</a>
+              {ordersHref && <Link href={`${ordersHref}?open=${d.dispensing_order.id}`} className="btn btn-sm">Batch record</Link>}
             </div>
           </header>
           <div className="overflow-x-auto">
             <table className="dt">
-              <thead><tr><th>Raw material / active ingredient</th><th>Lot & CoA code</th><th className="num">Required qty</th><th className="num">Dispensed qty</th><th>Dual-verification sign</th><th>Release status</th></tr></thead>
+              <thead><tr><th>Material</th><th>Lot</th><th className="num">Required</th><th className="num">Dispensed</th><th>Issued by</th><th>Status</th></tr></thead>
               <tbody>
                 {(d.dispensing as Row[]).map((m) => {
                   const full = n(m.issued_qty) >= n(m.required_qty) && n(m.required_qty) > 0, some = n(m.issued_qty) > 0;
                   return (
                     <tr key={m.item_code}>
-                      <td className="!whitespace-normal"><span className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: full ? "var(--brand-live)" : some ? "var(--amber)" : "var(--line-strong)" }} aria-hidden /><span><span className="block font-semibold">{m.name}</span><span className="block t-support font-mono">{m.item_code} · {m.kind}</span></span></span></td>
-                      <td><span className="block font-mono text-[0.75rem] font-semibold">{m.lots ?? "Not issued"}</span>{m.lot_qc && <span className={`block font-mono text-[0.6875rem] ${m.lot_qc.includes("RELEASED") ? "text-success" : "text-warning"}`}>CoA-{m.lot_qc.includes("RELEASED") ? "VALID-PASS" : m.lot_qc}</span>}</td>
-                      <td className="num font-mono">{fmtNum(n(m.required_qty), 2)} {m.uom}</td>
-                      <td className={`num font-mono font-semibold ${full ? "text-success" : ""}`}>{fmtNum(n(m.issued_qty), 2)} {m.uom}</td>
-                      <td>{m.issued_by ? <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={14} className="text-success" aria-hidden />{m.issued_by}</span> : <span className="text-muted">Awaiting issue</span>}</td>
-                      <td><span className={`badge ${full ? "tone-success" : some ? "tone-warning" : "tone-neutral"}`}>{full ? "Weighed & staged" : some ? "Partially issued" : "Awaiting dispense"}</span></td>
+                      <td><span className="block font-medium">{m.name}</span><span className="block t-support font-mono">{m.item_code}</span></td>
+                      <td><span className="block font-mono text-[0.75rem]">{m.lots ?? "Not issued"}</span>{m.lot_qc && <span className={`block text-[0.6875rem] ${m.lot_qc.includes("RELEASED") ? "text-muted" : "text-warning"}`}>{m.lot_qc.includes("RELEASED") ? "CoA released" : titleCase(m.lot_qc)}</span>}</td>
+                      <td className="num font-mono">{fmtNum(n(m.required_qty), 2)} {String(m.uom ?? "").toLowerCase()}</td>
+                      <td className="num font-mono">{fmtNum(n(m.issued_qty), 2)} {String(m.uom ?? "").toLowerCase()}</td>
+                      <td>{m.issued_by ?? <span className="text-muted">Awaiting issue</span>}</td>
+                      <td><span className={`badge tone-${full ? "success" : some ? "warning" : "neutral"}`}>{full ? "Weighed & staged" : some ? "Partly issued" : "Awaiting"}</span></td>
                     </tr>
                   );
                 })}
@@ -195,8 +175,8 @@ export function ProductionScreen({ to }: { to: To }) {
             </table>
           </div>
           <footer className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-t border-line t-support">
-            <span className="inline-flex items-center gap-1.5"><ShieldCheck size={14} className="text-success" aria-hidden />Every issue is written to the append-only stock ledger and audit log.</span>
-            <Link href="/inventory/batches" className="font-semibold text-brand hover:underline">View full traceability log →</Link>
+            <span>Every issue is written to the append-only stock ledger and audit log.</span>
+            <Link href="/inventory/batches" className="font-medium text-brand hover:underline">Traceability log</Link>
           </footer>
         </section>
       )}
@@ -204,154 +184,126 @@ export function ProductionScreen({ to }: { to: To }) {
   );
 }
 
-/* ================================================================== Material Procurement & Stock Matrix */
-const STATE: Record<string, { label: string; tone: string }> = { BELOW: { label: "Below threshold", tone: "danger" }, SOON: { label: "Reorder soon", tone: "warning" }, HEALTHY: { label: "Healthy", tone: "success" } };
+/* ================================================================== Purchase & Procurement */
+const STATE: Record<string, { label: string; tone: string }> = { BELOW: { label: "Below reorder", tone: "danger" }, SOON: { label: "Reorder soon", tone: "warning" }, HEALTHY: { label: "Healthy", tone: "neutral" } };
+const RISK: Record<string, number> = { BELOW: 0, SOON: 1, HEALTHY: 2 };
+type MatSort = { key: string; dir: 1 | -1 };
+
 export function PurchaseScreen({ to }: { to: To }) {
   const d = useShared<Row>("/procurement/vault");
   const [kind, setKind] = useState<"ALL" | "RM" | "PM">("ALL");
+  const [q, setQ] = useState("");
+  const [lowOnly, setLowOnly] = useState(false);
+  const [sort, setSort] = useState<MatSort>({ key: "risk", dir: 1 });
   const [page, setPage] = useState(0);
-  const per = 8;
-  const rows: Row[] = useMemo(() => (d?.materials ?? []).filter((m: Row) => kind === "ALL" || m.kind === kind), [d, kind]);
+  const per = 10;
+  const rows: Row[] = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    const list = (d?.materials ?? []).filter((m: Row) => (kind === "ALL" || m.kind === kind) && (!lowOnly || m.state !== "HEALTHY")
+      && (!t || `${m.name} ${m.item_code} ${m.vendor ?? ""} ${m.category ?? ""}`.toLowerCase().includes(t)));
+    const val = (m: Row) => (sort.key === "risk" ? RISK[m.state] ?? 3 : sort.key === "name" ? String(m.name) : sort.key === "vendor" ? String(m.vendor ?? "~") : n(m[sort.key]));
+    return [...list].sort((a, b) => { const x = val(a), y = val(b); return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * sort.dir; });
+  }, [d, kind, q, lowOnly, sort]);
   const pages = Math.max(1, Math.ceil(rows.length / per));
-  const vbk = d?.value_by_kind ?? {}, cbk = d?.count_by_kind ?? {};
-  const rmpm = n(vbk.RM) + n(vbk.PM);
-  const req = to("procurement", "requests"), rec = to("procurement", "receipts");
+  const vbk = d?.value_by_kind ?? {};
+  const req = to("procurement", "requests"), orders = to("procurement", "orders"), reorder = to("inventory", "reorder");
+  const by = (key: string) => setSort((s) => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : 1 }));
+  const th = (k: string, label: string, num?: boolean) => (
+    <th key={k} className={num ? "num" : ""} aria-sort={sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : undefined}>
+      <button type="button" className="inline-flex items-center gap-1 hover:text-fg" onClick={() => by(k)}>{label}{sort.key === k && <span aria-hidden>{sort.dir === 1 ? "↑" : "↓"}</span>}</button>
+    </th>
+  );
+  const qty = (v: unknown, uom: unknown) => `${fmtNum(n(v), 1)} ${String(uom ?? "").toLowerCase()}`;
   return (
     <>
-      <Head eyebrow="Factory Plant 01 / Procurement & Supply Chain / PM & RM Vault" tags={<span className="tag">GMP batch reg. 2024</span>}
-        title="Material Procurement & Stock Matrix" description="Raw materials (RM) and packaging materials (PM): capital, open commitments, replenishment and inbound receipts."
-        actions={<div className="seg" role="tablist" aria-label="Material class">
-          {([["ALL", "All materials"], ["RM", "Raw materials (RM)"], ["PM", "Packaging (PM)"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-pressed={kind === k} aria-selected={kind === k} onClick={() => { setKind(k); setPage(0); }}>{l}</button>)}
-          <Link href="/masters/suppliers" className="px-3.5 inline-flex items-center text-[0.8125rem] font-medium text-muted hover:text-fg">Vendors</Link>
-        </div>} />
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-5">
+        <div className="min-w-0">
+          <h1 className="t-page">Purchase &amp; Procurement</h1>
+          <p className="t-label mt-1">Manage raw materials, packaging, suppliers and incoming purchases.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {reorder && <Link href={reorder} className="btn">Configure reorder levels</Link>}
+          {req && <Link href={req} className="btn btn-primary gap-1.5"><Plus size={15} />Create purchase request</Link>}
+        </div>
+      </div>
 
       {d === undefined ? <Skel h="h-96" /> : !d ? <p className="panel p-5 text-danger">The materials summary could not be loaded.</p> : (
         <>
-          <section className="hero px-5 py-4 mb-4 flex flex-wrap items-center justify-between gap-4" aria-label="Materials summary">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[0.8125rem]">
-              <span className="inline-flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[var(--brand-live)]" /><span className="label-caps">Inventory value</span><b className="font-heading font-extrabold text-[1rem]">{short(n(d.inventory_value))}</b></span>
-              <span className="inline-flex items-center gap-2"><AlertTriangle size={14} className="text-danger" /><span className="label-caps">Low stock</span><span className="badge tone-danger">{fmtNum(n(d.below_reorder))} critical</span></span>
-              <span className="inline-flex items-center gap-2"><Truck size={14} className="text-muted" /><span className="label-caps">In-transit</span><b>{fmtNum(n(d.open_orders))} POs</b><span className="text-muted">({fmtNum(n(d.arriving_this_week))} arriving this week)</span></span>
-              <span className="inline-flex items-center gap-2"><ShieldCheck size={14} className="text-muted" /><span className="label-caps">Quarantine & QC</span><span className="badge tone-success">{fmtNum(n(d.quarantine_lots))} lots for CoA release</span></span>
-            </div>
-            <div className="flex gap-2">
-              {to("inventory", "reorder") && <Link href={to("inventory", "reorder")!} className="btn gap-1.5"><Settings2 size={14} />Threshold config</Link>}
-              {req && <Link href={req} className="btn btn-primary gap-1.5"><ClipboardList size={14} />Create purchase indent</Link>}
-            </div>
-          </section>
+          <Strip cards={[
+            { label: "Inventory valuation", value: short(n(d.inventory_value)), foot: `Raw ${short(n(vbk.RM))} · Packaging ${short(n(vbk.PM))}` },
+            { label: "Low-stock materials", value: fmtNum(n(d.below_reorder)), chip: n(d.below_reorder) ? "Below reorder level" : "All above reorder level", tone: n(d.below_reorder) ? "danger" : undefined },
+            { label: "Open purchase orders", value: fmtNum(n(d.open_orders)), foot: `${short(n(d.open_order_value))} committed` },
+            { label: "Overdue inbound deliveries", value: fmtNum(n(d.late_orders)), chip: n(d.late_orders) ? "Past the expected date" : "None overdue", tone: n(d.late_orders) ? "danger" : undefined },
+          ]} />
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">
-            {[
-              { label: "RM botanical & actives", value: short(n(vbk.RM)), chip: `${fmtNum(n(cbk.RM))} items`, foot: "Raw material stock at moving-average cost", bar: rmpm ? (n(vbk.RM) / rmpm) * 100 : 0, icon: Boxes, accent: "var(--brand-bright)" },
-              { label: "PM packaging materials", value: short(n(vbk.PM)), chip: `${fmtNum(n(cbk.PM))} items`, foot: "Packaging stock at moving-average cost", bar: rmpm ? (n(vbk.PM) / rmpm) * 100 : 0, icon: Package, accent: "#64748b" },
-              { label: "Open PO commitments", value: short(n(d.open_order_value)), chip: `${fmtNum(n(d.open_orders))} active POs`, foot: `${fmtNum(n(d.approved_suppliers))} approved suppliers`, bar: 60, icon: ClipboardList, accent: "var(--brand-bright)" },
-              { label: "Inbound this week", value: `${fmtNum(n(d.arriving_this_week))}`, unit: "POs", chip: d.late_orders ? `${fmtNum(n(d.late_orders))} overdue` : "On schedule", chipTone: d.late_orders ? "danger" : "success", foot: "Due in the next 7 days", bar: n(d.open_orders) ? (n(d.arriving_this_week) / n(d.open_orders)) * 100 : 0, icon: Truck, accent: "#3b82f6" },
-            ].map((k) => (
-              <div key={k.label} className="panel kpi-card p-4 pt-[18px] flex flex-col" style={{ "--kpi-accent": k.accent } as React.CSSProperties}>
-                <div className="flex items-start justify-between gap-3"><span className="label-caps">{k.label}</span><span className="icon-sq icon-sq-sm" aria-hidden><k.icon size={15} /></span></div>
-                <p className="t-kpi mt-1.5">{k.value}{k.unit && <span className="t-label !font-semibold ml-1.5">{k.unit}</span>}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2"><span className={`badge tone-${k.chipTone ?? "success"}`}>{k.chip}</span><span className="t-support">{k.foot}</span></div>
-                <div className="progress mt-auto pt-0 translate-y-1"><span className="bar-grow-x" style={{ width: `${Math.max(2, Math.min(100, k.bar))}%`, background: k.accent }} /></div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] mb-4 items-stretch">
-            <section className="panel p-5 flex flex-col" aria-label="Priority replenishment">
-              <header className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3"><span className="icon-sq !bg-[#ffe4e6] !text-[#e11d48]" aria-hidden><AlertTriangle size={17} /></span><div><h2 className="t-section">Priority Replenishment Indents Required</h2><p className="t-support">{d.priority.length ? `${d.priority.length} material${d.priority.length === 1 ? " has" : "s have"} breached the reorder point.` : "Every material is above its reorder point."}</p></div></div>
-                {d.priority.length > 0 && <span className="badge tone-danger">Action needed</span>}
-              </header>
-              <div className="mt-4 grid gap-3 md:grid-cols-2 flex-1">
-                {(d.priority as Row[]).map((m) => {
-                  const pct = n(m.reorder_level) ? Math.min(100, (n(m.free) / n(m.reorder_level)) * 100) : 0;
-                  return (
-                    <div key={m.item_code} className="rounded-xl bg-[var(--tile)] p-4 flex flex-col">
-                      <div className="flex items-start gap-3"><span className="icon-sq bg-white" aria-hidden>{m.kind === "PM" ? <Package size={16} /> : <Boxes size={16} />}</span><div className="min-w-0"><span className="tag tag-mono bg-white">{m.item_code}</span><h3 className="font-heading font-bold text-[0.9375rem] mt-1 leading-5">{m.name}</h3><p className="t-support">{m.kind === "PM" ? "Packaging material" : "Raw material"}</p></div></div>
-                      <div className="mt-3 rounded-lg bg-white p-3 space-y-1.5 text-[0.8125rem]">
-                        <div className="flex justify-between"><span className="text-muted">On-hand free stock</span><b className="text-danger font-mono">{fmtNum(n(m.free), 1)} {m.uom}</b></div>
-                        <div className="flex justify-between"><span className="text-muted">Reorder point</span><b className="font-mono">{fmtNum(n(m.reorder_level), 1)} {m.uom}</b></div>
-                        <div className="progress"><span style={{ width: `${Math.max(3, pct)}%`, background: "var(--danger)" }} /></div>
-                        <div className="flex justify-between pt-1"><span className="text-muted">Shortfall to reorder point</span><b className="font-mono text-danger">{fmtNum(Math.max(0, n(m.reorder_level) - n(m.free)), 1)} {m.uom}</b></div>
-                      </div>
-                      <p className="mt-3 t-support">Vendor <b className="text-fg">{m.vendor ?? "No supplier yet"}</b></p>
-                      {req && <div className="mt-auto pt-3"><Link href={req} className="btn btn-sm btn-urgent gap-1 w-full justify-center"><Zap size={13} />Generate urgent PR</Link></div>}
-                    </div>
-                  );
-                })}
-                {(d.priority as Row[]).length % 2 === 1 && (() => {
-                  const watch = (d.materials as Row[]).filter((m) => m.state !== "BELOW" && n(m.reorder_level) > 0)
-                    .map((m): Row => ({ ...m, ratio: n(m.free) / n(m.reorder_level) })).sort((a, b) => a.ratio - b.ratio).slice(0, 4);
-                  return (
-                    <div className="rounded-xl border border-line p-4 flex flex-col">
-                      <div className="flex items-center justify-between gap-2"><p className="label-caps whitespace-nowrap">Watch list · next to breach</p><span className="t-support whitespace-nowrap">Cover</span></div>
-                      {watch.length === 0 ? <p className="t-support mt-3">No other material has a reorder point set.</p> : (
-                        <ul className="mt-2 divide-y divide-line">
-                          {watch.map((m) => {
-                            const cover = Math.min(100, (m.ratio / 3) * 100), tight = m.ratio < 1.5;
-                            return (
-                              <li key={m.item_code} className="py-2.5">
-                                <div className="flex items-center justify-between gap-2 text-[0.8125rem]"><span className="font-semibold truncate" title={m.name}>{m.name}</span><span className={`font-mono font-bold shrink-0 ${tight ? "text-warning" : "text-success"}`}>{fmtNum(m.ratio, 1)}×</span></div>
-                                <div className="mt-1 flex items-center gap-2"><span className="t-support font-mono shrink-0 w-24 truncate">{m.item_code}</span><div className="progress flex-1"><span style={{ width: `${Math.max(3, cover)}%`, background: tight ? "var(--amber)" : "var(--brand-bright)" }} /></div><span className="t-support font-mono shrink-0">{fmtNum(n(m.free), 0)} {m.uom}</span></div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                      {to("inventory", "reorder") && <Link href={to("inventory", "reorder")!} className="mt-auto pt-3 text-[0.8125rem] font-semibold text-brand hover:underline">Review reorder levels</Link>}
-                    </div>
-                  );
-                })()}
-              </div>
+          <div className="grid gap-4 mb-4">
+            <section className="panel overflow-hidden" aria-label="Priority replenishment">
+              <header className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-3"><div><h2 className="t-section">Priority replenishment</h2><p className="t-support">Materials below or close to their reorder level.</p></div>{reorder && <Link href={reorder} className="text-[0.8125rem] font-medium text-brand hover:underline shrink-0">Reorder levels</Link>}</header>
+              {(d.replenish as Row[] ?? []).length === 0 ? <p className="t-support px-5 pb-5">Every material is above its reorder level.</p> : (
+                <div className="overflow-x-auto"><table className="dt">
+                  <thead><tr><th>Material</th><th className="num">Available</th><th className="num">Reorder at</th><th className="num">On order</th><th>Supplier</th><th className="w-px" /></tr></thead>
+                  <tbody>{(d.replenish as Row[]).map((m) => (
+                    <tr key={m.id}>
+                      <td className="max-w-[12rem]"><span className="block font-medium truncate" title={m.name}>{m.name}</span><span className="block t-support font-mono">{m.item_code} · {m.category ?? (m.kind === "PM" ? "Packaging" : "Raw")}</span></td>
+                      <td className={`num font-mono ${m.state === "BELOW" ? "text-danger font-semibold" : ""}`}>{qty(m.free, m.uom)}</td>
+                      <td className="num font-mono text-muted">{qty(m.reorder_level, m.uom)}</td>
+                      <td className="num font-mono">{n(m.on_order) ? qty(m.on_order, m.uom) : "—"}</td>
+                      <td className="max-w-[8rem] truncate" title={m.vendor ?? ""}>{m.vendor ?? <span className="text-muted">No supplier yet</span>}</td>
+                      <td className="text-right">{req && <Link href={req} className="btn btn-sm">Request</Link>}</td>
+                    </tr>))}
+                  </tbody></table></div>
+              )}
             </section>
 
-            <section className="panel p-5 flex flex-col" aria-label="Inbound goods receipt tracker">
-              <header className="flex items-center justify-between gap-2"><h2 className="t-section inline-flex items-center gap-2 whitespace-nowrap"><Truck size={16} className="text-brand" />Live Inbound GRN Tracker</h2>{d.inbound && <span className="tag tag-mono">{d.inbound.number}</span>}</header>
-              {!d.inbound ? <p className="t-label mt-3">No purchase order is waiting for delivery.</p> : (
-                <div className="mt-3 rounded-xl bg-[var(--tile)] p-4 flex-1 flex flex-col">
-                  <p className="label-caps">Vendor / consignor</p>
-                  <p className="font-heading font-bold text-[1rem]">{d.inbound.supplier}</p>
-                  <p className="t-support">Consignment: {d.inbound.first_item ? `${fmtNum(n(d.inbound.first_qty))} × ${d.inbound.first_item}` : "—"} · {fmtRupees(n(d.inbound.total_amount))}</p>
-                  <ol className="mt-4 space-y-3.5 relative">
-                    {[
-                      { done: !!d.inbound.approved_at, title: "PO issued & approved", sub: d.inbound.approved_at ? `Approved ${fmtDate(d.inbound.approved_at)}` : "Awaiting approval" },
-                      { done: n(d.inbound.receipts) > 0, title: n(d.inbound.receipts) > 0 ? "Partly received" : "In transit from supplier", sub: n(d.inbound.receipts) > 0 ? `${fmtNum(n(d.inbound.receipts))} receipt(s) posted` : d.inbound.city ? `Dispatching from ${d.inbound.city}` : "Awaiting dispatch" },
-                      { done: false, title: d.inbound.expected_date ? `Arriving ${fmtDate(d.inbound.expected_date)}` : "Arrival date not set", sub: "Unloading at the receiving dock" },
-                      { done: false, title: "Dock gate entry & CoA sampling", sub: "Quarantine hold until QC release" },
-                    ].map((s, i) => (
-                      <li key={i} className="flex gap-3">
-                        <span className={`grid place-items-center w-6 h-6 rounded-full shrink-0 ${s.done ? "bg-[var(--brand)] text-white" : "bg-white border border-line text-muted"}`} aria-hidden>{s.done ? <CheckCircle2 size={14} /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}</span>
-                        <div className="min-w-0"><p className="font-semibold text-[0.8125rem]">{s.title}</p><p className="t-support">{s.sub}</p></div>
-                      </li>
-                    ))}
-                  </ol>
-                  {rec && <div className="mt-auto pt-4"><Link href={rec} className="btn w-full justify-center">Prepare gate inward GRN</Link></div>}
-                </div>
+            <section className="panel overflow-hidden" aria-label="Inbound purchases">
+              <header className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-3"><div><h2 className="t-section">Inbound purchases</h2><p className="t-support">Open purchase orders by expected date.</p></div>{orders && <Link href={orders} className="text-[0.8125rem] font-medium text-brand hover:underline shrink-0">All orders</Link>}</header>
+              {(d.inbound_list as Row[] ?? []).length === 0 ? <p className="t-support px-5 pb-5">No purchase order is waiting for delivery.</p> : (
+                <div className="overflow-x-auto"><table className="dt">
+                  <thead><tr><th>Purchase order</th><th>Expected</th><th className="num">Received</th><th>Status</th></tr></thead>
+                  <tbody>{(d.inbound_list as Row[]).map((p) => {
+                    const late = n(p.days_late) > 0;
+                    return (
+                      <tr key={p.id}>
+                        <td className="max-w-[12rem]"><span className="block font-mono text-[0.75rem] font-semibold">{orders ? <Link href={`${orders}?open=${p.id}`} className="text-brand hover:underline">{p.number}</Link> : p.number}</span><span className="block t-support truncate" title={p.supplier}>{p.supplier}</span></td>
+                        <td className={late ? "text-danger" : ""}>{p.expected_date ? fmtDate(p.expected_date) : "—"}{late && <span className="block text-[0.6875rem]">{fmtNum(n(p.days_late))} days late</span>}</td>
+                        <td className="num font-mono">{fmtNum(n(p.received), 0)} of {fmtNum(n(p.ordered), 0)}</td>
+                        <td><span className={`badge tone-${p.status === "PARTIALLY_RECEIVED" ? "info" : late ? "danger" : "neutral"}`}>{p.status === "PARTIALLY_RECEIVED" ? "Part received" : late ? "Overdue" : "Awaiting"}</span></td>
+                      </tr>);
+                  })}</tbody></table></div>
               )}
             </section>
           </div>
 
-          <section className="panel mb-4" aria-label="Material inventory">
-            <header className="flex flex-wrap items-start justify-between gap-3 p-5 pb-3">
-              <div><h2 className="t-section">Material Inventory & Bill-of-Materials Allocation</h2><p className="t-support">Stock per material against production allocations and the reorder point, with the last supplier and price.</p></div>
-              <span className="tag tag-mono">Sort: safety risk</span>
+          <section className="panel overflow-hidden" aria-label="Material matrix">
+            <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3">
+              <div><h2 className="t-section">Material matrix</h2><p className="t-support">Stock per material against allocations and the reorder level, with the last supplier and price.</p></div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="seg" role="tablist" aria-label="Material class">
+                  {([["ALL", "All materials"], ["RM", "Raw materials"], ["PM", "Packaging"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-pressed={kind === k} aria-selected={kind === k} onClick={() => { setKind(k); setPage(0); }}>{l}</button>)}
+                  <Link href="/masters/suppliers" className="px-3 inline-flex items-center text-[0.8125rem] font-medium text-muted hover:text-fg">Suppliers</Link>
+                </div>
+                <label className="relative"><span className="sr-only">Search materials</span><Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden /><input className="input !h-9 !pl-8 !w-52" placeholder="Search material, code, supplier…" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} /></label>
+                <label className="inline-flex items-center gap-2 text-[0.8125rem] text-muted"><input type="checkbox" checked={lowOnly} onChange={(e) => { setLowOnly(e.target.checked); setPage(0); }} />Low stock only</label>
+              </div>
             </header>
             <div className="overflow-x-auto">
-              <table className="dt">
-                <thead><tr><th>Material</th><th className="num">On hand</th><th className="num">WIP</th><th className="num">Free</th><th className="num">Reorder at</th><th>Vendor</th><th className="num">Unit price</th><th>Status</th></tr></thead>
+              <table className="dt dt-compact">
+                <thead><tr>{th("name", "Material")}{th("on_hand", "On hand", true)}{th("allocated", "Allocated", true)}{th("free", "Available", true)}{th("reorder_level", "Reorder at", true)}{th("on_order", "On order", true)}{th("vendor", "Supplier")}{th("last_price", "Unit price", true)}{th("risk", "Status")}</tr></thead>
                 <tbody>
+                  {rows.length === 0 && <tr><td colSpan={9} className="text-center t-support !h-24">No material matches these filters.</td></tr>}
                   {rows.slice(page * per, page * per + per).map((m) => {
                     const st = STATE[m.state] ?? STATE.HEALTHY;
                     return (
-                      <tr key={m.id} style={m.state === "BELOW" ? { background: "#fff1f2" } : undefined}>
-                        <td className="max-w-[16rem]"><span className="block font-semibold truncate" title={m.name}>{m.name}</span><span className="flex items-center gap-2 mt-0.5"><span className={`font-mono text-[0.6875rem] font-semibold ${m.state === "BELOW" ? "text-danger" : "text-brand"}`}>{m.item_code}</span><span className={`text-[0.625rem] font-bold uppercase tracking-wide ${m.kind === "RM" ? "text-success" : "text-[#1e40af]"}`}>{m.kind === "RM" ? "Raw" : "Pack"}</span></span></td>
-                        <td className={`num font-mono font-semibold ${m.state === "BELOW" ? "text-danger" : ""}`}>{fmtNum(n(m.on_hand), 1)} {m.uom}</td>
-                        <td className="num font-mono text-muted">{fmtNum(n(m.allocated), 1)} {m.uom}</td>
-                        <td className={`num font-mono font-semibold ${m.state === "BELOW" ? "text-danger" : "text-success"}`}>{fmtNum(n(m.free), 1)} {m.uom}</td>
-                        <td className="num font-mono text-muted">{m.reorder_level ? `${fmtNum(n(m.reorder_level), 1)} ${m.uom}` : "—"}</td>
-                        <td className="max-w-[12rem]">{m.vendor ? <><span className="block font-semibold text-[0.8125rem] truncate" title={m.vendor}>{m.vendor}</span>{m.vendor_city && <span className="block t-support">{m.vendor_city}</span>}</> : <span className="text-muted">—</span>}</td>
-                        <td className="num font-mono">{m.last_price ? `${fmtRupees(n(m.last_price))}/${m.uom}` : "—"}</td>
-                        <td><span className={`badge tone-${st.tone} whitespace-nowrap`}>{st.label}</span></td>
+                      <tr key={m.id}>
+                        <td className="max-w-[15rem]"><span className="block font-medium truncate" title={m.name}>{m.name}</span><span className="block t-support"><span className="font-mono">{m.item_code}</span> · {m.category ?? (m.kind === "PM" ? "Packaging" : "Raw material")}</span></td>
+                        <td className="num font-mono">{qty(m.on_hand, m.uom)}</td>
+                        <td className="num font-mono text-muted">{qty(m.allocated, m.uom)}</td>
+                        <td className={`num font-mono ${m.state === "BELOW" ? "text-danger font-semibold" : ""}`}>{qty(m.free, m.uom)}</td>
+                        <td className="num font-mono text-muted">{m.reorder_level ? qty(m.reorder_level, m.uom) : "—"}</td>
+                        <td className="num font-mono">{n(m.on_order) ? qty(m.on_order, m.uom) : "—"}</td>
+                        <td className="max-w-[12rem]">{m.vendor ? <><span className="block truncate" title={m.vendor}>{m.vendor}</span>{m.vendor_city && <span className="block t-support">{m.vendor_city}</span>}</> : <span className="text-muted">—</span>}</td>
+                        <td className="num font-mono">{m.last_price ? `${fmtRupees(n(m.last_price))}/${String(m.uom ?? "").toLowerCase()}` : "—"}</td>
+                        <td><span className={`badge tone-${st.tone}`}>{st.label}</span></td>
                       </tr>
                     );
                   })}
@@ -359,36 +311,14 @@ export function PurchaseScreen({ to }: { to: To }) {
               </table>
             </div>
             <footer className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-t border-line">
-              <span className="t-support">Showing {rows.length ? page * per + 1 : 0}–{Math.min(rows.length, page * per + per)} of {rows.length} raw & packaging materials</span>
+              <span className="t-support">{rows.length ? `${page * per + 1}–${Math.min(rows.length, page * per + per)} of ${rows.length}` : "0"} materials</span>
               <div className="flex items-center gap-1.5">
                 <button type="button" className="btn btn-sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-                {Array.from({ length: pages }).map((_, i) => <button key={i} type="button" className={`btn btn-sm ${i === page ? "btn-primary" : ""}`} aria-current={i === page ? "page" : undefined} onClick={() => setPage(i)}>{i + 1}</button>)}
+                <span className="t-support tnum px-1">Page {page + 1} / {pages}</span>
                 <button type="button" className="btn btn-sm" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
               </div>
             </footer>
           </section>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <section className="panel p-5" aria-label="Vendor compliance">
-              <header className="flex items-center justify-between"><h2 className="t-section">Vendor On-time Performance</h2><span className="badge tone-neutral">{fmtNum((d.vendors ?? []).length)} suppliers</span></header>
-              <p className="t-support mt-0.5">Share of goods receipts that arrived on time.</p>
-              <ul className="mt-3 space-y-3.5">{(d.vendors as Row[]).map((v) => { const pct = v.on_time_pct === null ? null : n(v.on_time_pct); return (
-                <li key={v.name}>
-                  <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]"><span className="truncate font-semibold">{v.name}</span><span className={`font-mono font-bold shrink-0 ${pct === null ? "text-muted" : pct >= 90 ? "text-success" : pct >= 60 ? "text-warning" : "text-danger"}`}>{pct === null ? "—" : fmtPct(pct)}</span></div>
-                  <div className="progress mt-1.5"><span style={{ width: `${Math.max(pct ? 2 : 0, pct ?? 0)}%`, background: pct !== null && pct < 60 ? "var(--danger)" : pct !== null && pct < 90 ? "var(--amber)" : "var(--brand-bright)" }} /></div>
-                  <p className="t-support mt-1">{fmtNum(n(v.receipts))} receipt{n(v.receipts) === 1 ? "" : "s"} · on or before the expected date</p>
-                </li>); })}</ul>
-            </section>
-            <section className="panel" aria-label="Spend by classification">
-              <header className="flex items-center justify-between p-5 pb-2"><h2 className="t-section">Spend by Classification</h2><span className="tag tag-mono">{short(n(d.spend_by_kind?.RM) + n(d.spend_by_kind?.PM))} ordered</span></header>
-              <InView><Ring data={{ "Raw materials (RM)": n(d.spend_by_kind?.RM), "Packaging (PM)": n(d.spend_by_kind?.PM) }} centre="Ordered" /></InView>
-            </section>
-            <section className="panel p-5 flex flex-col" style={{ background: "linear-gradient(135deg,#eff6ff,#ffffff)" }} aria-label="Predictive MRP">
-              <header className="flex items-center justify-between gap-2"><h2 className="t-section inline-flex items-center gap-2"><Gauge size={16} className="text-brand" />Predictive MRP Engine</h2><Sim /></header>
-              <p className="t-label mt-2">{MRP_NOTE}</p>
-              {to("production", "plan") && <Link href={to("production", "plan")!} className="btn btn-primary mt-auto self-start gap-1.5"><Zap size={14} />Run material plan</Link>}
-            </section>
-          </div>
         </>
       )}
     </>
@@ -424,63 +354,30 @@ export function OmniScreen({ to }: { to: To }) {
   ];
   return (
     <>
-      <Head eyebrow="Fulfilment hub · Warehouse Alpha" tags={<span className="tag tag-dot">Marketplace sync live</span>} title="Omni-Channel Dispatch & Invoicing"
-        description="Multi-marketplace fulfilment: orders imported from each channel, GST invoicing, pick and pack, courier handover."
+      <Head title="E-commerce fulfilment"
+        description="Marketplace orders from each channel through GST invoicing, pick and pack, and courier handover."
         actions={<div className="flex flex-wrap gap-2">
-          {inv && <Link href={inv} className="btn gap-1.5"><FileText size={14} />GST invoice register</Link>}
-          {ship && <Link href={ship} className="btn gap-1.5"><ClipboardList size={14} />Generate daily manifest</Link>}
-          {ship && <Link href={ship} className="btn btn-primary gap-1.5"><Printer size={14} />Bulk print labels</Link>}
+          {inv && <Link href={inv} className="btn">GST invoice register</Link>}
+          {ship && <Link href={ship} className="btn">Daily manifest</Link>}
+          {ship && <Link href={ship} className="btn btn-primary gap-1.5"><Printer size={14} />Print labels</Link>}
         </div>} />
 
       {d === undefined ? <Skel h="h-96" /> : !d ? <p className="panel p-5 text-danger">The fulfilment summary could not be loaded.</p> : (
         <>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)] items-stretch mb-4">
-            <section aria-label="Connected marketplaces" className="flex flex-col min-w-0">
-              <div className="flex items-center justify-between h-6 mb-2"><p className="label-caps">Connected marketplaces & storefronts</p><span className="text-[0.75rem] font-semibold text-success">{fmtNum((d.channels as Row[]).filter((c) => c.status === "ACTIVE").length)} channels online</span></div>
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 flex-1">
-                {(d.channels as Row[]).map((c) => {
-                  const p = CH[c.platform] ?? { name: titleCase(c.platform), color: "#64748b", bg: "#f1f5f9", fg: "#334155" };
-                  return (
-                    <Link key={c.platform} href={ord ?? "#"} className="panel panel-link kpi-card p-3.5 pt-4 flex flex-col" style={{ "--kpi-accent": p.color } as React.CSSProperties}>
-                      <div className="flex items-center justify-between"><span className="badge !border-transparent" style={{ background: p.bg, color: p.fg, ["--tone-dot" as string]: p.color }}>{p.name}</span><span className={`w-2 h-2 rounded-full ${c.status === "ACTIVE" ? "bg-[var(--brand-live)]" : "bg-[var(--line-strong)]"}`} aria-label={c.status === "ACTIVE" ? "Connected" : "Paused"} /></div>
-                      <p className="t-kpi mt-2">{fmtNum(n(c.pending))}</p>
-                      <p className="t-support whitespace-nowrap">Pending of {fmtNum(n(c.orders))} orders</p>
-                      <div className="mt-auto pt-2 border-t border-line flex items-center justify-between gap-2 t-support"><span className="whitespace-nowrap">On-time SLA <span className="text-[#92400e] font-medium">· sim</span></span><span className="font-semibold text-success shrink-0">{CHANNEL_SLA[c.platform] ?? "—"}</span></div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-            <section className="flex flex-col min-w-0" aria-label="Dispatch velocity">
-              <div className="flex items-center justify-between h-6 mb-2"><p className="label-caps">Dispatch velocity · 30d</p><span className="tag tag-mono">Cutoff {DISPATCH_CUTOFF}</span></div>
-              <div className="panel p-4 flex-1 flex flex-col">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0"><p className="t-support">Gross value synced</p><p className="t-kpi">{lakhs(cur)}</p>{delta !== null && <p className={`text-[0.75rem] font-bold whitespace-nowrap ${delta >= 0 ? "text-success" : "text-danger"}`}>{delta >= 0 ? "+" : ""}{fmtNum(delta, 1)}% vs prev 30d</p>}</div>
-                <div className="min-w-0"><p className="t-support">Parcels to dispatch</p><p className="t-kpi">{fmtNum(n(d.to_dispatch))} <span className="t-label">orders</span></p><p className="text-[0.75rem] font-bold text-muted whitespace-nowrap">{fmtNum(n(st.staged))} booked</p></div>
-              </div>
-              {(() => { const tot = n(st.pick_pack) + n(st.staged) || 1; const a = (n(st.staged) / tot) * 100; return (
-                <><div className="mt-auto pt-3" /><div className="flex h-2 rounded-full overflow-hidden bg-[var(--chart-track)]"><span className="bar-grow-x" style={{ width: `${a}%`, background: "var(--brand-bright)" }} /><span style={{ width: `${100 - a}%`, background: "#a7f3d0" }} /></div>
-                <div className="mt-1.5 flex justify-between t-support"><span>Booked: {fmtNum(n(st.staged))}</span><span>Packing: {fmtNum(n(st.pick_pack))}</span></div></>); })()}
-              </div>
-            </section>
-          </div>
+          <Strip cards={[
+            ...(d.channels as Row[]).map((c) => ({ label: `${(CH[c.platform]?.name ?? titleCase(c.platform))} pending`, value: fmtNum(n(c.pending)), foot: `of ${fmtNum(n(c.orders))} orders` })),
+            { label: "Gross value, 30 days", value: lakhs(cur), chip: delta !== null ? `${delta >= 0 ? "+" : ""}${fmtNum(delta, 1)}% vs prior 30 days` : undefined, tone: delta !== null && delta < 0 ? "danger" : undefined, foot: "Synced from marketplaces" },
+            { label: "Parcels to dispatch", value: fmtNum(n(d.to_dispatch)), foot: `${fmtNum(n(st.staged))} booked with couriers` },
+          ]} />
 
-          <section className="panel p-4 mb-4" aria-label="Five-stage fulfilment pipeline">
-            <header className="flex items-center justify-between mb-3"><h2 className="t-section inline-flex items-center gap-2"><Truck size={16} className="text-brand" />5-Stage Fulfilment & E-Way Dispatch Pipeline</h2><span className="t-support">Marketplace orders only</span></header>
-            <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {pipeline.map((p, i) => (
-                <li key={p.title} className={`step ${p.current ? "step-active" : ""} kpi-card px-3.5 pt-4 pb-3 flex flex-col`} style={{ "--kpi-accent": p.current ? "var(--brand-bright)" : "var(--line-strong)" } as React.CSSProperties}>
-                  <div className="flex items-center justify-between"><span className={`label-caps ${p.current ? "!text-brand" : ""}`}>Stage {String(i + 1).padStart(2, "0")}{p.current ? " · Current" : ""}</span><p.icon size={15} className={p.current ? "text-brand" : "text-muted"} aria-hidden /></div>
-                  <p className="font-heading font-bold text-[0.8125rem] leading-5 mt-1 min-h-[2.5rem] line-clamp-2" title={p.title}>{p.title}</p>
-                  <div className="mt-auto pt-1 flex items-baseline justify-between gap-2"><span className={`t-stage ${p.current ? "!text-brand" : ""}`}>{fmtNum(p.value)}</span><span className={`text-[0.6875rem] font-bold ${p.current ? "text-success" : "text-muted"}`}>{p.note}</span></div>
-                </li>
-              ))}
-            </ol>
-          </section>
+          <div className="mb-4">
+            <div className="flex items-baseline justify-between gap-3 mb-2"><h2 className="t-section">Fulfilment stages</h2><span className="t-support">Marketplace orders only</span></div>
+            <Pipeline stages={pipeline.map((p) => ({ label: p.title, value: fmtNum(p.value), note: p.note }))} />
+          </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)] items-start">
             <section className="panel" aria-label="Live invoicing and dispatch queue">
-              <header className="flex flex-wrap items-center justify-between gap-2 p-5 pb-3"><h2 className="t-section inline-flex items-center gap-2"><ClipboardList size={16} className="text-brand" />Live Invoicing & Dispatch Queue <span className="badge tone-success badge-live">Real-time</span></h2>{ord && <Link href={ord} className="btn btn-sm">All marketplace orders</Link>}</header>
+              <header className="flex flex-wrap items-center justify-between gap-2 p-5 pb-3"><h2 className="t-section">Invoicing and dispatch queue</h2>{ord && <Link href={ord} className="btn btn-sm">All marketplace orders</Link>}</header>
               <div className="overflow-x-auto">
                 <table className="dt table-fixed w-full min-w-[46rem]">
                   <colgroup><col className="w-10" /><col className="w-[8.75rem]" /><col /><col /><col className="w-[8.5rem]" /><col className="w-[10.5rem]" /></colgroup>
@@ -493,7 +390,7 @@ export function OmniScreen({ to }: { to: To }) {
                       return (
                         <tr key={o.id}>
                           <td><input type="checkbox" aria-label={`Select ${o.external_order_id}`} checked={sel.has(o.id)} onChange={(e) => setSel((prev) => { const nx = new Set(prev); if (e.target.checked) nx.add(o.id); else nx.delete(o.id); return nx; })} /></td>
-                          <td><span className="block font-mono text-[0.75rem] font-bold">#{o.external_order_id}</span><span className="badge !border-transparent mt-1" style={{ background: p.bg, color: p.fg, ["--tone-dot" as string]: p.color }}>{p.name}</span></td>
+                          <td><span className="block font-mono text-[0.75rem] font-bold">#{o.external_order_id}</span><span className="badge mt-1" style={{ color: "var(--muted)", ["--tone-dot" as string]: p.color } as React.CSSProperties}>{p.name}</span></td>
                           <td><span className="block font-semibold truncate" title={name}>{name}</span><span className="block t-support truncate">{city ?? ""}{o.order_date ? ` · ${fmtDate(o.order_date)}` : ""}</span></td>
                           <td><span className="block text-[0.8125rem] font-semibold truncate" title={o.items ?? ""}>{o.items ?? "—"}</span><span className="block t-support">{fmtRupees(n(o.total))}</span></td>
                           <td>{o.invoice ? <span className="block font-mono text-[0.75rem] font-semibold text-brand">{o.invoice}</span> : <span className="block t-support">Not invoiced</span>}<span className="block t-support font-mono truncate">{o.awb ? `${o.courier ? titleCase(o.courier) + " · " : ""}${o.awb}` : o.courier ? titleCase(o.courier) : o.so_number ?? "—"}</span></td>
@@ -512,27 +409,26 @@ export function OmniScreen({ to }: { to: To }) {
 
             <div className="space-y-4">
               <section className="panel p-4" aria-label="Courier SLA matrix">
-                <header className="flex items-center justify-between"><h2 className="t-section">Courier Carrier SLA Matrix</h2><Sim /></header>
-                <ul className="mt-3 space-y-2.5">
+                <header className="flex items-center justify-between"><h2 className="t-section">Courier performance</h2><Sim /></header>
+                <ul className="mt-2 divide-y divide-line">
                   {COURIER_SLA.map((c) => (
-                    <li key={c.name} className="tile">
-                      <div className="flex items-center justify-between gap-2"><span className="font-semibold text-[0.8125rem] truncate">{c.name}</span><span className="text-[0.75rem] font-bold text-success shrink-0">{fmtNum(c.sla, 1)}% SLA</span></div>
-                      <div className="progress mt-1.5 !bg-white"><span style={{ width: `${c.sla}%` }} /></div>
-                      <div className="mt-1 flex justify-between t-support"><span>Avg transit: {c.transit}</span><span>{fmtNum(c.active)} active parcels</span></div>
+                    <li key={c.name} className="py-2 flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                      <span className="min-w-0"><span className="block font-medium truncate">{c.name}</span><span className="block t-support">Avg transit {c.transit} · {fmtNum(c.active)} active</span></span>
+                      <span className="font-mono font-semibold shrink-0">{fmtNum(c.sla, 1)}%</span>
                     </li>
                   ))}
                 </ul>
                 <div className="mt-3 pt-3 border-t border-line">
-                  <p className="label-caps">Couriers on record</p>
+                  <p className="text-[0.75rem] font-medium text-muted">Couriers on record</p>
                   <ul className="mt-1.5 space-y-1">{(d.couriers as Row[]).map((c) => <li key={c.courier} className="flex justify-between t-support"><span className="font-semibold text-fg">{titleCase(String(c.courier))}</span><span>{fmtNum(n(c.active))} active · {fmtNum(n(c.delivered))} delivered</span></li>)}</ul>
                 </div>
               </section>
               <section className="panel p-4" aria-label="Weigh-scale guard">
-                <header className="flex flex-wrap items-center justify-between gap-2"><span className="label-caps !text-danger inline-flex items-center gap-1.5 whitespace-nowrap"><AlertTriangle size={13} />Weigh-scale guard</span><span className="flex gap-1.5"><span className="badge tone-danger">{WEIGH_SCALE.length} audits required</span><Sim /></span></header>
-                <h3 className="font-heading font-bold text-[0.9375rem] mt-2">Dead-weight vs volumetric discrepancies</h3>
+                <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="t-section">Weigh-scale check</h2><span className="flex gap-1.5"><span className="badge tone-danger">{WEIGH_SCALE.length} audits required</span><Sim /></span></header>
+                
                 <p className="t-support">Parcels more than 50 g away from the bill-of-materials weight before courier scanning.</p>
-                <ul className="mt-3 space-y-2">{WEIGH_SCALE.map((w, i) => { const o = (d.queue as Row[])[i]; return (
-                  <li key={i} className="tile flex items-center justify-between gap-2"><span><span className="block font-mono text-[0.75rem] font-bold">#{o?.external_order_id ?? `PARCEL-${i + 1}`}</span><span className="block t-support">BOM: {w.bom} | Actual: {w.actual} ({w.diff})</span></span>{ship && <Link href={ship} className="btn btn-sm shrink-0">{w.action}</Link>}</li>); })}</ul>
+                <ul className="mt-2">{WEIGH_SCALE.map((w, i) => { const o = (d.queue as Row[])[i]; return (
+                  <li key={i} className="py-2 border-t border-line flex items-center justify-between gap-2"><span><span className="block font-mono text-[0.75rem] font-bold">#{o?.external_order_id ?? `PARCEL-${i + 1}`}</span><span className="block t-support">BOM: {w.bom} | Actual: {w.actual} ({w.diff})</span></span>{ship && <Link href={ship} className="btn btn-sm shrink-0">{w.action}</Link>}</li>); })}</ul>
               </section>
             </div>
           </div>

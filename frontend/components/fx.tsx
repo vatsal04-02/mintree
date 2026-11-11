@@ -119,7 +119,7 @@ export function StackBar({ data, label }: { data: Record<string, number>; label:
 /* ------------------------------------------------------------------ area chart */
 export type Point = { label: string; value: number };
 /** The hero chart: a smooth line over a soft fade, the previous period as a dashed line, and a crosshair with the exact figures on hover. */
-export function AreaChart({ points, compare, weekly = false, height = 252, name = "Revenue" }: { points: Point[]; compare?: Point[]; weekly?: boolean; height?: number; name?: string }) {
+export function AreaChart({ points, compare, weekly = false, height = 252, name = "Revenue", color = "var(--chart-actual)", compareColor = "var(--subtle)", summary = true }: { points: Point[]; compare?: Point[]; weekly?: boolean; height?: number; name?: string; color?: string; compareColor?: string; summary?: boolean }) {
   const id = useId().replace(/:/g, "");
   const box = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -147,13 +147,14 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
   const delta = hp && hc ? fmtDelta(hp.value, hc.value) : null;
   return (
     <div className="px-5 pb-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mb-3">
-        <p className="t-support">Total <b className="text-fg font-semibold">{fmtRupees(total)}</b> · Peak <b className="text-fg font-semibold">{fmtRupees(peak.value)}</b> {weekly ? "week of" : "on"} {fmtDay(peak.label)}</p>
-        <p className="t-support flex items-center gap-4" aria-hidden>
-          <span className="inline-flex items-center gap-1.5"><span className="w-4 h-[3px] rounded-full" style={{ background: "var(--chart-actual)" }} />This period</span>
-          {prev && <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed" style={{ borderColor: "var(--subtle)" }} />Previous period</span>}
-        </p>
-      </div>
+      {/* a one-line legend only earns its place when there are two series to tell apart */}
+      {(summary || prev) && <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mb-3">
+        {summary && <p className="t-support">Total <b className="text-fg font-semibold">{fmtRupees(total)}</b> · Peak <b className="text-fg font-semibold">{fmtRupees(peak.value)}</b> {weekly ? "week of" : "on"} {fmtDay(peak.label)}</p>}
+        {prev && <p className="t-support flex items-center gap-4" aria-hidden>
+          <span className="inline-flex items-center gap-1.5"><span className="w-4 h-[3px] rounded-full" style={{ background: color }} />This period</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed" style={{ borderColor: compareColor }} />Previous period</span>
+        </p>}
+      </div>}
       <div className="relative pl-12 mt-4" style={{ height }}>
         {ticks.map((t, i) => (
           <div key={i} className="absolute left-0 right-0 flex items-center" style={{ bottom: `${(t / max) * 94 + 2}%` }} aria-hidden>
@@ -165,17 +166,17 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
           role="img" aria-label={`${name}: total ${fmtRupees(total)} over ${n} ${weekly ? "weeks" : "days"}, peak ${fmtRupees(peak.value)} on ${fmtDate(peak.label)}`}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible" aria-hidden>
             <defs>
-              <linearGradient id={`ag${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--chart-actual)" stopOpacity="0.30" /><stop offset="0.7" stopColor="var(--chart-actual)" stopOpacity="0.05" /><stop offset="1" stopColor="var(--chart-actual)" stopOpacity="0" /></linearGradient>
+              <linearGradient id={`ag${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.30" /><stop offset="0.7" stopColor={color} stopOpacity="0.05" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient>
             </defs>
-            {prv && <path d={monotone(prv)} fill="none" stroke="var(--subtle)" strokeWidth="1.75" strokeDasharray="5 5" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "350ms" }} />}
+            {prv && <path d={monotone(prv)} fill="none" stroke={compareColor} strokeWidth="1.5" strokeDasharray="6 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "350ms" }} />}
             <path d={`${line} L${W},${H} L0,${H} Z`} fill={`url(#ag${id})`} className="fx-fade" style={{ animationDelay: "450ms" }} />
-            <path d={line} fill="none" stroke="var(--chart-actual)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" pathLength={1} className="fx-draw" style={{ animationDuration: "1.3s" }} />
+            <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" pathLength={1} className="fx-draw" style={{ animationDuration: "1.3s" }} />
           </svg>
           {h !== null && hp && (
             <>
               <span className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, background: "var(--line-strong)" }} aria-hidden />
               {hc && <span className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, top: `${(Y(hc.value) / H) * 100}%`, background: "var(--card)", border: "2px solid var(--subtle)" }} aria-hidden />}
-              <span className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, top: `${(Y(hp.value) / H) * 100}%`, background: "var(--chart-actual)", border: "2.5px solid var(--card)", boxShadow: "0 2px 8px rgb(0 0 0 / 0.25)" }} aria-hidden />
+              <span className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, top: `${(Y(hp.value) / H) * 100}%`, background: color, border: "2.5px solid var(--card)", boxShadow: "0 2px 8px rgb(0 0 0 / 0.25)" }} aria-hidden />
               <div className="absolute z-10 pointer-events-none panel px-3 py-2 min-w-[150px] anim-fade" style={{ top: 6, ...(h > n * 0.6 ? { right: `${100 - (h / (n - 1)) * 100 + 2}%` } : { left: `${(h / (n - 1)) * 100 + 2}%` }) } as CSSProperties}>
                 <p className="t-support">{weekly ? "Week of " : ""}{fmtDate(hp.label)}</p>
                 <p className="t-value !font-semibold text-[0.9375rem]">{fmtRupees(hp.value)}</p>

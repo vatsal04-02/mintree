@@ -39,15 +39,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const push = useCallback((kind: Toast["kind"], text: string) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, kind, text }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === "error" ? 6000 : 3500);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === "error" ? 6000 : 4000);
   }, []);
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[80] flex flex-col gap-2" role="status" aria-live="polite">
+      {/* black capsule, bottom centre, as in the reference; errors keep an orange mark and stay a little longer */}
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center gap-2 w-max max-w-[calc(100vw-32px)]" role="status" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className="anim-slide panel shadow-lg flex items-start gap-2.5 px-3.5 py-2.5 max-w-sm text-[0.8125rem]">
-            {t.kind === "success" ? <CheckCircle2 size={16} className="text-success mt-0.5 shrink-0" /> : <AlertCircle size={16} className="text-danger mt-0.5 shrink-0" />}
+          <div key={t.id} className="anim-slide flex items-center gap-2.5 min-h-[34px] pl-3 pr-4 py-1.5 rounded-full text-[0.75rem] text-white shadow-[0_18px_40px_-14px_rgb(21_23_23/0.55)]" style={{ background: "#151717" }}>
+            {t.kind === "success" ? <CheckCircle2 size={15} strokeWidth={1.5} className="shrink-0 text-[#efc84b]" /> : <AlertCircle size={15} strokeWidth={1.5} className="shrink-0 text-[#f08a65]" />}
             <span>{t.text}</span>
           </div>
         ))}
@@ -76,18 +77,20 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/35 anim-fade" onClick={onClose} aria-hidden />
+      {/* frosted drawer over a blurred, dimmed page (Rapport pattern 08) */}
+      <div className="absolute inset-0 anim-fade" style={{ background: "rgb(21 23 23 / 0.18)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }} onClick={onClose} aria-hidden />
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={id}
-        className="anim-slide relative bg-surface border-l border-line h-full flex flex-col w-full outline-none shadow-2xl" style={{ maxWidth: width }}>
-        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-line">
+        className="anim-slide relative h-full flex flex-col w-full sm:w-[92%] outline-none sm:rounded-l-[28px] overflow-hidden"
+        style={{ maxWidth: width, background: "rgb(246 244 239 / 0.94)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", boxShadow: "-30px 0 70px -30px rgb(70 45 20 / 0.35)" }}>
+        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-3">
           <div className="min-w-0">
-            <h2 id={id} className="t-section">{title}</h2>
-            {subtitle && <p className="text-muted text-[0.75rem] mt-0.5">{subtitle}</p>}
+            <h2 id={id} className="text-[1.5rem] leading-7 font-medium tracking-[-0.02em]">{title}</h2>
+            {subtitle && <p className="text-muted text-[0.75rem] mt-1">{subtitle}</p>}
           </div>
-          <button className="btn btn-ghost btn-sm !px-1.5" onClick={onClose} aria-label="Close"><X size={16} /></button>
+          <button className="ctl shrink-0" onClick={onClose} aria-label="Close"><X size={16} strokeWidth={1.5} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-surface-2/50">{footer}</div>}
+        <div className="flex-1 overflow-y-auto px-6 py-3">{children}</div>
+        {footer && <div className="px-6 py-4 flex items-center justify-end gap-2 border-t border-line">{footer}</div>}
       </div>
     </div>
   );
