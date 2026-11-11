@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lock, Plus } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -57,8 +57,8 @@ export default function RolesPage() {
           {roles.map((r) => (
             <li key={r.id}>
               <button onClick={() => setSelId(r.id)} className={`w-full text-left px-3.5 py-2.5 ${r.id === selId ? "bg-surface-2" : "hover:bg-surface-2/60"}`} aria-current={r.id === selId}>
-                <div className="flex items-center justify-between gap-2"><span className="text-[13px] font-medium truncate">{r.name}</span>{r.is_system && <Lock size={11} className="text-muted shrink-0" aria-label="System role" />}</div>
-                <div className="text-muted text-[11.5px] tnum">{r.permission_codes.length} permissions · {r.user_count} user{r.user_count === 1 ? "" : "s"}</div>
+                <div className="flex items-center justify-between gap-2"><span className="text-[0.8125rem] font-medium truncate">{r.name}</span>{r.is_system && <Lock size={11} className="text-muted shrink-0" aria-label="System role" />}</div>
+                <div className="text-muted text-[0.75rem] tnum">{r.permission_codes.length} permissions · {r.user_count} user{r.user_count === 1 ? "" : "s"}</div>
               </button>
             </li>
           ))}
@@ -68,10 +68,10 @@ export default function RolesPage() {
           <section className="panel overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
               <div className="min-w-0"><h2 className="t-section flex items-center gap-2">{sel.name}{sel.code === "system_admin" && <Badge tone="info">Always full access</Badge>}</h2>
-                <p className="text-muted text-[12px] truncate">{sel.description}</p></div>
+                <p className="text-muted text-[0.75rem] truncate">{sel.description}</p></div>
               {!locked && <button className="btn btn-primary" disabled={!dirty || busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</button>}
             </div>
-            {locked && sel.code !== "system_admin" && <p className="px-4 py-2 text-[12px] text-muted bg-surface-2/60 border-b border-line">Read-only for you: this role holds permissions above your own, or you lack permission to edit roles.</p>}
+            {locked && sel.code !== "system_admin" && <p className="px-4 py-2 text-[0.75rem] text-muted bg-surface-2/60 border-b border-line">Read-only for you: this role holds permissions above your own, or you lack permission to edit roles.</p>}
             <div className="overflow-auto">
               <table className="dt">
                 <thead><tr><th>Resource</th>{ACTIONS.map((a) => <th key={a} className="!text-center capitalize">{a}</th>)}</tr></thead>
@@ -80,7 +80,7 @@ export default function RolesPage() {
                     const grp = res.split(".")[0];
                     const newGroup = i === 0 || byResource[i - 1][0].split(".")[0] !== grp;
                     return [
-                      newGroup && <tr key={`g-${grp}`}><td colSpan={ACTIONS.length + 1} className="!h-8 bg-surface-2/60 text-[12px] text-muted font-medium">{GROUP_LABEL[grp] ?? grp}</td></tr>,
+                      newGroup && <tr key={`g-${grp}`}><td colSpan={ACTIONS.length + 1} className="!h-8 bg-surface-2/60 text-[0.75rem] text-muted font-medium">{GROUP_LABEL[grp] ?? grp}</td></tr>,
                       <tr key={res}>
                         <td>{RES_LABEL(res)}</td>
                         {ACTIONS.map((a) => {
@@ -117,7 +117,7 @@ function NewRole({ open, onClose, onCreated }: { open: boolean; onClose: () => v
       <form id="role-form" onSubmit={submit} className="space-y-3.5" noValidate>
         <div><label className="field-label" htmlFor="r-name">Name *</label><input id="r-name" className="input" value={name} onChange={(e) => { setName(e.target.value); if (!code) setCode(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")); }} /></div>
         <div><label className="field-label" htmlFor="r-code">Code *</label><input id="r-code" className="input font-mono" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={!!err.code} />
-          <p className={`text-[11.5px] mt-1 ${err.code ? "text-danger" : "text-muted"}`}>{err.code ?? "Lowercase letters, digits and underscores. Cannot be changed later."}</p></div>
+          <p className={`text-[0.75rem] mt-1 ${err.code ? "text-danger" : "text-muted"}`}>{err.code ?? "Lowercase letters, digits and underscores. Cannot be changed later."}</p></div>
         <div><label className="field-label" htmlFor="r-desc">Description</label><textarea id="r-desc" className="input" value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
       </form>
     </Drawer>

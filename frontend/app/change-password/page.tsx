@@ -27,13 +27,13 @@ export default function ChangePasswordPage() {
     <div className="min-h-screen grid place-items-center p-6">
       <form onSubmit={submit} className="w-full max-w-sm panel p-6" noValidate>
         <h1 className="t-page">{forced ? "Set a new password" : "Change password"}</h1>
-        <p className="text-muted text-[13px] mt-1 mb-5">{forced ? "Your password was set by an administrator. Choose your own to continue." : "Other sessions will be signed out."}</p>
-        {error && <div role="alert" className="mb-4 px-3 py-2 rounded-md text-[13px] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{error}</div>}
+        <p className="text-muted text-[0.8125rem] mt-1 mb-5">{forced ? "Your password was set by an administrator. Choose your own to continue." : "Other sessions will be signed out."}</p>
+        {error && <div role="alert" className="mb-4 px-3 py-2 rounded-md text-[0.8125rem] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{error}</div>}
         <label htmlFor="cur" className="field-label">Current password</label>
         <input id="cur" className="input mb-3" type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} />
         <label htmlFor="new" className="field-label">New password</label>
         <input id="new" className="input" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-        <p className="text-muted text-[11.5px] mt-1 mb-3">At least 10 characters with upper and lower case letters and a digit.</p>
+        <p className="text-muted text-[0.75rem] mt-1 mb-3">At least 10 characters with upper and lower case letters and a digit.</p>
         <label htmlFor="again" className="field-label">Confirm new password</label>
         <input id="again" className="input mb-5" type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
         <div className="flex gap-2">

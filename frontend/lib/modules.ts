@@ -52,6 +52,7 @@ const lineItem = (extra: Field[] = []): Field => ({ name: "items", label: "Lines
 export const MODULES: Module[] = [
   {
     id: "procurement", label: "Purchase", icon: ShoppingCart, description: "Requests, RFQs and quotations, purchase orders, goods receipts and supplier performance.",
+    dashboard: { api: "/procurement/dashboard", perm: "procurement.po:read" },
     screens: [
       { id: "requests", label: "Purchase requests", description: "Material requests awaiting approval and conversion.", perm: "procurement.pr:read",
         list: { api: "/procurement/purchase-requests", cols: [{ key: "number", label: "Number", kind: "mono" }, { key: "status", label: "Status", kind: "badge" }, { key: "required_by", label: "Required by", kind: "date" }], status: { param: "status", options: ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "CLOSED"] },
@@ -94,6 +95,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "inventory", label: "Inventory", icon: Boxes, description: "Stock by batch and warehouse, the movement ledger, stocktakes and stock reports.",
+    dashboard: { api: "/inventory/dashboard", perm: "inventory.stock:read" },
     screens: [
       { id: "stock", label: "Stock balances", description: "Physical, reserved, blocked and available quantity per item, batch and warehouse.", perm: "inventory.stock:read",
         list: { api: "/inventory/balances", view: "table", cols: [{ key: "item_code", label: "Item", kind: "mono" }, { key: "item_name", label: "Name" }, { key: "warehouse_code", label: "Warehouse", kind: "mono" }, { key: "batch_no", label: "Batch", kind: "mono" }, { key: "qc_status", label: "QC", kind: "badge" }, { key: "expiry_date", label: "Expiry", kind: "date" },
@@ -167,6 +169,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "rnd", label: "R&D", icon: FlaskConical, description: "Development projects, formulations with immutable approved versions, and lab trials.",
+    dashboard: { api: "/rnd/dashboard", perm: "rnd.formula:read" },
     screens: [
       { id: "projects", label: "Development projects", description: "Concept to launch with linked formulations.", perm: "rnd.project:read",
         list: { api: "/rnd/projects", cols: [{ key: "code", label: "Code", kind: "mono" }, { key: "name", label: "Project" }, { key: "product_category", label: "Category" }, { key: "status", label: "Status", kind: "badge" }, { key: "target_launch_date", label: "Target launch", kind: "date" }],
@@ -192,6 +195,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "quality", label: "Quality", icon: ClipboardCheck, description: "Specifications, inspections with server-side judgement, release, deviations and CAPA.",
+    dashboard: { api: "/quality/dashboard", perm: "quality.inspection:read" },
     screens: [
       { id: "inspections", label: "Inspections", description: "Incoming, in-process and finished-goods inspections.", perm: "quality.inspection:read",
         list: { api: "/quality/inspections", cols: [{ key: "number", label: "Inspection", kind: "mono" }, { key: "stage", label: "Stage" }, { key: "status", label: "Status", kind: "badge" }, { key: "decision", label: "Decision", kind: "badge" }], status: { param: "status", options: ["PENDING", "IN_PROGRESS", "DECIDED"] }, detail: (r) => `/quality/inspections/${r.id}`,
@@ -266,6 +270,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "sales", label: "CRM & Sales", icon: Users, description: "Leads, quotations, customer pricing, follow-ups and complaints.",
+    dashboard: { api: "/crm/dashboard", perm: "crm.lead:read" },
     screens: [
       { id: "leads", label: "Leads", description: "Pipeline from new to won or lost.", perm: "crm.lead:read",
         list: { api: "/crm/leads", cols: [{ key: "name", label: "Lead" }, { key: "company", label: "Company" }, { key: "source", label: "Source" }, { key: "status", label: "Status", kind: "badge" }, { key: "converted_customer_id", label: "Customer id", kind: "number" }], status: { param: "status", options: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"] },
@@ -312,6 +317,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "accounts", label: "Accounts", icon: Calculator, description: "Double-entry ledger, receivables and payables, banking, GST and financial statements.",
+    dashboard: { api: "/accounts/dashboard", perm: "accounts.report:read" },
     screens: [
       { id: "journals", label: "Journals", description: "Immutable, balanced journal entries; corrections are reversals.", perm: "accounts.journal:read",
         list: { api: "/accounts/journals", view: "table", cols: [{ key: "number", label: "Journal", kind: "mono" }, { key: "entry_date", label: "Date", kind: "date" }, { key: "description", label: "Description" }, { key: "source", label: "Source", kind: "mono" }, { key: "total", label: "Total", kind: "money" }], detail: (r) => `/accounts/journals/${r.id}`,
@@ -385,6 +391,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "ecommerce", label: "E-commerce", icon: ShoppingBag, description: "Marketplace accounts, SKU mapping, order ingestion, exceptions, returns and settlements.",
+    dashboard: { api: "/ecommerce/dashboard", perm: "ecommerce.order:read" },
     screens: [
       { id: "accounts", label: "Marketplace accounts", description: "Seller accounts; credentials are referenced, never stored.", perm: "ecommerce.account:read",
         list: { api: "/ecommerce/accounts", cols: [{ key: "platform", label: "Platform", kind: "badge" }, { key: "name", label: "Account" }, { key: "seller_id", label: "Seller id", kind: "mono" }, { key: "status", label: "Status", kind: "badge" }, { key: "last_sync_at", label: "Last sync", kind: "datetime" }], detail: (r) => `/ecommerce/accounts/${r.id}/health`,
@@ -408,6 +415,7 @@ export const MODULES: Module[] = [
   },
   {
     id: "branding", label: "Meta & Branding", icon: Megaphone, description: "Brand library, content calendar with approval, campaigns and performance.",
+    dashboard: { api: "/branding/dashboard", perm: "branding.campaign:read" },
     screens: [
       { id: "content", label: "Content calendar", description: "Drafts, review by a different person, approval and manual publishing records.", perm: "branding.content:read",
         list: { api: "/branding/content", cols: [{ key: "title", label: "Title" }, { key: "channel", label: "Channel", kind: "badge" }, { key: "status", label: "Status", kind: "badge" }, { key: "scheduled_for", label: "Scheduled", kind: "datetime" }], status: { options: ["DRAFT", "IN_REVIEW", "APPROVED", "SCHEDULED", "PUBLISHED", "REJECTED"] },

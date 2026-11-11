@@ -39,7 +39,7 @@ export default function AuditPage() {
     { key: "t", label: "When", render: (e) => <span className="tnum">{fmtDateTime(e.occurred_at)}</span> },
     { key: "u", label: "User", render: (e) => e.user_email ?? <span className="text-muted">system</span> },
     { key: "a", label: "Action", render: (e) => <Badge tone={TONE[e.action] ?? "neutral"}>{titleCase(e.action)}</Badge> },
-    { key: "e", label: "Record", render: (e) => <span>{titleCase(e.entity)}{e.entity_id && <span className="text-muted font-mono text-[11.5px]"> #{e.entity_id}</span>}</span> },
+    { key: "e", label: "Record", render: (e) => <span>{titleCase(e.entity)}{e.entity_id && <span className="text-muted font-mono text-[0.75rem]"> #{e.entity_id}</span>}</span> },
     { key: "c", label: "Changes", render: (e) => e.after ? <span className="text-muted">{Object.keys(e.after).slice(0, 4).join(", ")}{Object.keys(e.after).length > 4 ? "…" : ""}</span> : <span className="text-muted">—</span> },
     { key: "go", label: "", render: () => <ChevronRight size={14} className="text-muted" /> },
   ];
@@ -56,18 +56,18 @@ export default function AuditPage() {
           {["create", "update", "deactivate", "delete", "login", "login_failed", "logout", "password_reset", "password_changed", "download", "export", "new_version"].map((a) => <option key={a} value={a}>{titleCase(a)}</option>)}
         </select>
         <input type="date" className="input !w-auto" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
-        <span className="text-muted text-[12px]">to</span>
+        <span className="text-muted text-[0.75rem]">to</span>
         <input type="date" className="input !w-auto" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
       </div>
       <DataTable columns={cols} rows={data?.items ?? []} loading={loading} page={page} pageSize={50} total={data?.total ?? 0} onPage={setPage} onRowClick={setOpen} />
       <Drawer open={!!open} onClose={() => setOpen(null)} title={open ? `${titleCase(open.action)} · ${titleCase(open.entity)}${open.entity_id ? ` #${open.entity_id}` : ""}` : ""} subtitle={open ? fmtDateTime(open.occurred_at) : undefined} width={620}>
         {open && (
-          <div className="space-y-4 text-[13px]">
+          <div className="space-y-4 text-[0.8125rem]">
             <dl className="grid grid-cols-[110px_1fr] gap-y-1.5">
               <dt className="text-muted">User</dt><dd>{open.user_email ?? "system"}</dd>
               <dt className="text-muted">Source</dt><dd>{open.source}</dd>
-              <dt className="text-muted">IP address</dt><dd className="font-mono text-[12px]">{open.ip ?? "—"}</dd>
-              <dt className="text-muted">Request ID</dt><dd className="font-mono text-[12px] break-all">{open.request_id ?? "—"}</dd>
+              <dt className="text-muted">IP address</dt><dd className="font-mono text-[0.75rem]">{open.ip ?? "—"}</dd>
+              <dt className="text-muted">Request ID</dt><dd className="font-mono text-[0.75rem] break-all">{open.request_id ?? "—"}</dd>
               {open.reason && <><dt className="text-muted">Reason</dt><dd>{open.reason}</dd></>}
             </dl>
             <DiffTable before={open.before} after={open.after} />
@@ -85,7 +85,7 @@ function DiffTable({ before, after }: { before: Record<string, unknown> | null; 
   return (
     <table className="dt panel">
       <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
-      <tbody>{keys.map((k) => <tr key={k}><td className="font-mono text-[12px]">{k}</td><td style={{ whiteSpace: "normal" }}>{before ? show(before[k]) : <span className="text-muted">—</span>}</td><td style={{ whiteSpace: "normal" }}>{show(after?.[k])}</td></tr>)}</tbody>
+      <tbody>{keys.map((k) => <tr key={k}><td className="font-mono text-[0.75rem]">{k}</td><td style={{ whiteSpace: "normal" }}>{before ? show(before[k]) : <span className="text-muted">—</span>}</td><td style={{ whiteSpace: "normal" }}>{show(after?.[k])}</td></tr>)}</tbody>
     </table>
   );
 }

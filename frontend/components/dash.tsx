@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 /** Building blocks for the operational dashboards. Every figure goes through <Figure> and every label/support line through the same three slots,
  *  so a number looks the same wherever it appears: 28/34 weight 500, tabular, never resized for its length.
  *  Components receive already-formatted text from lib/format.ts (fmtRupees, fmtNum, fmtPct); they never format or restyle numbers themselves. */
@@ -12,7 +12,8 @@ const TEXT: Record<Tone, string> = { success: "text-success", warning: "text-war
 
 /** The one KPI number style. Plain numbers are grouped by the shared formatter; money and percentages arrive already formatted (fmtRupees, fmtPct). */
 export function Figure({ value }: { value: string | number }) {
-  return <span className="t-kpi">{typeof value === "number" ? fmtNum(value) : value}</span>;
+  const text = typeof value === "number" ? fmtNum(value) : value;
+  return <span className="kpi-fit"><span className="t-kpi" style={{ "--n": String(text.length) } as React.CSSProperties} title={text}>{text}</span></span>;
 }
 
 export function Section({ title, description, action, children, className = "", flush }: {
@@ -238,7 +239,7 @@ export function Timeline({ items }: { items: TimelineEntry[] }) {
 }
 
 export function InlineNotice({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode }) {
-  return <div role={tone === "danger" ? "alert" : "status"} className={`panel px-4 py-3 text-[13px] leading-5 ${tone === "danger" ? "text-danger" : "text-muted"}`}>{children}</div>;
+  return <div role={tone === "danger" ? "alert" : "status"} className={`panel px-4 py-3 text-[0.8125rem] leading-5 ${tone === "danger" ? "text-danger" : "text-muted"}`}>{children}</div>;
 }
 
 export function SkeletonRows({ n = 4 }: { n?: number }) {

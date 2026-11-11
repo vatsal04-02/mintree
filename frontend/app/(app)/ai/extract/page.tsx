@@ -79,14 +79,14 @@ export default function ExtractPage() {
           <input id="file" data-testid="ai-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain" className="input !p-1.5" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
         <button className="btn btn-primary" onClick={read} disabled={!file || busy} data-testid="ai-read">{busy && !ext ? "Reading…" : "Read document"}</button>
       </div>
-      {error && <div className="panel p-3 mb-4 text-danger text-[13px]" role="alert">{error}</div>}
-      {done && <div className="panel p-3 mb-4 text-[13px]" role="status" data-testid="ai-done">{done}</div>}
+      {error && <div className="panel p-3 mb-4 text-danger text-[0.8125rem]" role="alert">{error}</div>}
+      {done && <div className="panel p-3 mb-4 text-[0.8125rem]" role="status" data-testid="ai-done">{done}</div>}
 
       {ext && (
         <div className="grid gap-5 lg:grid-cols-2" data-testid="ai-result">
           <section className="panel p-4" aria-label="What was read">
             <div className="flex items-center gap-2 mb-3"><h2 className="t-section">What was read</h2>{ext.demo && <Badge tone="warning">Demo provider</Badge>}{ext.confidence && <Badge>Confidence {fmtNum(Number(ext.confidence) * 100)}%</Badge>}</div>
-            <dl className="grid grid-cols-[130px_1fr] gap-y-1.5 text-[13px]">
+            <dl className="grid grid-cols-[130px_1fr] gap-y-1.5 text-[0.8125rem]">
               <dt className="text-muted">Supplier</dt><dd>{ext.fields.supplier_name ?? "—"}{ext.matched.supplier && <span className="text-muted"> → {ext.matched.supplier.name}</span>}</dd>
               <dt className="text-muted">Document no.</dt><dd className="font-mono">{ext.fields.document_no ?? "—"}</dd>
               <dt className="text-muted">Date</dt><dd>{ext.fields.document_date ?? "—"}</dd>
@@ -96,13 +96,13 @@ export default function ExtractPage() {
               <dt className="text-muted">Total</dt><dd className="font-medium">{fmtMoney(ext.fields.total)}</dd>
             </dl>
             <table className="dt mt-4"><thead><tr><th>#</th><th>Description</th><th className="num">Qty</th><th className="num">Price</th><th>PO line</th></tr></thead>
-              <tbody>{ext.fields.lines.map((l, i) => <tr key={i}><td>{i + 1}</td><td>{l.description}</td><td className="num">{fmtNum(l.qty, 3)}</td><td className="num">{fmtMoney(l.unit_price)}</td><td className="font-mono text-[12px]">{ext.matched.lines[i]?.po_item ?? <span className="text-danger">no match</span>}</td></tr>)}</tbody></table>
+              <tbody>{ext.fields.lines.map((l, i) => <tr key={i}><td>{i + 1}</td><td>{l.description}</td><td className="num">{fmtNum(l.qty, 3)}</td><td className="num">{fmtMoney(l.unit_price)}</td><td className="font-mono text-[0.75rem]">{ext.matched.lines[i]?.po_item ?? <span className="text-danger">no match</span>}</td></tr>)}</tbody></table>
           </section>
 
           <section className="panel p-4" aria-label="Checks and draft">
             <h2 className="t-section mb-3">Checks</h2>
-            {ext.flags.length === 0 ? <p className="text-[13px] text-muted">No problems found. Still compare against the original document.</p> : (
-              <ul className="space-y-1.5 mb-4" data-testid="ai-flags">{ext.flags.map((f, i) => <li key={i} className="flex gap-2 text-[13px]"><Badge tone={tone(f.level)}>{f.level === "ERROR" ? "Must fix" : "Check"}</Badge><span>{f.message}</span></li>)}</ul>
+            {ext.flags.length === 0 ? <p className="text-[0.8125rem] text-muted">No problems found. Still compare against the original document.</p> : (
+              <ul className="space-y-1.5 mb-4" data-testid="ai-flags">{ext.flags.map((f, i) => <li key={i} className="flex gap-2 text-[0.8125rem]"><Badge tone={tone(f.level)}>{f.level === "ERROR" ? "Must fix" : "Check"}</Badge><span>{f.message}</span></li>)}</ul>
             )}
             {draft && ext.kind === "INVOICE" && ext.status === "EXTRACTED" && (
               <>
@@ -112,20 +112,20 @@ export default function ExtractPage() {
                   <div><label className="field-label" htmlFor="d-date">Invoice date</label><input id="d-date" type="date" className="input" value={draft.invoice_date ?? ""} onChange={(e) => setDraft({ ...draft, invoice_date: e.target.value })} /></div>
                 </div>
                 <table className="dt"><thead><tr><th>PO line</th><th className="num">Qty</th><th className="num">Unit price</th><th className="num">Tax %</th></tr></thead>
-                  <tbody>{draft.lines.map((l, i) => <tr key={i}><td className="font-mono text-[12px]">{l.po_item_id}</td>
+                  <tbody>{draft.lines.map((l, i) => <tr key={i}><td className="font-mono text-[0.75rem]">{l.po_item_id}</td>
                     {(["qty", "unit_price", "tax_rate"] as const).map((k) => <td key={k} className="num"><input aria-label={`${k} line ${i + 1}`} className="input !h-7 w-24 text-right" inputMode="decimal" value={l[k] ?? ""} onChange={(e) => setLine(i, k, e.target.value)} /></td>)}</tr>)}</tbody></table>
-                <p className="text-[12px] text-muted mt-2">Posting uses the normal supplier-invoice rules (three-way match, duplicate check, period lock) under your permissions.</p>
+                <p className="text-[0.75rem] text-muted mt-2">Posting uses the normal supplier-invoice rules (three-way match, duplicate check, period lock) under your permissions.</p>
               </>
             )}
-            {draft && ext.kind === "DELIVERY_NOTE" && <p className="text-[13px]">Matched to {ext.matched.po?.number}. Use these quantities when you post the goods receipt. <Link className="underline" href="/m/procurement/receipts">Open goods receipts</Link></p>}
-            {!draft && <p className="text-[13px] text-muted">A draft could not be prepared. Fix the items above or enter the document by hand.</p>}
+            {draft && ext.kind === "DELIVERY_NOTE" && <p className="text-[0.8125rem]">Matched to {ext.matched.po?.number}. Use these quantities when you post the goods receipt. <Link className="underline" href="/m/procurement/receipts">Open goods receipts</Link></p>}
+            {!draft && <p className="text-[0.8125rem] text-muted">A draft could not be prepared. Fix the items above or enter the document by hand.</p>}
             {ext.status === "EXTRACTED" && (
               <div className="flex justify-end gap-2 mt-4">
                 <button className="btn" onClick={discard} disabled={busy}>Discard</button>
                 {ext.kind === "INVOICE" && <button className="btn btn-primary" onClick={post} disabled={!canPost || busy} data-testid="ai-post" title={ext.blocking.length ? "Resolve the items marked Must fix first" : !can("accounts.supplier_invoice:post") ? "You do not have permission to post supplier invoices" : undefined}>Post supplier invoice</button>}
               </div>
             )}
-            {ext.status !== "EXTRACTED" && <p className="text-[12.5px] text-muted mt-3">{titleCase(ext.status)}.</p>}
+            {ext.status !== "EXTRACTED" && <p className="text-[0.75rem] text-muted mt-3">{titleCase(ext.status)}.</p>}
           </section>
         </div>
       )}

@@ -89,3 +89,6 @@ Safety: the seeder refuses any database that is not a marked demo database; deve
 Known limitation: if a step fails part-way, its deterministic idempotency keys collide with the partial work on re-run (the system correctly refuses a different payload under the same key). Reset the demo database and re-run; steps are small and the full build takes under two minutes.
 
 Two documented fixtures write timestamps the services stamp from the server clock: production-order completion dates are spread over ~100 days so the weekly output chart has a history, and one shipment's creation time is set to nine days ago to demonstrate the "delayed shipment" exception.
+
+## Traceability scenarios (2026-11-09)
+The demo is now **34 steps** (about 2 minutes 15 seconds from an empty demo database). The last step, `depth_trace`, performs a real warehouse transfer to split one finished batch across two warehouses and runs an audited batch impact analysis. See `DEMO_TRACEABILITY_SCENARIOS.md` for the batches that illustrate each traceability case.

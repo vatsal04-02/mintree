@@ -22,9 +22,9 @@ export default function NotificationsPage() {
           {data.items.map((n) => (
             <li key={n.id} className={`px-4 py-3 flex items-start gap-3 ${n.read ? "" : "bg-primary/5"}`}>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2"><span className="font-medium text-[13.5px]">{n.title}</span>{n.priority === "HIGH" && <Badge tone="danger">High</Badge>}</div>
-                {n.body && <p className="text-muted text-[12.5px] mt-0.5">{n.body}</p>}
-                <p className="text-muted text-[11.5px] mt-1">{fmtDateTime(n.created_at)}</p>
+                <div className="flex items-center gap-2"><span className="font-medium text-[0.8125rem]">{n.title}</span>{n.priority === "HIGH" && <Badge tone="danger">High</Badge>}</div>
+                {n.body && <p className="text-muted text-[0.75rem] mt-0.5">{n.body}</p>}
+                <p className="text-muted text-[0.75rem] mt-1">{fmtDateTime(n.created_at)}</p>
               </div>
               {n.link && <Link className="btn btn-sm" href={n.link.startsWith("/") ? n.link : "/"}>Open</Link>}
               {!n.read && <button className="btn btn-sm" onClick={() => read(n.id)}>Mark read</button>}

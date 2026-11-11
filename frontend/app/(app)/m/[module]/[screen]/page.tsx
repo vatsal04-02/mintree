@@ -18,7 +18,7 @@ function Screen({ moduleId, screenId }: { moduleId: string; screenId: string }) 
   const initial = Object.fromEntries(sp.entries());
   return (
     <>
-      <Link href={`/m/${mod.id}`} className="inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg mb-2"><ChevronLeft size={14} />{mod.label}</Link>
+      <Link href={`/m/${mod.id}`} className="inline-flex items-center gap-1 text-[0.75rem] text-muted hover:text-fg mb-2"><ChevronLeft size={14} />{mod.label}</Link>
       <PageHeader title={screen.label} description={screen.description} />
       {screen.list ? <ListScreen key={screen.id} screen={screen} /> : screen.report ? <ReportScreen key={`${screen.id}-${sp.toString()}`} screen={screen} initial={initial} /> : screen.create ? <CreateOnlyScreen screen={screen} /> : null}
     </>

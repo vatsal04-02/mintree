@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-logging.disable(logging.INFO)     # BEFORE the alembic import below: alembic logs plugin setup at import time, and the app logs every request as JSON. This tool prints its own progress.
+logging.disable(logging.ERROR)    # BEFORE the alembic import below: alembic logs plugin setup at import time, and the app logs every request (and slow-transaction warnings) as JSON. This tool prints its own progress.
 
 import argparse  # noqa: E402
 import sys  # noqa: E402
@@ -33,7 +33,7 @@ def _migrate_and_seed() -> None:
     cfg = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[2] / "migrations"))
     import logging
-    logging.disable(logging.INFO)             # re-applied here: importing the app configures logging after run() set this
+    logging.disable(logging.ERROR)            # re-applied here: importing the app configures logging after run() set this
     command.upgrade(cfg, "head")
     with Session(engine) as s:
         seed(s)                        # idempotent: roles, permissions, units, warehouses, chart of accounts, periods
@@ -124,7 +124,7 @@ def cmd_report(args) -> int:
 
 def run(argv: list[str] | None = None) -> int:
     import logging
-    logging.disable(logging.INFO)           # alembic and the API log as JSON; this tool prints its own progress
+    logging.disable(logging.ERROR)          # alembic and the API log as JSON (INFO requests, WARNING slow transactions, ERROR cache fallbacks); this tool prints its own progress
     p = argparse.ArgumentParser(prog="python -m scripts.demo_data", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init", help="seed the demo stories through the real workflows (idempotent)").set_defaults(fn=cmd_init)

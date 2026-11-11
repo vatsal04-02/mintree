@@ -112,10 +112,10 @@ function UserForm({ target, roles, depts, selfId, canEdit, onClose, onSaved }: {
           <input id="u-name" className="input" value={f.full_name} disabled={readOnly} onChange={(e) => setF({ ...f, full_name: e.target.value })} aria-invalid={!!err.full_name} /></div>
         <div><label className="field-label" htmlFor="u-email">Email <span className="text-danger">*</span></label>
           <input id="u-email" className="input" type="email" value={f.email} disabled={!isNew} onChange={(e) => setF({ ...f, email: e.target.value })} aria-invalid={!!err.email} />
-          {err.email && <p className="text-danger text-[11.5px] mt-1">{err.email}</p>}</div>
+          {err.email && <p className="text-danger text-[0.75rem] mt-1">{err.email}</p>}</div>
         {isNew && <div><label className="field-label" htmlFor="u-pw">Temporary password <span className="text-danger">*</span></label>
           <input id="u-pw" className="input" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} aria-invalid={!!err.temporary_password} />
-          <p className={`text-[11.5px] mt-1 ${err.temporary_password ? "text-danger" : "text-muted"}`}>{err.temporary_password ?? "Min 10 chars, mixed case, a digit. The user must change it at first sign-in."}</p></div>}
+          <p className={`text-[0.75rem] mt-1 ${err.temporary_password ? "text-danger" : "text-muted"}`}>{err.temporary_password ?? "Min 10 chars, mixed case, a digit. The user must change it at first sign-in."}</p></div>}
         <div><label className="field-label" htmlFor="u-dept">Department</label>
           <select id="u-dept" className="input" value={f.department_id} disabled={readOnly} onChange={(e) => setF({ ...f, department_id: e.target.value })}>
             <option value="">None</option>{depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
@@ -125,25 +125,25 @@ function UserForm({ target, roles, depts, selfId, canEdit, onClose, onSaved }: {
             {roles.map((r) => {
               const ok = grantable(r) || f.role_ids.includes(r.id);
               return (
-                <label key={r.id} className={`flex items-center gap-2.5 px-3 h-9 text-[13px] ${ok ? "cursor-pointer" : "opacity-45"}`} title={ok ? undefined : "You cannot assign a role with permissions you don't hold"}>
+                <label key={r.id} className={`flex items-center gap-2.5 px-3 h-9 text-[0.8125rem] ${ok ? "cursor-pointer" : "opacity-45"}`} title={ok ? undefined : "You cannot assign a role with permissions you don't hold"}>
                   <input type="checkbox" checked={f.role_ids.includes(r.id)} disabled={!ok || readOnly}
                     onChange={(e) => setF({ ...f, role_ids: e.target.checked ? [...f.role_ids, r.id] : f.role_ids.filter((x) => x !== r.id) })} />
-                  <span className="flex-1">{r.name}</span><span className="text-muted text-[11.5px] tnum">{r.permission_codes.length} perms</span>
+                  <span className="flex-1">{r.name}</span><span className="text-muted text-[0.75rem] tnum">{r.permission_codes.length} perms</span>
                 </label>
               );
             })}
           </div>
         </fieldset>
         {!isNew && !readOnly && (
-          <label className={`flex items-center gap-2 text-[13px] ${selfEdit ? "opacity-50" : "cursor-pointer"}`}>
+          <label className={`flex items-center gap-2 text-[0.8125rem] ${selfEdit ? "opacity-50" : "cursor-pointer"}`}>
             <input type="checkbox" checked={f.is_active} disabled={selfEdit} onChange={(e) => setF({ ...f, is_active: e.target.checked })} />
-            Account active {selfEdit && <span className="text-muted text-[11.5px]">(you can&apos;t deactivate yourself)</span>}
+            Account active {selfEdit && <span className="text-muted text-[0.75rem]">(you can&apos;t deactivate yourself)</span>}
           </label>
         )}
         {!isNew && !readOnly && (
           <div className="pt-2 border-t border-line">
             <button type="button" className="btn btn-sm" onClick={resetPassword}><KeyRound size={13} />Reset password</button>
-            {reset && <div className="mt-2.5 panel p-3 text-[12.5px]" role="status">Temporary password (shown once): <code className="font-mono font-semibold select-all">{reset}</code></div>}
+            {reset && <div className="mt-2.5 panel p-3 text-[0.75rem]" role="status">Temporary password (shown once): <code className="font-mono font-semibold select-all">{reset}</code></div>}
           </div>
         )}
       </form>

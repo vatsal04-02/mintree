@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, Columns3, Plus, Rows3, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from "@/lib/format";
+import { fieldLabel, fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from "@/lib/format";
 import { defaultParam, toneFor, type Action, type Col, type Create, type Field, type Param, type RefKey, type Row, type Screen } from "@/lib/modules";
 import { DataTable, type Col as TCol } from "./DataTable";
 import { ScanButton, ScanDialog, resolveCode } from "./Scanner";
@@ -100,8 +100,8 @@ function PoLines({ f, poId, value, onChange }: { f: Field; poId: string; value: 
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poId]);
-  if (!poId) return <p className="text-muted text-[12.5px]">Choose a purchase order to see its lines.</p>;
-  if (err) return <p className="text-danger text-[12.5px]">{err}</p>;
+  if (!poId) return <p className="text-muted text-[0.75rem]">Choose a purchase order to see its lines.</p>;
+  if (err) return <p className="text-danger text-[0.75rem]">{err}</p>;
   if (!po) return <div className="skeleton h-16" />;
   const extra: Field[] = f.extra ?? [];
   const set = (id: number, k: string, v: string) => onChange({ ...(value ?? {}), [id]: { ...(value?.[id] ?? {}), [k]: v } });
@@ -128,7 +128,7 @@ function ShipLines({ orderId, value, onChange }: { orderId: number; value: Recor
   return (
     <div className="panel overflow-x-auto"><table className="dt"><thead><tr><th>Item</th><th>Batch</th><th className="num">Shipped</th><th className="num">Returnable</th><th>Return qty</th></tr></thead>
       <tbody>{lines.map((l) => (
-        <tr key={l.shipment_line_id}><td className="!max-w-[220px]">{l.item_code} {l.name}</td><td className="font-mono text-[12px]">{l.batch_no ?? "—"}</td><td className="num">{fmtNum(l.shipped, 3)}</td><td className="num">{fmtNum(l.returnable, 3)}</td>
+        <tr key={l.shipment_line_id}><td className="!max-w-[220px]">{l.item_code} {l.name}</td><td className="tnum font-medium text-[0.8125rem]">{l.batch_no ?? "—"}</td><td className="num">{fmtNum(l.shipped, 3)}</td><td className="num">{fmtNum(l.returnable, 3)}</td>
           <td className="!py-1"><input className="input !w-28" type="number" step="any" min="0" max={l.returnable} aria-label={`Return quantity for ${l.item_code}`} value={value?.[l.shipment_line_id]?.qty ?? ""} onChange={(e) => onChange({ ...(value ?? {}), [l.shipment_line_id]: { qty: e.target.value } })} /></td></tr>))}</tbody></table></div>
   );
 }
@@ -228,7 +228,7 @@ export function FormDrawer({ open, title, subtitle, fields, submitLabel, onClose
           return (
             <div key={f.name} className={wide ? "col-span-2" : ""}>
               {f.type === "checkbox" ? (
-                <label className="flex items-center gap-2 h-8 text-[13px] cursor-pointer"><Input f={f} id={f.name} value={vals[f.name]} onChange={(v) => setVals((s) => ({ ...s, [f.name]: v }))} />{f.label}</label>
+                <label className="flex items-center gap-2 h-8 text-[0.8125rem] cursor-pointer"><Input f={f} id={f.name} value={vals[f.name]} onChange={(v) => setVals((s) => ({ ...s, [f.name]: v }))} />{f.label}</label>
               ) : (
                 <>
                   <label htmlFor={f.name} className="field-label">{f.label}{f.required && <span className="text-danger"> *</span>}</label>
@@ -243,7 +243,7 @@ export function FormDrawer({ open, title, subtitle, fields, submitLabel, onClose
                     : <Input f={f} id={f.name} value={vals[f.name] ?? f.default} onChange={(v) => setVals((s) => ({ ...s, [f.name]: v }))} />}
                 </>
               )}
-              {err ? <p className="text-danger text-[11.5px] mt-1" role="alert">{err}</p> : f.help ? <p className="text-muted text-[11.5px] mt-1">{f.help}</p> : null}
+              {err ? <p className="text-danger text-[0.75rem] mt-1" role="alert">{err}</p> : f.help ? <p className="text-muted text-[0.75rem] mt-1">{f.help}</p> : null}
             </div>
           );
         })}
@@ -253,13 +253,16 @@ export function FormDrawer({ open, title, subtitle, fields, submitLabel, onClose
 }
 
 /* ------------------------------------------------------------------ read-only JSON view (dashboards, reports, record details) */
-const MONEYISH = /(amount|total|value|revenue|cost|balance|price|profit|spend|payable|receivable|cogs|outstanding|debit|credit|charge|fees|freight|budget|margin$|taxable|cgst|sgst|igst|tax$|payment|paid)/i;
+const MONEYISH = /(amount|total|value|revenue|cost|balance|price|profit|spend|payable|receivable|cogs|outstanding|debit|credit|charge|fees|freight|budget|margin$|taxable|cgst|sgst|igst|tax$|payment|paid|earnings|equity|liabilit|assets|income|expense|turnover)/i;
+/** Whether a figure named `k` is a rupee amount. The module dashboards decide this from the name, exactly as the figure cards do. */
+export const isMoneyKey = (k: string) => MONEYISH.test(k) && !/(qty|count|days)/i.test(k);
+const AGEING_BUCKET = /^(current|\d+-\d+|\d+\+)$/i;           // receivables / payables ageing columns are amounts
 function show(k: string, v: any): React.ReactNode {
   if (v === null || v === undefined || v === "") return <span className="text-muted">—</span>;
   if (typeof v === "boolean") return <Badge tone={v ? "success" : "neutral"}>{v ? "Yes" : "No"}</Badge>;
   if (typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18)) {
     if (/pct|percent|rate$/i.test(k)) return `${fmtNum(v, 2)}%`;
-    if (MONEYISH.test(k) && !/(qty|count|days)/i.test(k)) return fmtMoney(v);
+    if ((MONEYISH.test(k) || AGEING_BUCKET.test(k)) && !/(qty|count|days)/i.test(k)) return fmtMoney(v);
     return fmtNum(v, 3);
   }
   if (typeof v === "string") {
@@ -269,18 +272,18 @@ function show(k: string, v: any): React.ReactNode {
   }
   return String(v);
 }
-export function ReportView({ data, depth = 0 }: { data: any; depth?: number }) {
+export function ReportView({ data, depth = 0, parent = "" }: { data: any; depth?: number; parent?: string }) {
   if (data === null || data === undefined) return null;
   if (Array.isArray(data)) {
     if (data.length === 0) return <p className="t-support">None.</p>;
-    if (typeof data[0] !== "object" || data[0] === null) return <p className="text-[13px]">{data.map(String).join(", ")}</p>;
+    if (typeof data[0] !== "object" || data[0] === null) return <p className="text-[0.8125rem]">{data.map(String).join(", ")}</p>;
     const keys = Array.from(new Set(data.slice(0, 20).flatMap((r: Row) => Object.keys(r)))).filter((k) => typeof data.find((r: Row) => r[k] !== undefined && r[k] !== null)?.[k] !== "object").slice(0, 10);
     return (
-      <div className="panel overflow-auto max-h-[420px]"><table className="dt"><thead><tr>{keys.map((k) => <th key={k} className={/(amount|total|value|qty|price|cost|balance|debit|credit|pct)/i.test(k) ? "num" : ""}>{titleCase(k)}</th>)}</tr></thead>
+      <div className="panel overflow-auto max-h-[420px]"><table className="dt"><thead><tr>{keys.map((k) => <th key={k} className={/(amount|total|value|qty|price|cost|balance|debit|credit|pct)/i.test(k) ? "num" : ""}>{fieldLabel(k)}</th>)}</tr></thead>
         <tbody>{data.slice(0, 200).map((r: Row, i: number) => <tr key={i}>{keys.map((k) => <td key={k} className={/(amount|total|value|qty|price|cost|balance|debit|credit|pct)/i.test(k) ? "num" : ""}>{show(k, r[k])}</td>)}</tr>)}</tbody></table></div>
     );
   }
-  if (typeof data !== "object") return <p className="text-[13px]">{String(data)}</p>;
+  if (typeof data !== "object") return <p className="text-[0.8125rem]">{String(data)}</p>;
   const scalars = Object.entries(data).filter(([, v]) => v === null || typeof v !== "object");
   const nested = Object.entries(data).filter(([, v]) => v !== null && typeof v === "object");
   return (
@@ -288,11 +291,12 @@ export function ReportView({ data, depth = 0 }: { data: any; depth?: number }) {
       {scalars.length > 0 && (
         <dl className={`grid gap-x-2.5 gap-y-0 ${depth === 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3"} [&>*]:mb-2.5`}>
           {scalars.map(([k, v]) => {
+            const mk = depth > 0 && MONEYISH.test(parent) && !/(count|qty|days)/i.test(parent) ? parent : k;   // children of a money block inherit its name
             const numeric = typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18);
             return (
               <div key={k} className="panel p-4 min-w-0 grid grid-rows-subgrid row-span-2 gap-y-0 content-start">
-                <dt className="t-label line-clamp-2" title={titleCase(k)}>{titleCase(k)}</dt>
-                <dd className={`${numeric ? "t-kpi" : "t-value"} mt-2 break-words`}>{show(k, v)}</dd>
+                <dt className="t-label line-clamp-2" title={fieldLabel(k)}>{fieldLabel(k)}</dt>
+                <dd className={`${numeric ? "" : "t-value"} mt-2 break-words`}>{numeric ? <span className="kpi-fit"><span className="t-kpi" style={{ "--n": String(String(show(mk, v)).length) } as React.CSSProperties} title={String(show(mk, v))}>{show(mk, v)}</span></span> : show(mk, v)}</dd>
               </div>
             );
           })}
@@ -300,12 +304,128 @@ export function ReportView({ data, depth = 0 }: { data: any; depth?: number }) {
       )}
       {nested.map(([k, v]) => (
         <section key={k}>
-          <h3 className="text-[12.5px] font-semibold text-muted mb-1.5">{titleCase(k)}</h3>
-          <ReportView data={v} depth={depth + 1} />
+          <h3 className="text-[0.75rem] font-semibold text-muted mb-1.5">{fieldLabel(k)}</h3>
+          <ReportView data={v} depth={depth + 1} parent={k} />
         </section>
       ))}
     </div>
   );
+}
+
+/* ------------------------------------------------------------------ record detail (the side drawer) */
+/** Foreign-key fields the API returns as bare numbers, and the lookup that turns each into a readable name. */
+const ID_REF: Record<string, RefKey> = {
+  supplier_id: "suppliers", customer_id: "customers", warehouse_id: "warehouses", from_warehouse_id: "warehouses", to_warehouse_id: "warehouses",
+  item_id: "items", output_item_id: "items", component_item_id: "items", po_id: "pos", purchase_order_id: "pos", batch_id: "batches", brand_id: "brands",
+  equipment_id: "equipment", bom_id: "boms", lead_id: "leads", campaign_id: "campaigns", formulation_id: "formulations",
+  created_by: "users", approved_by: "users", assigned_to: "users", owner_id: "users", user_id: "users",
+};
+/** Internal keys with no meaning to a user: the row's own id, version counters, and any foreign key we cannot resolve to a name. */
+const isHidden = (k: string) => /^(id|version|row_version)$/.test(k) || k === "number" || (/_id$/.test(k) && !ID_REF[k]);
+const plainLabel = (k: string) => fieldLabel(k).replace(/\s+ID$/i, "");
+
+function useIdLabels(data: any) {
+  const [map, setMap] = useState<Record<string, { label: string; row: Row }>>({});
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const need = new Map<RefKey, Set<number>>();
+    const walk = (o: any, d = 0) => {
+      if (!o || typeof o !== "object" || d > 4) return;
+      if (Array.isArray(o)) { o.slice(0, 200).forEach((x) => walk(x, d + 1)); return; }
+      for (const [k, v] of Object.entries(o)) {
+        const rk = ID_REF[k];
+        if (rk && typeof v === "number") { if (!need.has(rk)) need.set(rk, new Set()); need.get(rk)!.add(v); } else walk(v, d + 1);
+      }
+    };
+    walk(data);
+    (async () => {
+      const out: Record<string, { label: string; row: Row }> = {};
+      await Promise.all([...need].map(async ([rk, ids]) => {
+        const def = REFS[rk];
+        const key = def.api + JSON.stringify(def.params);
+        let rows = cache.get(key);
+        if (!rows) { try { rows = asRows(await api<any>(def.api, { params: def.params })); cache.set(key, rows); } catch { rows = []; } }
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        await Promise.all([...ids].map(async (id) => {
+          let r = byId.get(id);
+          if (!r) { try { r = await api<Row>(`${def.api}/${id}`); } catch { /* not visible to this user: fall back to the bare id */ } }
+          if (r) out[`${rk}:${id}`] = { label: def.label(r), row: r };
+        }));
+      }));
+      if (live) { setMap(out); setReady(true); }
+    })();
+    return () => { live = false; };
+  }, [data]);
+  const hit = (k: string, v: any) => (ID_REF[k] ? map[`${ID_REF[k]}:${v}`] : undefined);
+  return { ready, name: (k: string, v: any) => hit(k, v)?.label, row: (k: string, v: any) => hit(k, v)?.row };
+}
+
+type Namer = { ready: boolean; name: (k: string, v: any) => string | undefined; row: (k: string, v: any) => Row | undefined };
+const ITEM_KEYS = ["item_id", "output_item_id", "component_item_id"];
+const QTY_KEY = /(^|_)(qty|quantity)(_|$)/;
+/** The unit of measure of the item a row refers to, so "100" reads "100 PCS". */
+function unitOf(ctx: Row | undefined, n: Namer): string | undefined {
+  if (!ctx) return undefined;
+  for (const k of ITEM_KEYS) if (typeof ctx[k] === "number") return n.row(k, ctx[k])?.uom_code ?? undefined;
+  return undefined;
+}
+function value(k: string, v: any, n: Namer, ctx?: Row): React.ReactNode {
+  if (ID_REF[k] && typeof v === "number") {
+    const nm = n.name(k, v);
+    return nm ?? (n.ready ? <span className="text-muted">#{v}</span> : <span className="skeleton inline-block h-3.5 w-24 align-middle" aria-hidden />);
+  }
+  const shown = show(k, v);
+  const unit = QTY_KEY.test(k) ? unitOf(ctx, n) : undefined;
+  return unit ? <>{shown}<span className="text-muted ml-1 font-medium">{unit}</span></> : shown;
+}
+const isEmpty = (v: any) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+const NUMERIC_COL = /(amount|total|value|qty|quantity|price|cost|balance|debit|credit|pct|rate|weight|count)/i;
+
+function RecordFields({ obj, n, depth }: { obj: Row; n: Namer; depth: number }) {
+  const entries = Object.entries(obj).filter(([k, v]) => !isHidden(k) && !isEmpty(v));
+  const scalars = entries.filter(([, v]) => typeof v !== "object").sort(([a], [b]) => Number(b === "status") - Number(a === "status"));   // status leads: it is the first thing people look for
+  const nested = entries.filter(([, v]) => typeof v === "object");
+  return (
+    <div className="space-y-4">
+      {scalars.length > 0 && (
+        <dl className={`${depth === 0 ? "panel p-4" : ""} grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3.5`}>
+          {scalars.map(([k, v]) => (
+            <div key={k} className={`min-w-0 ${typeof v === "string" && v.length > 48 ? "col-span-full" : ""}`}>
+              <dt className="t-support">{plainLabel(k)}</dt>
+              <dd className="t-value !font-semibold mt-0.5 break-words">{value(k, v, n, obj)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {nested.map(([k, v]) => (
+        <section key={k}>
+          <h3 className="text-[0.75rem] font-semibold mb-2 flex items-center gap-2">{plainLabel(k)}{Array.isArray(v) && <span className="badge tone-neutral">{v.length}</span>}</h3>
+          {Array.isArray(v) ? <RecordTable rows={v} n={n} /> : <RecordFields obj={v as Row} n={n} depth={depth + 1} />}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function RecordTable({ rows, n }: { rows: any[]; n: Namer }) {
+  if (typeof rows[0] !== "object" || rows[0] === null) return <p className="text-[0.8125rem]">{rows.map(String).join(", ")}</p>;
+  const keys = Array.from(new Set(rows.slice(0, 30).flatMap((r: Row) => Object.keys(r)))).filter((k) => !isHidden(k) && rows.some((r: Row) => !isEmpty(r[k]) && typeof r[k] !== "object")).slice(0, 9);
+  return (
+    <div className="panel overflow-auto max-h-[420px]">
+      <table className="dt">
+        <thead><tr>{keys.map((k) => <th key={k} className={NUMERIC_COL.test(k) ? "num" : ""}>{plainLabel(k)}</th>)}</tr></thead>
+        <tbody>{rows.slice(0, 200).map((r: Row, i: number) => <tr key={i}>{keys.map((k) => <td key={k} className={NUMERIC_COL.test(k) ? "num" : `!whitespace-normal !max-w-[280px] ${ID_REF[k] ? "min-w-[190px]" : ""}`}>{value(k, r[k], n, r)}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Record detail for the side drawer: compact label/value pairs in one card, names instead of database ids, lines as a table. */
+export function RecordView({ data }: { data: any }) {
+  const n = useIdLabels(data);
+  if (!data || typeof data !== "object" || Array.isArray(data)) return <ReportView data={data} />;
+  return <RecordFields obj={data} n={n} depth={0} />;
 }
 
 /* ------------------------------------------------------------------ lists */
@@ -314,7 +434,7 @@ function cell(c: Col, r: Row): React.ReactNode {
   if (c.kind === "bool") return <Badge tone={v ? "warning" : "neutral"}>{v ? "Yes" : "No"}</Badge>;
   if (v === null || v === undefined || v === "") return <span className="text-muted">—</span>;
   switch (c.kind) {
-    case "mono": return <span className="font-mono text-[12px]">{v}</span>;
+    case "mono": return <span className="tnum font-medium text-[0.8125rem]">{v}</span>;
     case "number": return fmtNum(v, 3);
     case "money": return fmtMoney(v);
     case "date": return fmtDate(v);
@@ -359,10 +479,10 @@ function ScanSession({ open, onClose, title, hint, statusPath, postPath }: { ope
       if (!res.lines) load();
     } catch (e) { setLast({ ok: false, text: e instanceof ApiError ? `${e.message}` : "Scan failed" }); }
   }
-  const top = postPath.includes("/orders/") ? <label className="text-[12px] flex items-center gap-2 mb-3">Quantity per scan<input className="input !w-24" type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} /></label> : null;
+  const top = postPath.includes("/orders/") ? <label className="text-[0.75rem] flex items-center gap-2 mb-3">Quantity per scan<input className="input !w-24" type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} /></label> : null;
   return (
     <ScanDialog open={open} onClose={onClose} title={title} hint={hint} onCode={onCode} top={top}>
-      {last && <div role="status" className={`rounded-md px-3 py-2 text-[13px] mb-3 ${last.ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>{last.text}</div>}
+      {last && <div role="status" className={`rounded-md px-3 py-2 text-[0.8125rem] mb-3 ${last.ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>{last.text}</div>}
       {status && <ReportView data={status} />}
     </ScanDialog>
   );
@@ -396,12 +516,12 @@ function StocktakeCounter({ open, onClose, stocktakeId, onSaved }: { open: boole
   return (
     <Drawer open={open} onClose={onClose} title={`Count ${st?.number ?? ""}`} subtitle="Enter counted quantities. Scan a batch label to add one to its line." width={760}
       footer={<><button className="btn" onClick={onClose}>Close</button><button className="btn btn-primary" onClick={save}>Save counts</button></>}>
-      <div className="flex items-center gap-2 mb-3"><ScanButton onClick={() => setScanOpen(true)} label="Scan a label" />{note && <span className="text-[12.5px] text-muted" role="status">{note}</span>}</div>
+      <div className="flex items-center gap-2 mb-3"><ScanButton onClick={() => setScanOpen(true)} label="Scan a label" />{note && <span className="text-[0.75rem] text-muted" role="status">{note}</span>}</div>
       <ScanDialog open={scanOpen} onClose={() => setScanOpen(false)} onCode={(c) => { onCode(c); }} title="Scan to count" hint="Each scan adds one to the matching line. Close when done." />
       {!st ? <div className="skeleton h-24" /> : (
         <div className="panel overflow-x-auto"><table className="dt"><thead><tr><th>Item</th><th>Batch</th><th className="num">System</th><th>Counted</th></tr></thead>
           <tbody>{st.lines.map((l: Row) => (
-            <tr key={l.balance_id}><td className="font-mono text-[12px]">{l.item_code}</td><td className="font-mono text-[12px]">{l.batch_no ?? "—"}</td><td className="num">{fmtNum(l.system_qty, 3)}</td>
+            <tr key={l.balance_id}><td className="tnum font-medium text-[0.8125rem]">{l.item_code}</td><td className="tnum font-medium text-[0.8125rem]">{l.batch_no ?? "—"}</td><td className="num">{fmtNum(l.system_qty, 3)}</td>
               <td className="!py-1"><input className="input !w-28" type="number" min="0" step="any" aria-label={`Counted ${l.item_code}`} value={counts[l.balance_id] ?? ""} onChange={(e) => setCounts((c) => ({ ...c, [l.balance_id]: e.target.value }))} /></td></tr>))}</tbody></table></div>
       )}
     </Drawer>
@@ -411,25 +531,38 @@ function StocktakeCounter({ open, onClose, stocktakeId, onSaved }: { open: boole
 const VIEWS: { mode: "cards" | "table" | "board"; Icon: typeof LayoutGrid; label: string }[] = [{ mode: "cards", Icon: LayoutGrid, label: "Cards" }, { mode: "table", Icon: Rows3, label: "Table" }, { mode: "board", Icon: Columns3, label: "Board" }];
 
 function RecordCard({ r, def, onOpen, actions, onAction, compact }: { r: Row; def: NonNullable<Screen["list"]>; onOpen: (r: Row) => void; actions: Action[]; onAction: (a: Action, r: Row) => void; compact?: boolean }) {
+  /* Card anatomy: ID + route line + key figure / label-value rows / actions / footer with date left and status right. */
   const title = def.cols[0];
   const badge = def.cols.find((c) => c.kind === "badge" && c.key === "status") ?? def.cols.find((c) => c.kind === "badge" && c !== title);
-  const fields = def.cols.filter((c) => c !== title && c !== badge).slice(0, compact ? 3 : 6);
+  const rest = def.cols.filter((c) => c !== title && c !== badge);
+  const metric = rest.find((c) => c.kind === "money" || c.kind === "number");
+  const when = rest.find((c) => c.kind === "date" || c.kind === "datetime");
+  const rows = rest.filter((c) => c !== metric && c !== when).slice(0, compact ? 2 : 4);
+  const dated = when && r[when.key] ? when : undefined;
   return (
-    <article className="panel p-3.5 flex flex-col gap-2.5 hover:border-fg/30 transition-colors">
-      <button type="button" className="text-left" onClick={() => onOpen(r)} aria-label={`Open ${String(r[title.key] ?? r.id)}`}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 font-semibold text-[14px] leading-5 break-words">{cell(title, r)}</div>
-          {badge && <div className="shrink-0">{cell(badge, r)}</div>}
+    <article className="panel panel-link p-4 flex flex-col gap-3">
+      <button type="button" className="text-left flex flex-col gap-3 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${String(r[title.key] ?? r.id)}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="ref-title min-w-0 break-words">{cell(title, r)}</span>
+          </div>
+          {metric && <span className="t-ref shrink-0" title={metric.label}>{cell(metric, r)}</span>}
         </div>
-        <dl className={`mt-2 grid gap-x-3 gap-y-1.5 ${compact ? "grid-cols-1" : "grid-cols-2"}`}>
-          {fields.map((c) => (
-            <div key={c.key} className="min-w-0"><dt className="text-[11.5px] text-muted">{c.label}</dt><dd className="text-[12.5px] truncate tabular-nums">{cell(c, r)}</dd></div>
-          ))}
-        </dl>
+        {rows.length > 0 && (
+          <dl className="flex flex-col gap-1.5">
+            {rows.map((c) => <div key={c.key} className="meta-row"><dt>{c.label}</dt><dd>{cell(c, r)}</dd></div>)}
+          </dl>
+        )}
       </button>
       {actions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-2 mt-auto border-t border-line">
+        <div className="flex flex-wrap gap-1.5">
           {actions.map((a, i) => <button key={`${a.label}-${i}`} className={`btn btn-sm ${a.danger ? "btn-danger" : ""}`} onClick={() => onAction(a, r)}>{a.labelFn ? a.labelFn(r) : a.label}</button>)}
+        </div>
+      )}
+      {(dated || badge) && (
+        <div className="card-foot !mt-auto">
+          <span className="t-support truncate">{dated ? `${dated.label} · ` : ""}{dated ? cell(dated, r) : ""}</span>
+          {badge && <span className="shrink-0">{cell(badge, r)}</span>}
         </div>
       )}
     </article>
@@ -500,7 +633,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
   }
   async function openDetail(r: Row) {
     setView({ title: "Loading…", data: null });
-    try { setView({ title: String(r.number ?? r.name ?? r.title ?? r.code ?? `#${r.id}`), data: def.detail ? await api(def.detail(r)) : r }); }
+    try { setView({ title: String(r.number ?? r.name ?? r.title ?? r.code ?? (r.item_code ? `${r.item_code}${r.version_no ? ` · v${r.version_no}` : ""}` : `#${r.id}`)), data: def.detail ? await api(def.detail(r)) : r }); }
     catch (e) { setView(null); toast("error", e instanceof ApiError ? e.message : "Could not load"); }
   }
   async function exec(a: Action, r: Row) {
@@ -534,12 +667,12 @@ export function ListScreen({ screen }: { screen: Screen }) {
         <div className="flex rounded-md border border-line overflow-hidden" role="group" aria-label="View">
           {VIEWS.filter((v) => v.mode !== "board" || def.status).map(({ mode, Icon, label }) => (
             <button key={mode} type="button" aria-pressed={view_ === mode} title={label} onClick={() => setViewMode(mode)}
-              className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-[12px] ${view_ === mode ? "bg-fg text-bg" : "hover:bg-surface-2"}`}><Icon size={14} />{label}</button>
+              className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-[0.75rem] ${view_ === mode ? "bg-fg text-bg" : "hover:bg-surface-2"}`}><Icon size={14} />{label}</button>
           ))}
         </div>
         {screen.create && can(screen.create.perm) && <CreateButton create={screen.create} onDone={load} onResult={(r) => setResult({ title: screen.create!.title ?? screen.label, data: r })} />}
       </div>
-      {error ? <div className="panel p-4 text-danger text-[13px]" role="alert">{error}</div> : view_ === "table" ? (
+      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : view_ === "table" ? (
         <DataTable columns={columns} rows={pageRows as (Row & { id: number })[]} loading={loading} page={page} pageSize={pageSize} total={filtered.length} onPage={setPage}
           onRowClick={openDetail} empty={<EmptyState title="Nothing here yet" hint={screen.create ? `Use “${screen.create.label}” to add the first one.` : "Records appear here as work happens in other modules."} />}
           rowActions={def.actions ? (r) => (
@@ -550,14 +683,14 @@ export function ListScreen({ screen }: { screen: Screen }) {
             </div>
           ) : undefined} />
       ) : loading && rows.length === 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-36 !rounded-lg" />)}</div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-36 !rounded-lg" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="panel"><EmptyState title="Nothing here yet" hint={screen.create ? `Use “${screen.create.label}” to add the first one.` : "Records appear here as work happens in other modules."} /></div>
       ) : view_ === "board" ? (
         <div className="flex gap-3 overflow-x-auto pb-2 items-start">
           {boardColumns.map((col) => (
-            <section key={col} className="w-[290px] shrink-0 rounded-lg bg-surface-2 p-2" aria-label={col}>
-              <h3 className="px-1.5 py-1 text-[11.5px] font-semibold text-muted flex items-center justify-between">{titleCase(col)}<span className="tnum">{filtered.filter((r) => r.status === col).length}</span></h3>
+            <section key={col} className="w-[300px] shrink-0 rounded-2xl bg-inset border border-line p-2.5" aria-label={col}>
+              <h3 className="px-1.5 py-1 text-[0.75rem] font-semibold text-muted flex items-center justify-between">{titleCase(col)}<span className="tnum">{filtered.filter((r) => r.status === col).length}</span></h3>
               <div className="space-y-2 max-h-[calc(100vh-290px)] overflow-y-auto">
                 {filtered.filter((r) => r.status === col).map((r) => <RecordCard key={r.id} r={r} def={def} compact onOpen={openDetail} actions={visible(r)} onAction={trigger} />)}
               </div>
@@ -566,14 +699,14 @@ export function ListScreen({ screen }: { screen: Screen }) {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.slice(0, shown).map((r) => <RecordCard key={r.id} r={r} def={def} onOpen={openDetail} actions={visible(r)} onAction={trigger} />)}
           </div>
           {filtered.length > shown && <div className="text-center mt-4"><button className="btn" onClick={() => setShown((n) => n + 48)}>Show more ({filtered.length - shown} left)</button></div>}
         </>
       )}
 
-      <Drawer open={!!view} onClose={() => setView(null)} title={view?.title ?? ""} width={820}>{view?.data ? <ReportView data={view.data} /> : <div className="skeleton h-24" />}</Drawer>
+      <Drawer open={!!view} onClose={() => setView(null)} title={view?.title ?? ""} width={820}>{view?.data ? <RecordView data={view.data} /> : <div className="skeleton h-24" />}</Drawer>
       <Drawer open={!!result} onClose={() => setResult(null)} title={result?.title ?? ""} width={820}>{result && <ReportView data={result.data} />}</Drawer>
       <FormDrawer open={!!act?.a.fields} title={act?.a.label ?? ""} subtitle={act ? String(act.row.number ?? act.row.name ?? `#${act.row.id}`) : undefined} fields={act?.a.fields ?? []} submitLabel={act?.a.label ?? "Run"}
         ctx={act?.row} onClose={() => setAct(null)} onSubmit={async (_body, raw) => { const { body } = buildBody(act!.a.fields!, raw); await run(act!.a, act!.row, body); }} />
@@ -618,7 +751,7 @@ export function ReportScreen({ screen, initial }: { screen: Screen; initial?: Re
           <button className="btn btn-primary" disabled={loading || missing}>{loading ? "Loading…" : "Run report"}</button>
         </form>
       )}
-      {error ? <div className="panel p-4 text-danger text-[13px]" role="alert">{error}</div> : loading && !data ? <div className="skeleton h-40" /> : data ? <ReportView data={data} /> : missing ? <EmptyState title="Enter the details above" hint="Then run the report." /> : null}
+      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : loading && !data ? <div className="skeleton h-40" /> : data ? <ReportView data={data} /> : missing ? <EmptyState title="Enter the details above" hint="Then run the report." /> : null}
     </>
   );
 }

@@ -23,7 +23,7 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
   return (
     <div className="py-14 text-center">
       <div className="font-medium">{title}</div>
-      {hint && <div className="text-muted text-[12.5px] mt-1">{hint}</div>}
+      {hint && <div className="text-muted text-[0.75rem] mt-1">{hint}</div>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div className="fixed bottom-4 right-4 z-[80] flex flex-col gap-2" role="status" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className="anim-slide panel shadow-lg flex items-start gap-2.5 px-3.5 py-2.5 max-w-sm text-[13px]">
+          <div key={t.id} className="anim-slide panel shadow-lg flex items-start gap-2.5 px-3.5 py-2.5 max-w-sm text-[0.8125rem]">
             {t.kind === "success" ? <CheckCircle2 size={16} className="text-success mt-0.5 shrink-0" /> : <AlertCircle size={16} className="text-danger mt-0.5 shrink-0" />}
             <span>{t.text}</span>
           </div>
@@ -81,7 +81,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-line">
           <div className="min-w-0">
             <h2 id={id} className="t-section">{title}</h2>
-            {subtitle && <p className="text-muted text-[12px] mt-0.5">{subtitle}</p>}
+            {subtitle && <p className="text-muted text-[0.75rem] mt-0.5">{subtitle}</p>}
           </div>
           <button className="btn btn-ghost btn-sm !px-1.5" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
@@ -93,7 +93,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, width
 }
 
 export function ConfirmDialog({ open, title, body, confirmLabel, danger, busy, onConfirm, onCancel }: {
-  open: boolean; title: string; body: string; confirmLabel: string; danger?: boolean; busy?: boolean; onConfirm: () => void; onCancel: () => void;
+  open: boolean; title: string; body: React.ReactNode; confirmLabel: string; danger?: boolean; busy?: boolean; onConfirm: () => void; onCancel: () => void;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -107,7 +107,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel, danger, busy, o
       <div className="absolute inset-0 bg-black/40 anim-fade" onClick={onCancel} />
       <div role="alertdialog" aria-modal="true" className="anim-fade relative panel w-full max-w-sm p-5 shadow-2xl">
         <h2 className="t-section">{title}</h2>
-        <p className="text-muted mt-1.5 text-[13px]">{body}</p>
+        <div className="text-muted mt-1.5 text-[0.8125rem]">{body}</div>
         <div className="flex justify-end gap-2 mt-5">
           <button className="btn" onClick={onCancel}>Cancel</button>
           <button className={`btn ${danger ? "btn-primary !bg-danger !border-danger" : "btn-primary"}`} onClick={onConfirm} disabled={busy}>{confirmLabel}</button>

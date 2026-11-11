@@ -26,16 +26,16 @@ export default function LoginPage() {
       <div className="hidden md:flex flex-col justify-between p-12 text-white" style={{ background: "radial-gradient(900px 600px at 15% 105%, rgb(1 135 122 / 0.28), transparent 60%), radial-gradient(700px 500px at 100% 0%, rgb(255 255 255 / 0.07), transparent 60%), radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.07) 1px, transparent 1.2px) 0 0 / 24px 24px, var(--sidebar)" }}>
         <Logo height={26} />
         <div className="max-w-md">
-          <h2 className="text-[30px] leading-[1.15] font-semibold tracking-[-0.015em]">One record from formulation to delivery.</h2>
-          <p className="mt-4 text-[14px] leading-6 text-white/70">Purchasing, stores, production, quality, dispatch and accounts share a single, traceable source of truth.</p>
+          <h2 className="text-[1.5rem] leading-[1.15] font-semibold tracking-[-0.015em]">One record from formulation to delivery.</h2>
+          <p className="mt-4 text-[0.8125rem] leading-6 text-white/70">Purchasing, stores, production, quality, dispatch and accounts share a single, traceable source of truth.</p>
         </div>
-        <p className="text-[12px] text-white/50">Mintree Factory OS</p>
+        <p className="text-[0.75rem] text-white/50">Mintree Factory OS</p>
       </div>
       <div className="grid place-items-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm" noValidate>
-          <h1 className="text-[24px] font-semibold tracking-[-0.01em]">Sign in</h1>
-          <p className="text-muted mt-1 mb-6 text-[13px]">Use your Mintree account.</p>
-          {error && <div role="alert" className="mb-4 px-3 py-2 rounded-md text-[13px] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{error}</div>}
+          <h1 className="text-[1.5rem] font-semibold tracking-[-0.01em]">Sign in</h1>
+          <p className="text-muted mt-1 mb-6 text-[0.8125rem]">Use your Mintree account.</p>
+          {error && <div role="alert" className="mb-4 px-3 py-2 rounded-md text-[0.8125rem] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{error}</div>}
           <label htmlFor="email" className="field-label">Email</label>
           <input id="email" className="input mb-3.5 !h-10" type="email" autoComplete="username" autoFocus required value={email} onChange={(e) => setEmail(e.target.value)} />
           <label htmlFor="password" className="field-label">Password</label>

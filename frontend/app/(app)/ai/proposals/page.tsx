@@ -30,16 +30,16 @@ export default function ProposalsPage() {
     <>
       <PageHeader title="Suggestions" description="Rule-based suggestions with the reason shown. Nothing happens until you accept; accepting creates an ordinary draft or task in your name, which still follows the normal approvals."
         actions={<button className="btn btn-primary" disabled={!enabled || busy === "gen"} onClick={() => run("gen", "/ai/proposals/generate", "Suggestions refreshed")} data-testid="ai-generate">Find suggestions</button>} />
-      {!enabled && <div className="panel p-3 mb-4 text-[13px] text-muted">The AI features are switched off, so suggestions cannot be refreshed or accepted.</div>}
-      {error && <div className="panel p-3 mb-4 text-danger text-[13px]" role="alert">{error}</div>}
+      {!enabled && <div className="panel p-3 mb-4 text-[0.8125rem] text-muted">The AI features are switched off, so suggestions cannot be refreshed or accepted.</div>}
+      {error && <div className="panel p-3 mb-4 text-danger text-[0.8125rem]" role="alert">{error}</div>}
       {items === null ? <div className="skeleton h-32" /> : items.length === 0 ? <div className="panel"><EmptyState title="No open suggestions" hint="Choose Find suggestions to check stock levels and overdue invoices." /></div> : (
         <ul className="space-y-3" data-testid="ai-proposals">
           {items.map((p) => (
             <li key={p.id} className="panel p-4 flex flex-wrap items-start gap-4">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1"><Badge tone="info">{titleCase(p.kind)}</Badge><span className="text-[11.5px] text-muted">{fmtDateTime(p.created_at)}</span></div>
-                <div className="font-medium text-[13.5px]">{p.title}</div>
-                <p className="text-[12.5px] text-muted mt-1 max-w-3xl">{p.rationale}</p>
+                <div className="flex items-center gap-2 mb-1"><Badge tone="info">{titleCase(p.kind)}</Badge><span className="text-[0.75rem] text-muted">{fmtDateTime(p.created_at)}</span></div>
+                <div className="font-medium text-[0.8125rem]">{p.title}</div>
+                <p className="text-[0.75rem] text-muted mt-1 max-w-3xl">{p.rationale}</p>
               </div>
               <div className="flex gap-2">
                 <button className="btn" disabled={!enabled || busy === p.id} onClick={() => run(p.id, `/ai/proposals/${p.id}/reject`, "Suggestion rejected")}>Reject</button>
@@ -49,7 +49,7 @@ export default function ProposalsPage() {
           ))}
         </ul>
       )}
-      <p className="text-[12px] text-muted mt-4">Looking for something you accepted? Purchase requests are under <Link className="underline" href={WHERE.purchase_request}>Purchase requests</Link>; follow-ups under <Link className="underline" href={WHERE.followup}>Follow-ups</Link>.</p>
+      <p className="text-[0.75rem] text-muted mt-4">Looking for something you accepted? Purchase requests are under <Link className="underline" href={WHERE.purchase_request}>Purchase requests</Link>; follow-ups under <Link className="underline" href={WHERE.followup}>Follow-ups</Link>.</p>
     </>
   );
 }

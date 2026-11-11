@@ -146,3 +146,28 @@ Per-run artefacts (metadata: commit, machine, PostgreSQL settings, dataset sizes
 **Environment note.** `test_demo_system.py` asserts the CLI prints no JSON log lines; without Redis the authz-epoch bump logs an ERROR line and the test fails. Run Redis (`docker run -d -p 6379:6379 redis:7`) for the suite. Not a product defect.
 
 **Not run in this milestone:** the browser (Playwright) suites in `frontend/e2e/` and the full backend suite. Only the two files above were run. The existing Balance sheet screen was checked once in a real browser (renders; assets equal liabilities plus equity). A duplicate declaration of it that I briefly added to `lib/modules.ts` raised a React duplicate-key warning and was removed.
+
+## 2026-11-09: Product 360 and Batch 360 traceability
+
+| Run | Command | Result |
+|---|---|---|
+| Traceability backend | `pytest tests/test_traceability.py` | **10 passed** |
+| Mutation check | consumption lookup disabled in the service, same tests | the two tests that depend on it **fail**; restored: 10 pass |
+| Regression files | `pytest tests/test_inventory_procurement.py tests/test_dispatch.py tests/test_production.py` | all passed (46 passed in the combined run with the demo suite) |
+| Demo system | `pytest tests/test_demo_system.py` | **13 passed** (after the fix below) |
+| Clean demo rebuild | `reset --confirm-reset-demo-database mintree_demo`, `init` (134 s), second `init` | 34 steps, **132/132 checks**, second run creates nothing |
+| Whole-database reconciliation | API sweep over all 116 demo batches | **0 unbalanced**; every graph node reference is text |
+| Browser journey | `BASE_URL=… node e2e/traceability.mjs` (Playwright, production build, demo database) | **12/12 steps** |
+| Typecheck / build | `tsc --noEmit`, `next build` | clean; 4 new routes |
+| Request cost | SQLAlchemy statement counter on the demo database | graph of 42 nodes: 24 statements, 57 ms warm; detail 15; impact 18; product summary 8 (constant per request, not per node) |
+
+**Defects found while building, all fixed:**
+
+1. `shipments.shipment_no` is an integer column; shipment nodes carried a number where the UI expects text, and the diagram crashed (`localeCompare`). Found by the browser, not by the first backend tests. Fixed (`_ship_ref`), and the test now asserts every node reference is text.
+2. The reconciliation rule for returns counted only RESTOCK decisions; stock moves on receipt, so every *decided* return counts. Found by sweeping all 116 batches (2 mismatches), corrected, 0 remain.
+3. Two per-row lookups in the graph walks (consumed lots, output batches) were replaced with one batched query per generation.
+4. Product "planned vs consumed" compared orders that had not issued material yet and showed a false shortfall; planned now counts only issued lines.
+5. `scripts/demo` CLI suppressed INFO-level logs only, so application WARNING/ERROR lines (slow-transaction under load, cache fallback without Redis) leaked into its output and failed `test_reset_init_verify_idempotent_and_tamper_evident`. It now suppresses through ERROR.
+6. Earlier in the same milestone, `verify` found that a stock count could add *available* stock to a quarantined batch (fixed in `app/inventory/service.py`, test `test_adjustment_on_unreleased_stock_stays_blocked`).
+
+**Not run:** the full backend suite and the other Playwright suites (Phase 0, modules, workflows, AI, demo). Only the files above.

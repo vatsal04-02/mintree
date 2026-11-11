@@ -15,6 +15,7 @@ from app.ai.router import router as ai_router
 from app.barcodes.router import router as barcodes_router
 from app.listings import router as listings_router
 from app.inventory.extras_router import router as inventory_extras_router
+from app.traceability.router import router as traceability_router
 from app.production.extras_router import router as production_extras_router
 from app.quality.extras_router import router as quality_extras_router
 from app.rnd.extras_router import router as rnd_extras_router
@@ -27,6 +28,7 @@ from app.branding.router import router as branding_router
 from app.crm.router import router as crm_router
 from app.ecommerce.router import router as ecommerce_router
 from app.maintenance.router import router as maintenance_router
+from app.module_dashboards import router as module_dashboards_router
 from app.accounts.router import router as accounts_router
 from app.administration.jobs import router as jobs_router
 from app.auth.router import router as auth_router
@@ -109,7 +111,7 @@ def health():
 
 
 # Extras routers first: their specific paths (e.g. .../stages/{seq}/checks) must win over the base routers' generic {action} routes.
-for r in (auth_router, admin_router, jobs_router, procurement_ext_router, crm_ext_router, ship_router, quality_ext_router2, plan_router, production_extras_router, accounts_ext_router, dispatch_extras_router, quality_extras_router, rnd_extras_router, inventory_extras_router,
+for r in (module_dashboards_router, auth_router, admin_router, jobs_router, procurement_ext_router, crm_ext_router, ship_router, quality_ext_router2, plan_router, production_extras_router, accounts_ext_router, dispatch_extras_router, quality_extras_router, rnd_extras_router, inventory_extras_router,
           rfq_router, listings_router, barcodes_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router,
-          maintenance_router, ecommerce_router, crm_router, branding_router, analytics_router, ai_router, approvals_router, notifications_router, sales_router):
+          maintenance_router, traceability_router, ecommerce_router, crm_router, branding_router, analytics_router, ai_router, approvals_router, notifications_router, sales_router):
     app.include_router(r, prefix="/api")

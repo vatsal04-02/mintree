@@ -1,8 +1,10 @@
-﻿@import "tailwindcss";
-@import "@fontsource-variable/dm-sans";
-@import "@fontsource-variable/space-grotesk";
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
 
-/* ---- Design tokens (Mintree). Light content, near-black sidebar, black actions, one warm butter highlight.
+
+
+/* ---- Design tokens (Mintree). Semantic roles, each defined for light, dark and increased contrast; components never hard-code a hex.
+   Contrast was solved, not eyeballed: every text pairing below is at least 4.5:1 and every control boundary at least 3:1 (see docs/UI_DESIGN_REVIEW.md).
    Old names (--bg, --surface, --surface-2, --line ...) stay as aliases so every existing component inherits the new surfaces. ---- */
 :root {
   --canvas: #eaf1ef;           /* page: pale mint-grey */
@@ -10,15 +12,17 @@
   --card: #ffffff;
   --card-hover: #fcfbf8;
   --inset: #f7f6f2;            /* meta boxes and rows inside cards */
-  --ink: #0a3a34;              /* deep teal: tooltips, active tab, hero card. No black in the light theme. */
+  --ink: #0a3a34;              /* deep teal: tooltips, hero card */
   --ink-2: #024840;
-  --butter: #f1d46a;              /* soft yellow: the one warm accent (hero figure, planned bars, priority chip) */
+  --butter: #f1d46a;           /* soft yellow: the one warm accent (planned bars, priority chip) */
   --butter-deep: #d9b72a;
   --butter-ink: #3d3000;
   --butter-grad: linear-gradient(160deg, #017468 0%, #015a52 100%);   /* a tone shift inside one hue */
-  --fg-on-ink: #f3f1e9;
-  --brand: #01877a;            /* data and positive colour: chart actual, links, good deltas, focus ring. Never a large background. */
-  --brand-hover: #017468;
+  --fg-on-ink: #f3f1e9;        /* text on --ink (tooltips) */
+  --on-hero: #ffffff;          /* text on the teal hero card, the same in every appearance */
+  --brand: #017468;            /* brand colour AS TEXT, links, focus and selection: 5.7:1 on white, 4.95:1 on the canvas */
+  --brand-bright: #01877a;     /* the logo teal, for fills and chart series only (4.4:1 on white is enough for a bar, not for text) */
+  --brand-hover: #015a52;
   --brand-tint: #ddf3ef;
   --brand-on-ink: #8fe6d8;     /* the brand colour on dark surfaces (sidebar, hero card) */
   --gold: #ebbf20;
@@ -30,11 +34,12 @@
   --surface: var(--card);
   --surface-2: var(--inset);
   --fg: #141412;
-  --muted: #475467;            /* labels; 6.6:1 on white, 5.7:1 on the canvas */
-  --faint: #8a887f;            /* axis ticks, placeholders; never the sole carrier of meaning */
-  --subtle: #77756c;           /* eyebrows */
-  --line: #e3e5e8;
+  --muted: #475467;            /* labels: 7.7:1 on white, 6.7:1 on the canvas */
+  --faint: #5d6871;            /* axis ticks, placeholders: 5.7:1 on white, 5.0:1 on the canvas (was 3.6:1) */
+  --subtle: #525d66;           /* eyebrows: 5.9:1 on the canvas (was 4.0:1) */
+  --line: #e3e5e8;             /* decorative separators between cards and rows */
   --line-strong: rgba(20, 19, 18, 0.18);
+  --field-border: #7a8791;     /* the edge of a control (field, checkbox): 3.7:1 on white, 3.4:1 on an inset */
   --accent: var(--brand);
   --primary: #017468;
   --primary-dark: #000000;
@@ -46,69 +51,84 @@
   --sidebar: #015a52;
   --sidebar-fg: #d6efeb;
   --sidebar-active: #024840;
+  --sidebar-label: rgb(255 255 255 / 0.82);   /* group labels: 6.0:1 on the sidebar (was 4.4:1) */
   --focus: var(--brand);
 
-  --radius-card: 16px;
-  --radius-inner: 12px;
+  --radius-card: 12px;
+  --radius-inner: 8px;
   --shadow-sm: 0 1px 0 rgb(20 19 18 / 0.04);
   --shadow-md: 0 1px 0 rgb(20 19 18 / 0.05), 0 10px 28px -16px rgb(20 19 18 / 0.18);
   --shadow-lift: 0 1px 0 rgb(20 19 18 / 0.04), 0 14px 32px -14px rgb(20 19 18 / 0.22);
   --chart-fill: #4d8c84;
   --c-slate: #6fa3cc;
   --c-clay: #c97a3e;
-  --chart-actual: var(--brand);
+  --chart-actual: var(--brand-bright);
   --chart-plan: #ebbf20;
   --chart-track: #e7e5de;
   --chart-grid: #ecebe4;
+  /* genealogy record families (accent edge of a node); decorative, the type label is always printed */
+  --g-procure: #64748b; --g-batch: #01877a; --g-prod: #0a3a34; --g-qc: #b7791f; --g-stock: #475467; --g-sales: #2b6f9e; --g-return: #b42318;
   color-scheme: light;
 }
+/* Dark appearance: teal-black surfaces, the same teal identity, no cream. Follows the system unless the person chose a theme in the menu. */
 :root[data-theme="dark"] {
-  --canvas: #0f0f0e;
-  --card: #181816;
-  --card-hover: #1d1d1a;
-  --inset: #20201d;
-  --ink: #f3f1e9;
-  --ink-2: #2a2a26;
-  --butter: #d9d2a0;
-  --butter-deep: #8d8756;
-  --butter-ink: #26230c;
-  --butter-grad: linear-gradient(135deg, #ddd6a5 0%, #b9b27c 100%);
-  --fg-on-ink: #141412;
-  --brand: #3fbfae;
-  --brand-hover: #5fd0c0;
-  --brand-tint: rgba(63, 191, 174, 0.14);
-  --brand-on-ink: #0f766e;
-  --amber: #d9a645;
-  --fg: #ededeb;
-  --muted: #9a9a96;
-  --faint: #6f6f6b;
-  --subtle: #8c8c87;
-  --line: rgba(255, 255, 255, 0.09);
-  --line-strong: rgba(255, 255, 255, 0.18);
-  --accent: #2bb3a3;
+  --canvas: #0b1512;
+  --frame: #060e0c;
+  --card: #12201c;
+  --card-hover: #172823;
+  --inset: #1a2c27;
+  --ink: #e8f1ee;              /* tooltips are light on dark */
+  --ink-2: #1f3a34;
+  --butter: #f1d46a;
+  --butter-deep: #e2b93b;
+  --butter-ink: #3d3000;
+  --butter-grad: linear-gradient(160deg, #067c6f 0%, #045048 100%);
+  --fg-on-ink: #0b1512;
+  --on-hero: #ffffff;
+  --brand: #3fc4b2;
+  --brand-bright: #3fc4b2;
+  --brand-hover: #62d6c6;
+  --brand-tint: rgba(63, 196, 178, 0.16);
+  --brand-on-ink: #8fe6d8;
+  --amber: #e0b04a;
+  --fg: #e8f1ee;
+  --muted: #a6b8b2;            /* 8.1:1 on the card */
+  --faint: #8da29b;            /* 6.2:1 on the card (was 3.5:1) */
+  --subtle: #9bb0a9;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.20);
+  --field-border: #6a8078;     /* 3.5:1 on an inset, 4.0:1 on a card */
+  --accent: #3fc4b2;
+  --primary: #067c6f;          /* white text 5.1:1, 3.3:1 against the card */
   --primary-dark: #ffffff;
-  --primary-fg: #111111;
-  --success: #5bb98a;
-  --warning: #d9a645;
-  --danger: #e07b79;
-  --info: #7ea6d4;
-  --sidebar: #0a0a09;
-  --sidebar-fg: #a8a8a4;
-  --sidebar-active: #2a2a26;
+  --primary-fg: #ffffff;
+  --success: #5fc08f;
+  --warning: #e0b04a;
+  --danger: #f08582;
+  --info: #86b0dc;
+  --sidebar: #072b26;
+  --sidebar-fg: #cfe6e1;
+  --sidebar-active: #0d4a42;
+  --sidebar-label: rgb(255 255 255 / 0.78);
   --focus: var(--brand);
   --shadow-sm: 0 1px 0 rgb(0 0 0 / 0.4);
   --shadow-md: 0 1px 0 rgb(0 0 0 / 0.4), 0 8px 24px -14px rgb(0 0 0 / 0.6);
   --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.4), 0 14px 32px -14px rgb(0 0 0 / 0.7);
-  --chart-fill: #ededeb;
-  --chart-plan: #8d8756;
-  --chart-track: #2a2a28;
-  --chart-grid: #242422;
+  --chart-fill: #5aa397;
+  --chart-plan: #e2b93b;
+  --chart-track: #1f332e;
+  --chart-grid: #1a2c27;
+  --g-procure: #94a3b8; --g-batch: #3fc4b2; --g-prod: #6bb5a9; --g-qc: #e0b04a; --g-stock: #9fb0aa; --g-sales: #7fb0dc; --g-return: #f08582;
   color-scheme: dark;
 }
-
+/* Increase Contrast (System setting): text and control edges step up one level in both appearances. */
+@media (prefers-contrast: more) {
+  :root { --muted: #2f3a43; --faint: #3c4852; --subtle: #36424b; --line: #9aa5ae; --line-strong: #6b7782; --field-border: #4a5560; --sidebar-label: #fff; }
+  :root[data-theme="dark"] { --muted: #cfdcd7; --faint: #bccbc5; --subtle: #c4d2cd; --line: rgb(255 255 255 / 0.4); --line-strong: rgb(255 255 255 / 0.6); --field-border: #9bb0a9; --sidebar-label: #fff; }
+}
 @theme inline {
-  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --color-bg: var(--bg);
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -137,20 +157,23 @@ body {
   background: var(--canvas);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 20px;
-  font-variant-numeric: tabular-nums lining-nums;      /* every digit in the product is tabular and lining */
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "cv11", "ss03";   /* Inter: single-storey a, round quotes; keeps digits and the letter O clearly different */
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3, .font-heading { font-family: var(--font-heading); }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--brand); width: 1.125rem; height: 1.125rem; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tnum { font-variant-numeric: tabular-nums lining-nums; }
 
 /* ---- Component classes ---- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  height: 40px; padding: 0 16px; border-radius: 999px; font-size: 13.5px; font-weight: 500;
+  min-height: 2.5rem; padding: 0 1rem; border-radius: 999px; font-size: 0.8125rem; letter-spacing: -0.005em; font-weight: 500;
   border: 1px solid var(--line); background: var(--card); color: var(--fg);
   transition: background-color 160ms, border-color 160ms, color 160ms, box-shadow 160ms; cursor: pointer; white-space: nowrap;
 }
@@ -161,21 +184,22 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
 .btn-danger { color: var(--danger); }
 .btn-ghost { border-color: transparent; background: transparent; }
 .btn-ghost:hover:not(:disabled) { background: var(--inset); border-color: transparent; }
-.btn-sm { height: 32px; padding: 0 12px; font-size: 12.5px; }
-.btn-lg { height: 48px; padding: 0 24px; width: 100%; }
+.btn-sm { min-height: 2rem; padding: 0 0.75rem; font-size: 0.75rem; }
+.btn-lg { min-height: 3rem; padding: 0 1.5rem; width: 100%; }
 /* circular icon button: 40px (the pill language), 32px small */
-.icon-btn { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; transition: background-color 160ms, border-color 160ms; flex-shrink: 0; }
+.icon-btn { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; transition: background-color 160ms, border-color 160ms; flex-shrink: 0; }
 .icon-btn:hover { background: var(--card-hover); border-color: var(--line-strong); }
-.icon-btn-sm { width: 32px; height: 32px; }
+.icon-btn-sm { width: 2rem; height: 2rem; }
 
-.field-label { display: block; font-size: 12.5px; font-weight: 500; margin-bottom: 6px; color: var(--fg); }
+.field-label { display: block; font-size: 0.8125rem; font-weight: 500; margin-bottom: 6px; color: var(--fg); }
 .input {
-  width: 100%; height: 40px; padding: 0 12px; border-radius: 12px; font-size: 13.5px;
-  border: 1px solid var(--line); background: var(--inset); color: var(--fg);
+  width: 100%; min-height: 2.625rem; padding: 0 0.75rem; border-radius: 10px; font-size: 0.8125rem;
+  border: 1px solid var(--field-border); background: var(--inset); color: var(--fg);
   transition: border-color 140ms, background-color 140ms, box-shadow 140ms;
 }
 textarea.input { height: auto; padding: 8px 12px; min-height: 84px; resize: vertical; }
-.input:hover { border-color: var(--line-strong); }
+.input:hover { border-color: var(--fg); }
+.input::placeholder { color: var(--faint); opacity: 1; }
 .input:focus { border-color: var(--brand); background: var(--card); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
 .input[aria-invalid="true"] { border-color: var(--danger); }
 
@@ -185,12 +209,12 @@ textarea.input { height: auto; padding: 8px 12px; min-height: 84px; resize: vert
 .panel-link:hover { border-color: var(--line-strong); box-shadow: var(--shadow-lift); }
 .inset { background: var(--inset); border: 1px solid var(--line); border-radius: var(--radius-inner); }
 .canvas { background: var(--canvas); }
-.meta-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; line-height: 20px; }
-.meta-row > :first-child { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+.meta-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 0.8125rem; line-height: 1.25rem; }
+.meta-row > :first-child { color: var(--muted); font-size: 0.8125rem; font-weight: 500; }
 .meta-row > :last-child { color: var(--fg); font-weight: 500; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 /* route line: ring, hairline, dot (beside record IDs and between pipeline stages) */
-.ref-title { font-family: var(--font-heading); font-size: 15px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ref-title { font-family: var(--font-sans); font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .ref-title .font-mono { font-family: inherit; font-size: inherit; }
 .route { display: inline-flex; align-items: center; color: var(--line-strong); }
 .route::before { content: ""; width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid currentColor; }
@@ -202,30 +226,32 @@ textarea.input { height: auto; padding: 8px 12px; min-height: 84px; resize: vert
 .hairline { border-top: 1px solid var(--line); }
 /* segmented pill tabs: ink for the active one */
 .seg { display: inline-flex; padding: 4px; gap: 2px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
-.seg button { height: 32px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--muted); transition: background-color 160ms, color 160ms; }
+.seg button { min-height: 2rem; padding: 0 0.875rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 500; color: var(--muted); transition: background-color 160ms, color 160ms; }
 .seg button:hover { color: var(--fg); }
 .seg button[aria-pressed="true"] { background: var(--primary); color: #fff; }
 
 /* Type scale. page title 30/36 heading 600 · card title 16/24 heading 600 · KPI 34/40 heading 600 · label 12.5/18 · supporting 12/18 · value 13/20 500. */
-.t-page { font-family: var(--font-heading); font-size: 30px; line-height: 36px; font-weight: 500; letter-spacing: -0.02em; }
-.t-section { font-family: var(--font-heading); font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: -0.01em; }
-.t-kpi { font-family: var(--font-heading); font-size: 36px; line-height: 40px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: proportional-nums lining-nums; font-feature-settings: "tnum" 0; white-space: nowrap; }
-.t-stage { font-family: var(--font-heading); font-size: 24px; line-height: 32px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: proportional-nums lining-nums; font-feature-settings: "tnum" 0; white-space: nowrap; }
-.t-num-md { font-family: var(--font-heading); font-size: 28px; line-height: 34px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: proportional-nums lining-nums; font-feature-settings: "tnum" 0; white-space: nowrap; }
+.t-page { font-family: var(--font-heading); font-size: 1.5rem; line-height: 1.875rem; font-weight: 600; letter-spacing: -0.025em; }
+.t-section { font-family: var(--font-heading); font-size: 0.9375rem; line-height: 1.375rem; font-weight: 600; letter-spacing: -0.015em; }
+.kpi-fit { display: block; container-type: inline-size; min-width: 0; max-width: 100%; --kpi-max: 1.25rem; }
+.kpi-fit > .t-kpi { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: clamp(0.85rem, calc(100cqi / (var(--n, 6) * 0.62)), var(--kpi-max)); }
+.t-kpi { font-family: var(--font-sans); font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "cv11"; white-space: nowrap; }
+.t-stage { font-family: var(--font-sans); font-size: 1.0625rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "cv11"; white-space: nowrap; }
+.t-num-md { font-family: var(--font-sans); font-size: 1.0625rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "cv11"; white-space: nowrap; }
 .cell-hero { background: linear-gradient(160deg, #017468 0%, #015a52 100%) !important; color: #fff; }
-.cell-hero .t-label, .cell-hero .t-support { color: rgb(255 255 255 / 0.78); }
+.cell-hero .t-label, .cell-hero .t-support { color: rgb(255 255 255 / 0.92); }
 .cell-hero .t-kpi, .cell-hero .t-num-md { color: #fff; }
-.t-ref { font-family: var(--font-heading); font-size: 15px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.t-label { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--muted); }
-.t-support { font-size: 12.5px; line-height: 18px; font-weight: 500; color: var(--muted); }
-.t-value { font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums lining-nums; }
-@media (max-width: 639px) { .t-kpi { font-size: 28px; line-height: 34px; } .t-page { font-size: 24px; line-height: 30px; } }
-.eyebrow { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--muted); }
+.t-ref { font-family: var(--font-sans); font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.t-label { font-size: 0.8125rem; line-height: 1.25rem; font-weight: 500; color: var(--muted); }
+.t-support { font-size: 0.75rem; line-height: 1.125rem; font-weight: 500; color: var(--muted); }
+.t-value { font-size: 0.8125rem; line-height: 1.25rem; font-weight: 500; font-variant-numeric: tabular-nums lining-nums; }
+@media (max-width: 639px) { .kpi-fit { --kpi-max: 1.125rem; } .t-kpi { font-size: 1.125rem; line-height: 1.625rem; } .t-page { font-size: 1.25rem; line-height: 1.625rem; } }
+.eyebrow { font-size: 0.8125rem; line-height: 1.125rem; font-weight: 500; color: var(--muted); }
 
 /* Status chip: tinted pill with a leading dot. Code chips (font-mono) stay plain. */
 .badge {
-  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 500; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 1.625rem; padding: 0 0.625rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 500; white-space: nowrap;
   background: color-mix(in srgb, var(--tone, var(--muted)) 12%, transparent); color: var(--tone, var(--muted));
 }
 .badge:not(.font-mono)::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex-shrink: 0; }
@@ -233,19 +259,19 @@ textarea.input { height: auto; padding: 8px 12px; min-height: 84px; resize: vert
 .tone-danger { --tone: var(--danger); } .tone-info { --tone: var(--info); } .tone-neutral { --tone: #4a4944; }
 :root[data-theme="dark"] .tone-neutral { --tone: #b8b8b3; }
 
-/* Data tables sit inside a card: inset header, 48px rows, hairlines, numbers right-aligned */
-.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 20px; }
+/* Data tables sit inside a card: inset header, 44px rows, hairlines, numbers right-aligned */
+.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; line-height: 1.25rem; }
 .dt th {
-  position: sticky; top: 0; z-index: 1; background: var(--inset); text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 0 16px; height: 40px;
+  position: sticky; top: 0; z-index: 1; background: var(--inset); text-align: left; font-weight: 500; font-size: 0.8125rem; color: var(--muted); padding: 0 12px; height: 40px;
   border-bottom: 1px solid var(--line); white-space: nowrap; user-select: none;
 }
-.dt td { padding: 0 16px; height: 48px; border-bottom: 1px solid var(--line); white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.dt td { padding: 0 12px; height: 44px; border-bottom: 1px solid var(--line); white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
 .dt tbody tr:hover td { background: var(--card-hover); }
 .dt tbody tr:last-child td { border-bottom: 0; }
 .dt .num { text-align: right; font-variant-numeric: tabular-nums lining-nums; }
 
 /* inverted hero card, the warm highlight card, and the two pipeline-stage states */
-.panel-ink { background: linear-gradient(160deg, #017468 0%, #015a52 100%); color: var(--fg-on-ink); border: 1px solid transparent; border-radius: var(--radius-card); box-shadow: var(--shadow-lift); }
+.panel-ink { color: var(--on-hero); background: linear-gradient(160deg, #017468 0%, #015a52 100%); color: var(--fg-on-ink); border: 1px solid transparent; border-radius: var(--radius-card); box-shadow: var(--shadow-lift); }
 /* pipeline stage: white card. Idle = flat and quiet; has work = shadow and a brand bar; needs action = amber or red bar. Never a butter fill. */
 .stage { position: relative; overflow: hidden; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-card); }
 .stage::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--stage-bar, transparent); }
@@ -255,7 +281,7 @@ textarea.input { height: auto; padding: 8px 12px; min-height: 84px; resize: vert
 .panel-butter { background: var(--butter-grad); color: var(--butter-ink); border: 1px solid var(--butter-deep); border-radius: var(--radius-card); box-shadow: var(--shadow-md); }
 .panel-link:hover.panel-ink { box-shadow: var(--shadow-lift); }
 
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; } to { opacity: 1; } }
 .rise { animation: rise 320ms cubic-bezier(.2,.7,.2,1) both; }
 .rise:nth-child(2) { animation-delay: 40ms; } .rise:nth-child(3) { animation-delay: 80ms; } .rise:nth-child(4) { animation-delay: 120ms; }
 .rise:nth-child(5) { animation-delay: 160ms; } .rise:nth-child(6) { animation-delay: 200ms; } .rise:nth-child(n+7) { animation-delay: 240ms; }
@@ -285,5 +311,115 @@ textarea.input { height: auto; padding: 8px 12px; min-height: 84px; resize: vert
 
 
 
+/* =====================================================================================================================================================
+   Motion. One easing family and three durations for the whole product. Only transform, opacity and colour animate (no layout properties);
+   a hover shadow is a second layer fading in, not a box-shadow transition. prefers-reduced-motion (above) switches all of it off.
+   ===================================================================================================================================================== */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);        /* things arriving: quick start, soft landing */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);   /* small, friendly overshoot for presses and pops */
+  --dur-fast: 140ms;                                  /* hover and colour feedback */
+  --dur-med: 240ms;                                   /* lifts, menus, drawers */
+  --dur-slow: 480ms;                                  /* page and chart entrances */
+}
+
+/* ---- buttons: lift on hover, press on click, a soft sheen on the primary one */
+.btn, .icon-btn { transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast), opacity var(--dur-fast); will-change: transform; }
+/* hover moves nothing: buttons are used constantly, so only colour changes on hover and a small press on click */
+.btn:active:not(:disabled), .icon-btn:active:not(:disabled) { transform: translateY(0) scale(0.97); transition-duration: 60ms; }
+/* ---- cards: a link-card rises and its larger shadow fades in on a second layer */
+.panel-link { position: relative; transition: transform var(--dur-med) var(--ease-out); }
+.panel-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 18px 36px -18px rgb(1 70 62 / 0.38); opacity: 0; transition: opacity var(--dur-med) var(--ease-out); pointer-events: none; }
+.panel-link:hover { transform: none; }
+.panel-link:hover::after { opacity: 1; }
+.panel-link:active { transform: scale(0.995); transition-duration: 80ms; }
+.stage { transition: opacity var(--dur-fast); }
+
+/* ---- rows and list items: a calm colour wash; arrows slide a little */
+.row-link, .dt tbody tr td { transition: background-color var(--dur-fast), color var(--dur-fast); }
+.row-link:hover svg:last-child, a:hover > svg.lucide-chevron-right, li:hover > a > svg.lucide-chevron-right { transform: translateX(3px); }
+.row-link svg, svg.lucide-chevron-right { transition: transform var(--dur-med) var(--ease-out); }
+
+/* ---- sidebar: icons nudge, labels brighten, the pressed row dips */
+#primary-nav a, #primary-nav button { transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease-out); }
+#primary-nav a > svg, #primary-nav button > svg { transition: transform var(--dur-med) var(--ease-spring); }
+
+#primary-nav a:active, #primary-nav button:active { transform: scale(0.98); }
+
+/* ---- page entrance: the route's content fades up once; its direct children stagger (cards, panels, rows) */
+.page-in { animation: page-in 160ms ease-out backwards; }                    /* a quiet cross-fade once per navigation; no travel */
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+.rise { animation: rise 200ms ease-out backwards; }
+.rise:nth-child(2) { animation-delay: 30ms; } .rise:nth-child(3) { animation-delay: 60ms; } .rise:nth-child(n+4) { animation-delay: 90ms; }
+
+/* ---- menus, drawers, toasts and badges arrive with a small scale and fade */
+@keyframes pop { from { opacity: 0; transform: translateY(-6px) scale(0.96); } to { opacity: 1; transform: none; } }
+.pop-in { animation: pop var(--dur-med) var(--ease-spring) backwards; transform-origin: top right; }
+.anim-slide { animation: slide-in var(--dur-med) var(--ease-out) backwards; }
+.anim-fade { animation: fade-in var(--dur-med) var(--ease-out) backwards; }
+
+@keyframes pop-badge { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: none; } }
+
+/* ---- inputs: the focus ring grows in; labels and icons brighten */
+.input { transition: border-color var(--dur-fast), background-color var(--dur-fast), box-shadow var(--dur-med) var(--ease-out); }
+.seg button { transition: background-color var(--dur-med) var(--ease-out), color var(--dur-fast), transform var(--dur-fast) var(--ease-out); }
+.seg button:active { transform: scale(0.96); }
 
 
+/* ---- kanban deal cards and chart bars */
+.deal-card { transition: transform var(--dur-med) var(--ease-out), opacity var(--dur-fast); cursor: grab; }
+.deal-card:hover { transform: none; }
+.deal-card:active { cursor: grabbing; }
+.deal-card[data-dragging="true"] { transform: scale(1.02); opacity: 0.92; }
+.bar-grow { transform-origin: bottom; animation: grow-y var(--dur-slow) var(--ease-out) backwards; }
+@keyframes grow-y { from { transform: scaleY(0.15); opacity: 0.2; } to { transform: none; opacity: 1; } }
+
+/* ---- links inside copy: the underline draws in */
+.link-draw { background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size var(--dur-med) var(--ease-out), color var(--dur-fast); }
+.link-draw:hover { background-size: 100% 1px; }
+/* numerals: aligned (tabular) in tables and counters, proportional elsewhere */
+.dt td, .dt th, .tnum, time { font-variant-numeric: tabular-nums lining-nums; }
+
+/* a cell whose text may wrap (long check names, descriptions) instead of being cut with an ellipsis */
+.dt td.wrap, .dt th.wrap { white-space: normal; min-width: 160px; }
+.seg button { white-space: nowrap; }
+
+/* ---- Accessibility layer (HIG: Accessibility, Layout) ---- */
+#primary-nav :focus-visible { outline-color: #fff; outline-offset: -2px; }            /* the teal ring would vanish on the teal sidebar */
+.skip-link { position: absolute; left: 0.75rem; top: -4rem; z-index: 100; padding: 0.625rem 1rem; border-radius: 999px; background: var(--card); color: var(--fg); border: 2px solid var(--brand); font-weight: 500; transition: top 120ms; }
+.skip-link:focus { top: 0.75rem; }
+/* The smallest comfortable control on a desktop pointer is 28 pt; everything the sidebar offers meets it */
+#primary-nav a, #primary-nav button { min-height: 1.75rem; }
+/* On touch screens every control is at least 44 pt (the iOS default), with room around it */
+@media (pointer: coarse) {
+  .btn, .btn-sm, .btn-lg, .seg button, .input, .icon-btn, .icon-btn-sm { min-height: 2.75rem; }
+  .icon-btn, .icon-btn-sm { min-width: 2.75rem; width: auto; }
+  .dt tbody tr td { height: 3.25rem; }
+  #primary-nav a, #primary-nav button { min-height: 2.75rem; }
+  input[type="checkbox"], input[type="radio"] { width: 1.5rem; height: 1.5rem; }
+}
+/* Inline record links inside tables: a 28 pt desktop target, 44 pt on touch (the text itself stays the same size) */
+.dt td a { display: inline-block; padding-block: 0.3rem; }
+@media (pointer: coarse) {
+  .dt td a, a.t-support, header button, header a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  header button.icon-btn, header .btn { min-width: 2.75rem; }
+  main dd a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  main li > a, a.row-link { min-height: 2.75rem; }                      /* rows keep their own layout; they only gain height */
+  main li > a.block { display: flex; flex-direction: column; justify-content: center; }
+}
+/* Phones with a notch or home indicator: content and the drawer stay inside the safe area */
+@media (max-width: 767px) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  #primary-nav { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  main { padding-bottom: env(safe-area-inset-bottom); }
+}
+@media (prefers-reduced-motion: reduce) { .page-in, .rise { animation: none !important; } }
+
+/* ---- Overview cards: a thin brand-teal rule along the top edge. Decorative only (the card's own text carries the meaning). */
+.accent-card { position: relative; }
+.accent-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--brand-bright); opacity: 0.85; pointer-events: none; }
+/* pipeline stages already have a top rule that turns amber or red when they need attention; at rest it is a soft teal so they match */
+.stage { --stage-bar: color-mix(in srgb, var(--brand-bright) 45%, transparent); }
+.stage-work { --stage-bar: var(--brand); }
+.stage-warn { --stage-bar: var(--amber); }
+.stage-danger { --stage-bar: var(--danger); }

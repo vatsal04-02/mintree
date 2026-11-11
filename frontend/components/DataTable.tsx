@@ -53,7 +53,7 @@ export function DataTable<T extends { id: number | string }>({
         </table>
         {!loading && rows.length === 0 && (empty ?? <EmptyState title="No records found" hint="Try adjusting your search or filters." />)}
       </div>
-      <div className="flex items-center justify-between gap-3 px-3 h-10 border-t border-line text-[12px] text-muted bg-surface">
+      <div className="flex items-center justify-between gap-3 px-3 h-10 border-t border-line text-[0.75rem] text-muted bg-surface">
         <span className="tnum">{total === 0 ? "0 records" : `${from}–${to} of ${total}`}</span>
         <div className="flex items-center gap-1">
           <button className="btn btn-ghost btn-sm !px-1.5" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page"><ChevronLeft size={15} /></button>

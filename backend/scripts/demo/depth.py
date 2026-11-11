@@ -480,3 +480,102 @@ def depth_more(c: Ctx) -> dict:
         for k, back in enumerate((95, 185)):
             c.ok(mm.post(f"/api/maintenance/equipment/{eq[aid]}/calibrations", json={"calibrated_on": c.d(-back), "due_date": c.d(-back + 90), "result": "PASS", "certificate_ref": f"CAL-DM-{aid}-H{k + 1}"}))
     return out
+
+# ================================================================== traceability scenarios: a batch split across warehouses, and a recorded impact analysis
+@step("depth_trace")
+def depth_trace(c: Ctx) -> dict:
+    """Two traceability scenarios the earlier steps do not create. Everything else Batch 360 shows (multi-source consumption, one raw lot feeding several orders, partial dispatch, returns,
+    a failed result and its retest) already exists in the seeded production, dispatch and quality stories.
+
+    SPLIT: a released finished batch with free stock is partly transferred to a second warehouse through the real transfer endpoint; the batch keeps one identity, now held in two balances.
+    RECALL ANALYSIS: the quality manager runs a batch impact analysis on the raw lot with the widest downstream reach. The run is audited; it changes no stock and no status."""
+    stores, qa = c.u("stores"), c.u("qa")
+    out: dict = {}
+    cand = rows("""SELECT sb.batch_id, sb.item_id, sb.warehouse_id, sb.qty_available FROM stock_balances sb JOIN inventory_batches b ON b.id = sb.batch_id JOIN items i ON i.id = sb.item_id
+                    WHERE i.kind = 'FG' AND b.qc_status = 'RELEASED' AND sb.qty_available >= 20 AND (SELECT count(*) FROM stock_balances x WHERE x.batch_id = sb.batch_id) = 1
+                    ORDER BY sb.qty_available DESC, sb.batch_id LIMIT 1""")
+    other = rows("SELECT id FROM warehouses WHERE is_active AND id NOT IN (SELECT warehouse_id FROM stock_balances WHERE batch_id = :b) ORDER BY id LIMIT 1", b=cand[0][0]) if cand else []
+    if cand and other:
+        bid, item, wh, avail = cand[0]
+        with c.days_ago(3):
+            r = c.ok(stores.post("/api/inventory/transfers", headers=c.k("split"), json={"item_id": item, "batch_id": bid, "from_warehouse_id": wh, "to_warehouse_id": other[0][0], "qty": "10", "source_id": 9001}))
+        out["split_batch"] = bid
+    heavy = rows("""SELECT pc.batch_id FROM production_consumptions pc JOIN production_orders po ON po.id = pc.order_id JOIN shipment_lines sl ON sl.batch_id = po.output_batch_id
+                      JOIN shipments sh ON sh.id = sl.shipment_id JOIN sales_orders so ON so.id = sh.so_id
+                     GROUP BY pc.batch_id ORDER BY count(DISTINCT so.customer_id) DESC, pc.batch_id LIMIT 1""")             # the raw lot whose finished goods reached the most customers
+    if heavy:
+        imp = c.ok(qa.post(f"/api/traceability/batches/{heavy[0][0]}/impact-analysis"))
+        out.update(impact_batch=heavy[0][0], impact_customers=imp["summary"]["customers"], impact_orders=imp["summary"]["production_orders"])
+    return out
+
+# ================================================================== Meta & Branding library, item categories, storage racks
+BRAND_SPECS = [("MT-SKIN", "Mintree Skin", "Face masks, serums and creams"), ("MT-HAIR", "Mintree Hair", "Shampoos, conditioners and scalp care"),
+               ("MT-BODY", "Mintree Body", "Body wash, lotions and butters"), ("MT-SALON", "Mintree Salon Pro", "Backbar and professional range")]
+BRAND_COLOURS = [("Mintree teal", "#017468"), ("Deep forest", "#014F48"), ("Warm sand", "#E5C9A8"), ("Soft butter", "#F3E7B1"), ("Ink black", "#111111")]
+BRAND_ASSETS = [("LOGO", "Primary logo lockup"), ("LOGO", "Square monogram"), ("GUIDELINE", "Brand guidelines v2"), ("PHOTO", "Studio product photography"), ("PHOTO", "Ingredient macro shots")]
+SOCIAL_SPECS = [("INSTAGRAM", "@mintree.skin", "MT-SKIN"), ("INSTAGRAM", "@mintree.hair", "MT-HAIR"), ("FACEBOOK", "Mintree Body Care", "MT-BODY"),
+                ("INSTAGRAM", "@mintreesalonpro", "MT-SALON"), ("FACEBOOK", "Mintree India", "MINTREE")]
+CATEGORY_SPECS = [("SKIN", "Skin care", "FG"), ("HAIR", "Hair care", "FG"), ("BODY", "Body care", "FG"), ("OILS", "Oils and butters", "RM"), ("ACTV", "Actives and extracts", "RM"),
+                  ("BASE", "Surfactants and bases", "RM"), ("CONT", "Primary containers", "PM"), ("CART", "Cartons and shippers", "PM")]
+
+
+@step("depth_brand_library")
+def depth_brand_library(c: Ctx) -> dict:
+    """Four sub-brands with colours, logos, guidelines and photography; a social account for each brand (manual recording, no credentials); the item category tree;
+    and three racks per warehouse. Brand and library records are idempotent by code / name; nothing is created twice."""
+    adm, mk = c.u("admin"), c.u("mkt")
+    brands = {r[0]: r[1] for r in rows("SELECT code, id FROM brands")}
+    for code, name, desc in BRAND_SPECS:
+        if code not in brands:
+            brands[code] = c.ok(adm.post("/api/masters/brands", json={"code": code, "name": name, "description": desc}))["id"]
+    names = {r[0]: r[1] for r in rows("SELECT code, name FROM brands")}
+    have = {(r[0], r[1]) for r in rows("SELECT brand_id, name FROM brand_assets")}
+    made = {"assets": 0, "social": 0, "categories": 0, "locations": 0}
+    for i, (code, bid) in enumerate(sorted(brands.items())):
+        label = names.get(code, code)
+        specs = [("COLOR", f"{label}: {BRAND_COLOURS[(i + k) % 5][0]}", BRAND_COLOURS[(i + k) % 5][1]) for k in (0, 2)] + [(kind, f"{label}: {nm}", None) for kind, nm in (BRAND_ASSETS[i % 5], BRAND_ASSETS[(i + 3) % 5])]
+        for kind, name, val in specs:
+            if (bid, name) in have:
+                continue
+            body = {"brand_id": bid, "kind": kind, "name": name}
+            if val:
+                body["value"] = val
+            else:     # a file asset must point at a Document Centre record: upload a small labelled PDF through the real endpoint
+                fname = name.replace(":", "").replace(" ", "-").lower() + ".pdf"
+                doc = c.ok(adm.post("/api/documents", data={"title": name, "doc_type": "OTHER", "description": f"DEMO: brand library file for {label}"},
+                                    files={"file": (fname, _pdf(name, [f"Brand: {label}", f"Asset type: {kind}"]), "application/pdf")}))
+                body["document_id"] = doc["id"]
+            c.ok(mk.post("/api/branding/assets", json=body))
+            made["assets"] += 1
+    have_social = {(r[0], r[1]) for r in rows("SELECT platform, handle FROM social_accounts")}
+    for platform, handle, bcode in SOCIAL_SPECS:
+        if (platform, handle) in have_social or bcode not in brands:
+            continue
+        c.ok(mk.post("/api/branding/social-accounts", json={"platform": platform, "handle": handle, "brand_id": brands[bcode]}))
+        made["social"] += 1
+    have_cat = {r[0] for r in rows("SELECT code FROM product_categories")}
+    for code, name, kind in CATEGORY_SPECS:
+        if code not in have_cat:
+            c.ok(adm.post("/api/masters/categories", json={"code": code, "name": name, "kind": kind}))
+            made["categories"] += 1
+    have_loc = {r[0] for r in rows("SELECT code FROM storage_locations")}
+    for wid, wcode in rows("SELECT id, code FROM warehouses WHERE code NOT IN ('REJ', 'WIP', 'QC-QRN') ORDER BY id"):
+        for n in (1, 2, 3):
+            code = f"{wcode}-R{n}"
+            if code not in have_loc:
+                c.ok(adm.post("/api/masters/locations", json={"code": code, "name": f"Rack {n}", "warehouse_id": wid}))
+                made["locations"] += 1
+    return made
+
+
+# ================================================================== freight charges on shipments
+@step("depth_shipping_charges")
+def depth_shipping_charges(c: Ctx) -> dict:
+    """Record the courier's freight charge on every booked, in-transit or delivered shipment that has none (45 to 184 rupees, varying by shipment), through the real endpoint,
+    so the dispatch dashboard shows what shipping actually cost and which shipments still lack a charge."""
+    disp = c.u("disp")
+    todo = rows("SELECT id FROM shipments WHERE shipping_charge IS NULL AND status NOT IN ('PENDING_BOOKING', 'BOOKING') ORDER BY id")
+    for (sid,) in todo:
+        amount = 45 + (sid * 37) % 140 + (0.5 if sid % 3 == 0 else 0)
+        c.ok(disp.post(f"/api/dispatch/shipments/{sid}/shipping-charge", json={"amount": f"{amount:.2f}"}))
+    return {"shipments": len(todo)}

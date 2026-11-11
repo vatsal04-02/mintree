@@ -16,7 +16,7 @@ function cell(c: Column, r: Row): React.ReactNode {
   if (c.kind === "bool") return <Badge tone={v ? "success" : "neutral"}>{v ? "Active" : "Inactive"}</Badge>;
   if (v === null || v === undefined || v === "") return <span className="text-muted">—</span>;
   switch (c.kind) {
-    case "mono": return <span className="font-mono text-[12px]">{v}</span>;
+    case "mono": return <span className="tnum font-medium text-[0.8125rem]">{v}</span>;
     case "number": return fmtNum(v, c.digits ?? 0);
     case "money": return fmtMoney(v);
     case "badge": return <Badge tone={c.tones?.[v] ?? "neutral"}>{c.enumLabels?.[v] ?? v}</Badge>;
@@ -93,12 +93,12 @@ export function ResourcePage({ def }: { def: ResourceDef }) {
             {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         ))}
-        <label className="flex items-center gap-1.5 text-[12.5px] text-muted ml-1 cursor-pointer select-none">
+        <label className="flex items-center gap-1.5 text-[0.75rem] text-muted ml-1 cursor-pointer select-none">
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive
         </label>
       </div>
 
-      {error && <div className="panel border-danger/40 text-danger px-3 py-2 mb-3 text-[13px]" role="alert">{error}</div>}
+      {error && <div className="panel border-danger/40 text-danger px-3 py-2 mb-3 text-[0.8125rem]" role="alert">{error}</div>}
       <DataTable columns={columns} rows={data?.items ?? []} loading={loading} sort={sort} onSort={setSort}
         page={page} pageSize={pageSize} total={data?.total ?? 0} onPage={setPage} onRowClick={(r) => setEditing(r)}
         rowActions={canDelete || canUpdate ? (r) => (
@@ -196,7 +196,7 @@ function ResourceForm({ def, target, onClose, onSaved }: { def: ResourceDef; tar
           <div role="tablist" className="flex gap-1 border-b border-line mb-4 -mt-1">
             {sections.map((s) => (
               <button type="button" role="tab" aria-selected={tab === s} key={s} onClick={() => setTab(s)}
-                className={`px-3 h-9 text-[12.5px] font-medium border-b-2 -mb-px ${tab === s ? "border-primary text-primary" : "border-transparent text-muted hover:text-fg"}`}>
+                className={`px-3 h-9 text-[0.75rem] font-medium border-b-2 -mb-px ${tab === s ? "border-primary text-primary" : "border-transparent text-muted hover:text-fg"}`}>
                 {s}{sectionHasError(s) && <span className="inline-block w-1.5 h-1.5 rounded-full bg-danger ml-1.5 align-middle" />}
               </button>
             ))}
@@ -210,7 +210,7 @@ function ResourceForm({ def, target, onClose, onSaved }: { def: ResourceDef; tar
             return (
               <div key={f.name} className={wide ? "col-span-2" : ""}>
                 {f.type === "bool" ? (
-                  <label className="flex items-center gap-2 h-8 mt-5 text-[13px] cursor-pointer">
+                  <label className="flex items-center gap-2 h-8 mt-5 text-[0.8125rem] cursor-pointer">
                     <input type="checkbox" checked={!!vals[f.name]} disabled={readOnly} onChange={(e) => set(e.target.checked)} />{f.label}
                   </label>
                 ) : (
@@ -229,7 +229,7 @@ function ResourceForm({ def, target, onClose, onSaved }: { def: ResourceDef; tar
                         value={vals[f.name] ?? ""} placeholder={f.placeholder} disabled={readOnly} aria-invalid={!!err}
                         onChange={(e) => set(e.target.value)} />
                     )}
-                    {err ? <p className="text-danger text-[11.5px] mt-1" role="alert">{err}</p> : f.help ? <p className="text-muted text-[11.5px] mt-1">{f.help}</p> : null}
+                    {err ? <p className="text-danger text-[0.75rem] mt-1" role="alert">{err}</p> : f.help ? <p className="text-muted text-[0.75rem] mt-1">{f.help}</p> : null}
                   </>
                 )}
               </div>

@@ -77,3 +77,21 @@ Load tests for the new workloads and any staging-hardware run; query-plan analys
 4. **Approvals** are a pending list with history; there is no approval-limit matrix beyond the two policies and no multi-stage chain beyond second approval on POs.
 5. **Retained earnings figure on the Balance sheet** is shown without the ₹ sign (cosmetic).
 6. **Playwright journeys**: `frontend/e2e/` has Phase 0, module, workflow, AI and demo suites. They were not re-run or extended in this milestone, so the 20 journeys in the demo brief are not individually proven in a browser here.
+
+## Addendum 2026-11-09: Product 360 and Batch 360
+
+**State: Partial, with the core working end to end.** Backward and forward traceability from actual consumption, quantity reconciliation with visible warnings, quality history, split-batch visibility, impact analysis with an explicit hold, permissions and masking, demo scenarios and a 12-step browser journey all exist and pass (`TEST_EXECUTION_REGISTER.md`). Screens: `/inventory/batches`, `/inventory/batches/{id}/traceability`, `/inventory/products`, `/inventory/products/{id}/overview`. Docs: `PRODUCT_360_ARCHITECTURE.md`, `BATCH_GENEALOGY.md`, `BATCH_RECONCILIATION_RULES.md`, `BATCH_IMPACT_ANALYSIS.md`, `TRACEABILITY_API.md`, `TRACEABILITY_TEST_PLAN.md`, `DEMO_TRACEABILITY_SCENARIOS.md`.
+
+**Known limitations (nothing below is faked on screen):**
+
+1. **No child batches and no batch merging.** The application has neither a table nor a workflow for them. A split is one batch held in several warehouse balances after a transfer, and that is what the page shows. True child batches or consolidation would need a migration and domain rules that do not exist; they were not invented.
+2. **No production material return to stock**, so "returned" for materials is always 0.
+3. **Mixed batches are not apportioned.** A finished batch that consumed any of a lot is "potentially affected" in full.
+4. **No recall case workflow** (customer notices, regulator reporting). Only the analysis and an explicit QC HOLD through the existing QC decision are built. The hold action itself has no automated test.
+5. **Wastage is not a stock-ledger movement**, so it appears on the product's production tab but not in a batch's movement equation.
+6. **Brand is not a field on items**, so the Product 360 header cannot show a brand; there is no product image field either.
+7. **Product export** ("export product history") is not built, and no button is shown for it.
+8. **Costing** is the mean unit cost of completed orders that have a posted cost; there is no per-batch costing screen.
+9. **Graph size** is capped at depth 6 and 300 nodes with an explicit "limit reached" notice; no test exercises a graph near the cap (largest demo graph ≈ 60 nodes). Timings are from a small database; no load test was run.
+10. **Accessibility** of the diagram (screen-reader and keyboard-only audit) has not been done; nodes are labelled buttons and the list view is the alternative.
+11. **Documents tab** shows documents linked to the product (`entity_type=item`); the demo seeds none against products, so it is empty there.

@@ -87,10 +87,10 @@ function UploadDrawer({ open, onClose, onDone }: { open: boolean; onClose: () =>
     <Drawer open={open} onClose={onClose} title="Upload document" width={480}
       footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" form="upload-form" disabled={busy}><Upload size={14} />{busy ? "Uploading…" : "Upload"}</button></>}>
       <form id="upload-form" onSubmit={submit} className="space-y-3.5" noValidate>
-        {err && <div role="alert" className="px-3 py-2 rounded-md text-[13px] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{err}</div>}
+        {err && <div role="alert" className="px-3 py-2 rounded-md text-[0.8125rem] text-danger" style={{ background: "color-mix(in srgb, var(--danger) 10%, transparent)" }}>{err}</div>}
         <div><label className="field-label" htmlFor="d-file">File *</label>
           <input id="d-file" ref={file} type="file" accept={ACCEPT} className="input !h-auto py-1.5" onChange={(e) => { const f = e.target.files?.[0]; if (f && !title) setTitle(f.name.replace(/\.[^.]+$/, "")); }} />
-          <p className="text-muted text-[11.5px] mt-1">PDF, images, Office files, CSV or text. Up to 25 MB.</p></div>
+          <p className="text-muted text-[0.75rem] mt-1">PDF, images, Office files, CSV or text. Up to 25 MB.</p></div>
         <div><label className="field-label" htmlFor="d-title">Title *</label><input id="d-title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
         <div><label className="field-label" htmlFor="d-type">Type</label><select id="d-type" className="input" value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t} value={t}>{titleCase(t)}</option>)}</select></div>
         <div><label className="field-label" htmlFor="d-desc">Description</label><textarea id="d-desc" className="input" value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
@@ -114,17 +114,17 @@ function DetailDrawer({ doc, onClose, onChanged }: { doc: Doc | null; onClose: (
   return (
     <Drawer open={!!doc} onClose={onClose} title={doc?.title ?? ""} subtitle={doc ? `${titleCase(doc.doc_type)} · version ${doc.current_version_no}` : undefined} width={560}>
       {doc && (
-        <div className="space-y-6 text-[13px]">
+        <div className="space-y-6 text-[0.8125rem]">
           {doc.description && <p className="text-muted">{doc.description}</p>}
           <section>
-            <h3 className="text-[12px] font-semibold text-muted mb-2">Versions</h3>
+            <h3 className="text-[0.75rem] font-semibold text-muted mb-2">Versions</h3>
             <ul className="panel divide-y divide-line">
               {[...doc.versions].reverse().map((v) => (
                 <li key={v.version_no} className="px-3 py-2.5 flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">v{v.version_no} · {v.filename} {v.version_no === doc.current_version_no && <Badge tone="success">Current</Badge>}</div>
-                    <div className="text-muted text-[11.5px] tnum">{size(v.size_bytes)} · {fmtDateTime(v.uploaded_at)}{v.note ? ` · ${v.note}` : ""}</div>
-                    <div className="text-muted text-[10.5px] font-mono truncate" title={v.sha256}>SHA-256 {v.sha256.slice(0, 16)}…</div>
+                    <div className="text-muted text-[0.75rem] tnum">{size(v.size_bytes)} · {fmtDateTime(v.uploaded_at)}{v.note ? ` · ${v.note}` : ""}</div>
+                    <div className="text-muted text-[0.75rem] font-mono truncate" title={v.sha256}>SHA-256 {v.sha256.slice(0, 16)}…</div>
                   </div>
                   {can("documents.document:download") && <a className="btn btn-sm" href={`/api/documents/${doc.id}/download?version=${v.version_no}`}><Download size={13} />Download</a>}
                 </li>
@@ -143,7 +143,7 @@ function DetailDrawer({ doc, onClose, onChanged }: { doc: Doc | null; onClose: (
             )}
           </section>
           <section>
-            <h3 className="text-[12px] font-semibold text-muted mb-2">Linked records</h3>
+            <h3 className="text-[0.75rem] font-semibold text-muted mb-2">Linked records</h3>
             {doc.links.length === 0 ? <p className="text-muted">Not linked to any record.</p> : (
               <ul className="flex flex-wrap gap-2">{doc.links.map((l) => (
                 <li key={l.id} className="badge tone-info !h-6 gap-1.5"><Link2 size={11} />{titleCase(l.entity_type)} {l.entity_id}
@@ -158,7 +158,7 @@ function DetailDrawer({ doc, onClose, onChanged }: { doc: Doc | null; onClose: (
           {can("documents.document:delete") && (
             <section className="pt-4 border-t border-line">
               <button className="btn btn-sm btn-danger" onClick={() => setDel(true)}>Delete document</button>
-              <p className="text-muted text-[11.5px] mt-1.5">Removes it from lists. Files and history are retained for traceability.</p>
+              <p className="text-muted text-[0.75rem] mt-1.5">Removes it from lists. Files and history are retained for traceability.</p>
             </section>)}
           <ConfirmDialog open={del} danger busy={busy} title="Delete this document?" confirmLabel="Delete" body="It will disappear from the document centre. This action is recorded in the audit log."
             onCancel={() => setDel(false)} onConfirm={() => run(() => api(`/documents/${doc.id}`, { method: "DELETE" }).then(() => { setDel(false); onClose(); }), "Document deleted")} />

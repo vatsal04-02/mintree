@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Plus, Send, Sparkles } from "lucide-react";
+import { AlertTriangle, DatabaseSearch, Plus, Send } from "lucide-react";
 import { api, ApiError, sharedGet } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/format";
 import { Badge, Drawer } from "./ui";
+import { Markdown } from "./Markdown";
 
 type Cite = { label: string; href: string };
 type Msg = { role: "user" | "assistant"; content: string; citations?: Cite[]; unverified?: string[]; failed?: boolean };
@@ -94,7 +95,7 @@ export function AssistantPanel({ open, onClose, status }: { open: boolean; onClo
           )}
           {msgs.map((m, i) => (
             <div key={i} className={m.role === "user" ? "self-end max-w-[85%] rounded-lg px-3 py-2 text-[13px] bg-surface-2" : "text-[13px] leading-relaxed"} data-role={m.role}>
-              <div className="whitespace-pre-wrap">{m.content}</div>
+              {m.role === "assistant" ? <Markdown text={m.content} /> : <div className="whitespace-pre-wrap">{m.content}</div>}
               {!!m.unverified?.length && (
                 <div className="mt-2 flex gap-2 rounded-md border border-line p-2 text-[12px]" role="note" data-testid="ai-unverified"><AlertTriangle size={14} className="shrink-0 mt-px text-warning" aria-hidden />
                   <span>These figures were not found in the records the assistant looked at: <b className="font-mono">{m.unverified.join(", ")}</b>. Do not rely on them.</span></div>
@@ -102,7 +103,7 @@ export function AssistantPanel({ open, onClose, status }: { open: boolean; onClo
               {!!m.citations?.length && <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Sources">{m.citations.map((c) => <Link key={c.href + c.label} href={c.href} onClick={onClose} className="badge tone-neutral font-mono hover:underline">{c.label}</Link>)}</div>}
             </div>
           ))}
-          {busy && <div className="text-[12.5px] text-muted" aria-live="polite"><Sparkles size={13} className="inline mr-1" />Looking at your records…</div>}
+          {busy && <div className="text-[12.5px] text-muted" aria-live="polite"><DatabaseSearch size={13} className="inline mr-1" />Looking at your records…</div>}
           {error && <div className="text-danger text-[12.5px]" role="alert">{error}</div>}
           <div ref={end} />
         </div>

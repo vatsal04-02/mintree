@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 /** Dashboard primitives. They take already-formatted text (lib/format.ts) and raw series values; they never format numbers or fetch data themselves, so a figure looks
  *  the same wherever it appears and every module dashboard can reuse them. Surfaces are flat: a hairline border, no shadow. Structure comes from spacing and alignment. */
 import Link from "next/link";
@@ -30,7 +30,7 @@ export function Block({ title, meta, action, children, className = "", bare }: {
 export function Panel({ title, meta, action, children, className = "", bodyClass = "" }: { title: string; meta?: string; action?: React.ReactNode; children: React.ReactNode; className?: string; bodyClass?: string }) {
   return (
     <section aria-label={title} className={`panel rise flex flex-col min-w-0 ${className}`}>
-      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
+      <div className="flex items-start justify-between gap-3 px-5 py-3.5 mb-3 border-b border-line">
         <div className="min-w-0"><h2 className="t-section">{title}</h2>{meta && <p className="t-support mt-0.5">{meta}</p>}</div>
         {action}
       </div>
@@ -41,7 +41,7 @@ export function Panel({ title, meta, action, children, className = "", bodyClass
 
 /** Ghost pill link to the source module. */
 export function LinkMore({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="inline-flex items-center gap-1 h-8 pl-3 pr-2.5 rounded-full border border-line text-[12.5px] font-medium text-brand hover:text-[var(--brand-hover)] hover:border-line-strong transition-colors shrink-0">{children}<ChevronRight size={13} aria-hidden /></Link>;
+  return <Link href={href} className="inline-flex items-center gap-1 min-h-8 pointer-coarse:min-h-11 pl-3 pr-2.5 rounded-full border border-line text-[0.75rem] font-medium text-brand hover:text-[var(--brand-hover)] hover:border-line-strong transition-colors shrink-0">{children}<ChevronRight size={13} aria-hidden /></Link>;
 }
 
 /** Designed empty state: a ghost chart (dashed baseline, faint bars), a title, the reason, and a way to the source module. */
@@ -63,37 +63,35 @@ export const Skeleton = ({ className = "" }: { className?: string }) => <span cl
 /* ------------------------------------------------------------------ metric cards */
 export type Metric = { label: string; value: string; note?: string; noteTone?: Tone; href?: string; loading?: boolean; hero?: boolean; icon?: LucideIcon; delta?: { text: string; tone: Tone } };
 
-/** Four separate KPI cards. The whole card is the link. `hero` inverts one of them (ink card, cream figure). A delta chip appears only when a real previous-period figure exists. */
+/** One connected row of headline figures: hairline dividers, no icons, no pills. The whole cell is the link. A delta appears only when a real previous-period figure exists. */
 export function MetricStrip({ items, label }: { items: Metric[]; label: string }) {
   return (
-    <section aria-label={label}>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 [&>li]:min-w-0">
+    <section aria-label={label} className="rise">
+      <ul className="grid grid-cols-2 xl:grid-cols-4 gap-4 [&>li]:min-w-0">
         {items.map((m) => {
-          const hero = !!m.hero;
-          const Icon = m.icon;
-          const chipStyle = hero ? { background: "rgb(255 255 255 / 0.10)", color: "rgb(255 255 255 / 0.9)" } : undefined;
+          const tone = m.noteTone && m.noteTone !== "neutral" ? m.noteTone : null;
           const body = (
-            <div className={`${hero ? "panel-ink" : "panel"} ${m.href ? "panel-link" : ""} h-full ${hero ? "p-6" : "p-5"} flex flex-col`}>
-              <div className="flex items-start justify-between gap-3">
-                <span className={`t-label line-clamp-2 ${hero ? "!text-[var(--fg-on-ink)] opacity-75" : ""}`} title={m.label}>{m.label}</span>
-                {Icon && <span style={hero ? undefined : { background: "var(--brand-tint)" }} className={`grid place-items-center w-8 h-8 rounded-full shrink-0 -mt-1 -mr-1 ${hero ? "border border-white/25" : "text-[var(--brand)]"}`} aria-hidden><Icon size={15} strokeWidth={1.75} /></span>}
+            <div className={`panel h-full px-5 py-4 flex flex-col ${m.href ? "panel-link" : ""}`}>
+              <span className="t-label line-clamp-1" title={m.label}>{m.label}</span>
+              <div className="mt-2">
+                {m.loading ? <Skeleton className="h-8 w-32" /> : <span className="kpi-fit" style={{ "--kpi-max": "1.5rem" } as React.CSSProperties}><span className="t-kpi" title={m.value} style={{ "--n": String(m.value.length) } as React.CSSProperties}>{m.value}</span></span>}
               </div>
-              <div className="mt-3 mb-3">
-                {m.loading ? <Skeleton className="h-8 w-32" /> : <span className="t-kpi" style={hero ? { color: "#ffffff" } : undefined}>{m.value}</span>}
-              </div>
-              <div className="mt-auto flex flex-wrap items-center gap-2">
-                {m.loading ? <Skeleton className="h-5 w-36" /> : (
+              <div className="mt-1.5 t-support flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-h-[1.2rem]">
+                {m.loading ? <Skeleton className="h-4 w-28" /> : (
                   <>
-                    {m.delta && <span className={`badge tone-${m.delta.tone}`} style={hero ? { background: "rgb(95 208 192 / 0.18)", color: "var(--brand-on-ink)" } : m.delta.tone === "success" ? { background: "var(--brand-tint)", color: "var(--brand)" } : undefined}>{m.delta.text}</span>}
-                    <span className={`badge ${m.noteTone ? `tone-${m.noteTone}` : "tone-neutral"} max-w-full`} style={chipStyle} title={m.note}><span className="truncate">{m.note ?? "\u00a0"}</span></span>
+                    {m.delta && <span className={`font-semibold ${TONE_TEXT[m.delta.tone]}`}>{m.delta.text}</span>}
+                    <span className={`inline-flex items-center gap-1.5 min-w-0 ${tone ? TONE_TEXT[tone] : ""}`} title={m.note}>
+                      {tone && <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden />}
+                      <span className="truncate">{m.note ?? "\u00a0"}</span>
+                    </span>
                   </>
                 )}
               </div>
             </div>
           );
           return (
-            <li key={m.label} className="rise">
-              {m.href ? <Link href={m.href} className="block h-full rounded-2xl" aria-label={`${m.label}: ${m.loading ? "loading" : m.value}${m.delta ? `, ${m.delta.text}` : ""}${m.note ? `, ${m.note}` : ""}`}>{body}</Link> : body}
+            <li key={m.label}>
+              {m.href ? <Link href={m.href} className="block h-full" aria-label={`${m.label}: ${m.loading ? "loading" : m.value}${m.delta ? `, ${m.delta.text}` : ""}${m.note ? `, ${m.note}` : ""}`}>{body}</Link> : body}
             </li>
           );
         })}
@@ -157,7 +155,7 @@ export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { bucket
         </svg>
       )}
       {cur && cur.orders > 0 && (
-        <div role="tooltip" className="pointer-events-none absolute z-10 rounded-xl px-3 py-2 text-[12px] leading-[18px] shadow-lg" 
+        <div role="tooltip" className="pointer-events-none absolute z-10 rounded-xl px-3 py-2 text-[0.75rem] leading-[1.125rem] shadow-lg" 
           style={{ background: "var(--ink)", color: "var(--fg-on-ink)", left: Math.min(Math.max(M.l + band * (hot as number) + band / 2 - 80, 4), Math.max(W - 168, 4)), top: 8, width: 160 }}>
           <div className="font-medium">Week of {fmtDay(cur.start)}</div>
           <div className="flex justify-between gap-3"><span className="opacity-70">{labels[0]}</span><span className="tnum">{fmtNum(cur.planned)}</span></div>
@@ -180,39 +178,38 @@ export function Legend({ items }: { items: { label: string; color: string }[] })
 /* ------------------------------------------------------------------ exceptions */
 export type Exception = { key: string; label: string; detail?: string; value?: string; severity: "high" | "medium"; href?: string; ratio?: number };
 
-/** Needs attention: severity-ordered inset rows (48px, 64px with a second line), each a direct link. Callers pass only real, non-zero exceptions.
+/** Needs attention: a plain ruled list, most severe first. Each row is a direct link; the count is a figure, not a badge.
  *  A `ratio` (available / reorder level) draws stock on a scale where the tick at the middle is the reorder point; at zero the bar is empty. */
 export function ExceptionList({ items, empty }: { items: Exception[]; empty: React.ReactNode }) {
   if (items.length === 0) return <div className="px-5 pb-6 t-label">{empty}</div>;
   const groups = [{ name: "Act now", rows: items.filter((i) => i.severity === "high") }, { name: "Review", rows: items.filter((i) => i.severity === "medium") }].filter((g) => g.rows.length);
   return (
-    <div className="px-4 pb-4">
+    <div className="px-4 pb-4 space-y-3">
       {groups.map((g) => (
-        <div key={g.name} className="mt-1">
-          <h3 className="eyebrow px-1 pt-3 pb-2">{g.name}</h3>
-          <ul className="flex flex-col gap-2">
+        <div key={g.name} className="px-3">
+          <h3 className={`eyebrow pt-1 pb-1 ${g.name === "Act now" ? "!text-danger font-semibold" : ""}`}>{g.name}</h3>
+          <ul>
             {g.rows.map((r) => {
               const dot = r.severity === "high" ? "var(--danger)" : "var(--amber)";
-              const two = !!r.detail || r.ratio !== undefined;
               const inner = (
                 <>
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dot }} aria-hidden />
+                  <span className="w-2 h-2 rounded-full shrink-0 mt-[7px] self-start" style={{ background: dot }} aria-hidden />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] leading-5 font-medium">{r.label}</span>
+                    <span className="block truncate text-[0.8125rem] leading-5 font-medium">{r.label}</span>
                     {r.detail && <span className="block truncate t-support">{r.detail}</span>}
                     {r.ratio !== undefined && (
-                      <span className="relative block mt-1.5 h-1.5 rounded-full" style={{ background: "var(--chart-track)" }} aria-hidden>
-                        <span className="block h-1.5 rounded-full" style={{ width: `${Math.max(0, Math.min(r.ratio, 2)) * 50}%`, background: dot }} />
-                        <span className="absolute -top-[3px] left-1/2 w-px h-3" style={{ background: "var(--fg)", opacity: 0.45 }} />
+                      <span className="relative block mt-1.5 h-1 rounded-full" style={{ background: "var(--chart-track)" }} aria-hidden>
+                        <span className="block h-1 rounded-full" style={{ width: `${Math.max(0, Math.min(r.ratio, 2)) * 50}%`, background: dot }} />
+                        <span className="absolute -top-[3px] left-1/2 w-px h-2.5" style={{ background: "var(--fg)", opacity: 0.45 }} />
                       </span>
                     )}
                   </span>
-                  {r.value && <span className={`shrink-0 rounded-full bg-surface border border-line px-2.5 h-6 inline-flex items-center text-[12px] font-semibold ${r.severity === "high" ? "text-danger" : ""}`}>{r.value}</span>}
+                  {r.value && <span className={`shrink-0 tabular-nums text-[0.9375rem] font-semibold ${r.severity === "high" ? "text-danger" : ""}`}>{r.value}</span>}
                   {r.href && <ChevronRight size={14} className="text-faint shrink-0" aria-hidden />}
                 </>
               );
-              const cls = `inset flex items-center gap-3 px-3.5 ${two ? "min-h-16 py-2" : "min-h-12 py-2"}`;
-              return <li key={r.key}>{r.href ? <Link href={r.href} className={`${cls} transition-colors hover:border-[var(--line-strong)] hover:bg-surface`}>{inner}</Link> : <div className={cls}>{inner}</div>}</li>;
+              const cls = "flex items-center gap-3 py-2.5 border-t border-line";
+              return <li key={r.key}>{r.href ? <Link href={r.href} className={`${cls} -mx-2 px-2 rounded-md transition-colors hover:bg-[var(--inset)]`}>{inner}</Link> : <div className={cls}>{inner}</div>}</li>;
             })}
           </ul>
         </div>
@@ -224,33 +221,26 @@ export function ExceptionList({ items, empty }: { items: Exception[]; empty: Rea
 /* ------------------------------------------------------------------ pipeline */
 export type PipelineStage = { label: string; value: string; note: string; flag?: string; href?: string; active?: boolean; alert?: "warn" | "danger" };
 
-/** Procurement to dispatch as six white cards on a route line. Idle: flat, quiet number. Has work: shadow and a brand bar. Needs action: amber or red bar and dot. */
+/** Procurement to dispatch as one joined strip, left to right. Idle: a quiet figure. Has work: dark figure and a brand underline. Needs action: amber or red underline and dot. */
 export function Pipeline({ stages }: { stages: PipelineStage[] }) {
   return (
-    <ol className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 xl:gap-5">
-      {stages.map((s, i) => {
-        const state = s.alert === "danger" ? "stage-danger" : s.alert === "warn" ? "stage-warn" : s.active ? "stage-work" : "";
-        const idle = !state;
+    <ol className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 rise">
+      {stages.map((s) => {
+        const color = s.alert === "danger" ? "var(--danger)" : s.alert === "warn" ? "var(--amber)" : s.active ? "var(--brand)" : null;
         const body = (
-          <div className={`stage ${state} h-full p-4 flex flex-col gap-1`}>
+          <div className={`panel h-full px-4 py-3.5 flex flex-col gap-0.5 overflow-hidden ${s.href ? "panel-link" : ""}`} style={color ? { boxShadow: `inset 0 -2px 0 ${color}, var(--shadow-md)` } : undefined}>
             <div className="flex items-center gap-2 t-label">
-              <span className="grid place-items-center w-5 h-5 rounded-full text-[11px] font-medium border" style={idle ? { borderColor: "var(--line-strong)", background: "var(--inset)" } : { borderColor: "transparent", background: "var(--brand-tint)", color: "var(--brand-hover)" }}>{i + 1}</span>
               <span className="truncate">{s.label}</span>
-              {s.alert && <span className="w-2 h-2 rounded-full ml-auto shrink-0" style={{ background: s.alert === "danger" ? "var(--danger)" : "var(--amber)" }} aria-hidden />}
+              {s.alert && <span className="w-2 h-2 rounded-full ml-auto shrink-0" style={{ background: color ?? undefined }} aria-hidden />}
             </div>
-            <div className="t-stage mt-1.5" style={{ color: idle ? "var(--subtle)" : "var(--fg)" }}>{s.value}</div>
+            <div className="t-stage mt-1 truncate" title={s.value} style={{ color: color ? "var(--fg)" : "var(--subtle)" }}>{s.value}</div>
             <div className="t-support">{s.note}</div>
             <div className={`t-support min-h-[18px] ${s.flag ? "!text-danger" : ""}`}>{s.flag ?? " "}</div>
           </div>
         );
         return (
-          <li key={s.label} className="relative rise">
-            {s.href ? <Link href={s.href} className="block h-full rounded-2xl" aria-label={`${s.label}: ${s.value} ${s.note}`}>{body}</Link> : body}
-            {i < stages.length - 1 && (
-              <span aria-hidden className="hidden xl:block absolute top-[25px] -right-5 w-5 h-[1.5px] z-10" style={{ background: "var(--line-strong)" }}>
-                <span className="absolute left-1/2 -top-[2.25px] -ml-[3px] w-1.5 h-1.5 rounded-full" style={{ background: "var(--line-strong)" }} />
-              </span>
-            )}
+          <li key={s.label} className="min-w-0">
+            {s.href ? <Link href={s.href} className="block h-full" aria-label={`${s.label}: ${s.value} ${s.note}`}>{body}</Link> : body}
           </li>
         );
       })}
@@ -264,7 +254,7 @@ export function TransactionTable({ rows, empty }: { rows: TxRow[]; empty: React.
   if (rows.length === 0) return <div className="py-6 t-label">{empty}</div>;
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <table className="w-full text-[13px] leading-5 border-separate border-spacing-0 min-w-[560px]">
+      <table className="w-full text-[0.8125rem] leading-5 border-separate border-spacing-0 min-w-[560px]">
         <thead><tr className="text-left">
           {["Reference", "Activity", "Related record", "Date", "Status"].map((h) => <th key={h} className="eyebrow py-2 pr-4 border-b border-line whitespace-nowrap last:pr-0">{h}</th>)}
         </tr></thead>
@@ -273,7 +263,7 @@ export function TransactionTable({ rows, empty }: { rows: TxRow[]; empty: React.
             const cell = "h-12 pr-4 border-b border-line group-last:border-b-0 whitespace-nowrap max-w-[220px] truncate";
             return (
               <tr key={r.key} className="group row-link relative">
-                <td className={`${cell} t-ref`}>{r.href ? <Link href={r.href} className="hover:underline underline-offset-2">{r.reference}</Link> : r.reference}</td>
+                <td className={`${cell} t-ref`}>{r.href ? <Link href={r.href} className="inline-block py-1.5 pointer-coarse:py-3 hover:underline underline-offset-2">{r.reference}</Link> : r.reference}</td>
                 <td className={cell}>{r.activity}</td>
                 <td className={`${cell} text-muted`}>{r.related}</td>
                 <td className={`${cell} text-muted tnum`}>{r.date}</td>
@@ -297,7 +287,7 @@ export function ActivityTimeline({ items }: { items: ActivityItem[] }) {
         const body = (
           <div className="flex items-baseline gap-3 py-2">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] leading-5"><span className="font-medium">{e.title}</span> <span className="text-muted">{e.record}</span></div>
+              <div className="truncate text-[0.8125rem] leading-5"><span className="font-medium">{e.title}</span> <span className="text-muted">{e.record}</span></div>
               <div className="t-support truncate">{e.who}</div>
             </div>
             <time className="t-support shrink-0 tnum" title={e.at}>{e.ago}</time>

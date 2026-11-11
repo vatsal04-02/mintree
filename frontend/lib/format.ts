@@ -27,7 +27,8 @@ export const fmtDate = (v?: string | null) =>
   v ? new Date(v).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "numeric" }) : "—";
 export const fmtDateTime = (v?: string | null) =>
   v ? new Date(v).toLocaleString(LOCALE, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
-export const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+const ACRONYM = /\b(so|po|pr|grn|qc|rto|awb|sku|gst|rfq|bom|capa|coa|uom|hsn|pdf|id|ai)\b/gi;
+export const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()).replace(ACRONYM, (m) => m.toUpperCase());
 /** "5 min ago", "3 h ago", "yesterday", else the date. Pair with fmtDateTime in a title attribute for the exact time. */
 export const fmtAgo = (v?: string | null, now = Date.now()) => {
   if (!v) return "—";
@@ -58,3 +59,11 @@ export const fmtDelta = (now: number, before: number) => (before > 0 ? `${now >=
 /** Names that arrive in ALL CAPS ("COCOA BUTTER") are shown in title case; mixed-case names, codes and short acronyms are left alone. */
 export const formatName = (s: string) =>
   /[a-z]/.test(s) ? s : s.split(/(\s+)/).map((w) => (/\d/.test(w) || /^[A-Z]{1,3}$/.test(w) || /^\s*$/.test(w) ? w : w.charAt(0) + w.slice(1).toLowerCase())).join("");
+
+/** A readable label for a record or report key: "party_id" -> "Party ID", "as_of" -> "As of", "grand_total" -> "Grand total", "cgst" -> "CGST". Sentence case, with known abbreviations kept in capitals. */
+const ABBR: Record<string, string> = { id: "ID", gst: "GST", cgst: "CGST", sgst: "SGST", igst: "IGST", hsn: "HSN", awb: "AWB", sku: "SKU", po: "PO", so: "SO", pr: "PR", qc: "QC", rfq: "RFQ", cogs: "COGS", rto: "RTO", pan: "PAN", ifsc: "IFSC", bom: "BOM", capa: "CAPA", pdf: "PDF", url: "URL", utr: "UTR", mrp: "MRP", ar: "AR", ap: "AP" };
+export const fieldLabel = (k: string) => {
+  const words = k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_\s]+/g, " ").trim().toLowerCase().split(" ").filter(Boolean);
+  const out = words.map((w, i) => ABBR[w] ?? (w === "pct" ? "%" : i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w));
+  return out.join(" ");
+};

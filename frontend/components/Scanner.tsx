@@ -50,12 +50,12 @@ function CameraScanner({ onCode, active }: { onCode: (code: string) => void; act
     })();
     return () => { stopped = true; if (timer) clearInterval(timer); controls?.stop(); stream?.getTracks().forEach((t) => t.stop()); };
   }, [active, onCode]);
-  if (error) return <div className="rounded-lg border border-line p-4 text-[12.5px] flex gap-2.5 items-start"><CameraOff size={16} className="mt-0.5 shrink-0 text-muted" /><span>{error} You can still type or scan with a handheld scanner below.</span></div>;
+  if (error) return <div className="rounded-lg border border-line p-4 text-[0.75rem] flex gap-2.5 items-start"><CameraOff size={16} className="mt-0.5 shrink-0 text-muted" /><span>{error} You can still type or scan with a handheld scanner below.</span></div>;
   return (
     <div className="relative rounded-lg overflow-hidden bg-black aspect-[4/3]">
       <video ref={video} className="w-full h-full object-cover" playsInline muted />
       <div className="absolute inset-x-6 top-1/2 h-px bg-red-500/80 shadow-[0_0_8px_2px_rgba(239,68,68,.6)]" aria-hidden />
-      <span className="absolute left-2 bottom-2 text-[10.5px] text-white/80 bg-black/50 rounded px-1.5 py-0.5">{engine || "starting camera…"}</span>
+      <span className="absolute left-2 bottom-2 text-[0.75rem] text-white/80 bg-black/50 rounded px-1.5 py-0.5">{engine || "starting camera…"}</span>
     </div>
   );
 }
@@ -76,7 +76,7 @@ export function ScanDialog({ open, onClose, onCode, title = "Scan a barcode", hi
         <button className="btn btn-primary" type="submit">Go</button>
       </form>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[12px] text-muted">Camera</span>
+        <span className="text-[0.75rem] text-muted">Camera</span>
         <button type="button" className="btn btn-sm" onClick={() => setCam((c) => !c)}><Camera size={13} />{cam ? "Stop camera" : "Use camera"}</button>
       </div>
       {cam && <CameraScanner active={cam && open} onCode={fromCamera} />}
@@ -123,7 +123,7 @@ export function useGlobalScan() {
       <ul className="divide-y divide-line panel">
         {choices?.matches.map((m) => (
           <li key={`${m.type}-${m.id}`}><button className="w-full text-left px-3.5 py-3 hover:bg-surface-2 flex items-center justify-between gap-3" onClick={() => { setChoices(null); router.push(m.link); }}>
-            <span><span className="text-muted text-[11.5px] block">{m.type_label}</span><span className="font-medium">{m.label}</span></span><Badge>{m.status}</Badge></button></li>
+            <span><span className="text-muted text-[0.75rem] block">{m.type_label}</span><span className="font-medium">{m.label}</span></span><Badge>{m.status}</Badge></button></li>
         ))}
       </ul>
     </Drawer>

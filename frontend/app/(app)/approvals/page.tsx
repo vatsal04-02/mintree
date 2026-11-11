@@ -18,10 +18,10 @@ export default function ApprovalsPage() {
   return (
     <>
       <PageHeader title="Approvals" description="Everything waiting for your decision, oldest first. Authority limits, segregation of duties and delegation are enforced when you act." />
-      {error ? <div className="panel p-4 text-danger text-[13px]" role="alert">{error}</div> : items === null ? <div className="skeleton h-32" /> : items.length === 0 ? <div className="panel"><EmptyState title="Nothing waiting for you" hint="New items appear here as colleagues submit work." /></div> : (
+      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : items === null ? <div className="skeleton h-32" /> : items.length === 0 ? <div className="panel"><EmptyState title="Nothing waiting for you" hint="New items appear here as colleagues submit work." /></div> : (
         <div className="panel overflow-hidden"><table className="dt"><thead><tr><th>Type</th><th>Reference</th><th>What</th><th className="num">Amount</th><th>Waiting since</th><th /></tr></thead>
           <tbody>{items.map((i) => (
-            <tr key={`${i.type}-${i.id}`}><td><Badge tone="warning">{titleCase(i.type)}</Badge></td><td className="font-mono text-[12px]">{i.number}</td><td>{i.summary}</td><td className="num">{i.amount ? fmtMoney(i.amount) : "—"}</td><td>{fmtDateTime(i.since)}</td>
+            <tr key={`${i.type}-${i.id}`}><td><Badge tone="warning">{titleCase(i.type)}</Badge></td><td className="tnum font-medium text-[0.8125rem]">{i.number}</td><td>{i.summary}</td><td className="num">{i.amount ? fmtMoney(i.amount) : "—"}</td><td>{fmtDateTime(i.since)}</td>
               <td className="text-right">{WHERE[i.type] && <Link className="btn btn-sm" href={`${WHERE[i.type]}?open=${i.id}`}>Open</Link>}</td></tr>
           ))}</tbody></table></div>
       )}

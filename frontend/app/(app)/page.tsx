@@ -1,17 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api, type Page } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { addDays, businessToday, daysBetween, formatName, fmtAgo, fmtDate, fmtDateTime, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees, fyStart, titleCase } from "@/lib/format";
+import { addDays, businessToday, daysBetween, formatName, fmtAgo, fmtDate, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees, fyStart, titleCase } from "@/lib/format";
 import { toneFor } from "@/lib/modules";
 import { num, plural, screenHref, SHIPMENT_FINAL, sumStatus, usePeriod, useSummary } from "@/lib/summary";
 import { Package, Receipt, TrendingUp, Factory } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { ActivityTimeline, Block, EmptyState, ExceptionList, GroupedBars, Legend, LinkMore, MetricStrip, Panel, Pipeline, Segmented, Skeleton, TransactionTable, type Bucket, type Exception, type Metric, type PipelineStage, type TxRow } from "@/components/blocks";
+import { Block, EmptyState, ExceptionList, GroupedBars, Legend, LinkMore, MetricStrip, Panel, Pipeline, Segmented, Skeleton, TransactionTable, type Bucket, type Exception, type Metric, type PipelineStage, type TxRow } from "@/components/blocks";
 
 type Approval = { type: string; id: number; number: string; since: string };
-type Audit = { id: number; occurred_at: string; user_email: string | null; action: string; entity: string; entity_id: string | null };
 type PeriodKey = "30d" | "90d" | "fy" | "custom";
 
 /** Audit entity and document kind -> the list screen that opens the record via ?open=<id>. */
@@ -21,13 +20,10 @@ const RECORD_SCREEN: Record<string, [string, string]> = {
   formulation_version: ["rnd", "formulations"], maintenance_work_order: ["maintenance", "work-orders"], content: ["branding", "content"],
 };
 const KIND_LABEL: Record<string, string> = { purchase_order: "Purchase order", production_order: "Production order", sales_order: "Sales order", shipment: "Shipment", sales_invoice: "Sales invoice" };
-/** Sign-ins and password events are security records, not business activity; they stay in the audit log. */
-const NOISE = /^(login|logout|password|session)/;
 
 export default function Overview() {
   const { me, can } = useAuth();
   const canSummary = can("analytics.dashboard:read");
-  const canAudit = can("admin.audit:read");
   const today = businessToday();
   const [key, setKey] = useState<PeriodKey>("30d");
   const [custom, setCustom] = useState({ start: addDays(today, -29), end: today });
@@ -37,11 +33,9 @@ export default function Overview() {
   const { summary, error } = useSummary(canSummary);
   const period = usePeriod(canSummary && !rangeError, rangeError ? today : range.start, rangeError ? today : range.end);
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
-  const [activity, setActivity] = useState<Audit[] | null>(null);
   useEffect(() => {
     api<{ items: Approval[] }>("/approvals/pending").then((d) => setApprovals(d.items)).catch(() => setApprovals([]));
-    if (canAudit) api<Page<Audit>>("/admin/audit-logs", { params: { page_size: 40 } }).then((p) => setActivity(p.items.filter((a) => !NOISE.test(a.action)).slice(0, 6))).catch(() => setActivity([]));
-  }, [canAudit]);
+  }, []);
 
   const to = (m: string, s: string) => screenHref(can, m, s);
   const open = (kind: string, id: number | string) => { const t = RECORD_SCREEN[kind]; const h = t && to(t[0], t[1]); return h && /^\d+$/.test(String(id)) ? `${h}?open=${id}` : undefined; };
@@ -122,7 +116,7 @@ export default function Overview() {
         <div className="min-w-0">
           <h1 className="t-page">Factory overview</h1>
           <p className="t-label mt-1">
-            {rangeError ? <span className="text-danger">{rangeError}</span> : <>{fmtDay(range.start)} – {fmtDate(range.end)} <span aria-hidden>·</span> {plural(daysBetween(range.start, range.end) + 1, "day", "days")}{s && <> <span aria-hidden>·</span> data as of {fmtDate(s.as_of)}{s.meta && <>, computed {fmtAgo(s.meta.generated_at)} (refreshed at most every {fmtNum(s.meta.max_age_s)} s)</>}</>}</>}
+            {rangeError ? <span className="text-danger">{rangeError}</span> : <>{fmtDay(range.start)} – {fmtDate(range.end)} <span aria-hidden>·</span> {plural(daysBetween(range.start, range.end) + 1, "day", "days")}{s && <> <span aria-hidden>·</span> data as of {fmtDate(s.as_of)}</>}</>}
           </p>
         </div>
         {canSummary && (
@@ -135,12 +129,12 @@ export default function Overview() {
               </div>
             )}
             <Segmented<PeriodKey> label="Reporting period" value={key} onChange={setKey} options={[{ value: "30d", label: "30 days" }, { value: "90d", label: "90 days" }, { value: "fy", label: "This FY" }, { value: "custom", label: "Custom" }]} />
-            {mine > 0 && <Link href="/approvals" className="btn btn-sm">Approvals <span className="inline-grid place-items-center h-5 min-w-5 px-1 rounded-full bg-ink text-[var(--fg-on-ink)] text-[11px] font-semibold">{mine}</span></Link>}
+            {mine > 0 && <Link href="/approvals" className="btn btn-sm">Approvals <span className="inline-grid place-items-center h-5 min-w-5 px-1 rounded-full bg-ink text-[var(--fg-on-ink)] text-[0.75rem] font-semibold">{mine}</span></Link>}
           </div>
         )}
       </header>
 
-      {error && <div role="alert" className="panel px-4 py-3 text-danger text-[13px]">{error} Reload to try again.</div>}
+      {error && <div role="alert" className="panel px-4 py-3 text-danger text-[0.8125rem]">{error} Reload to try again.</div>}
       {!canSummary && <p className="panel px-4 py-3 t-label">Company-wide figures need the management summary permission, which {me?.roles[0] ? `the ${me.roles[0]} role` : "your role"} does not include.</p>}
 
       {canSummary && <MetricStrip label="Key indicators" items={metrics} />}
@@ -178,16 +172,11 @@ export default function Overview() {
               : <TransactionTable rows={tx} empty="No documents have been created yet." />}
           </Block>
         )}
-        <Block title="Approvals and activity" className={`min-w-0 ${canSummary ? "" : "xl:col-span-2"}`} action={<LinkMore href="/approvals">Approvals</LinkMore>}>
+        <Block title="Waiting for your approval" className={`min-w-0 self-start ${canSummary ? "" : "xl:col-span-2"}`} action={<LinkMore href="/approvals">Approvals</LinkMore>}>
           <div className="pt-3">
             <p className="t-label mb-1">{approvals === null ? "Checking approvals…" : mine ? <><span className="badge tone-warning">{fmtNum(mine)} waiting for your decision, oldest since {fmtDate(approvals[0].since)}</span></> : "Nothing is waiting for your decision."}</p>
-            {approvals && approvals.slice(0, 3).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-1.5 border-t border-line row-link -mx-2 px-2 rounded-md first:mt-2"><span className="truncate text-[13px]"><span className="font-mono text-[12.5px]">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0">{fmtAgo(a.since)}</span></Link>)}
+            {approvals && approvals.slice(0, 3).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-1.5 border-t border-line row-link -mx-2 px-2 rounded-md first:mt-2"><span className="truncate text-[0.8125rem]"><span className="tnum font-medium text-[0.8125rem]">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0">{fmtAgo(a.since)}</span></Link>)}
           </div>
-          <h3 className="eyebrow mt-5 mb-2">Recent activity</h3>
-          {!canAudit ? <p className="t-support">Activity is read from the audit log, which is limited to auditors and administrators.</p>
-            : activity === null ? <div className="space-y-3 pt-1">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div>
-            : activity.length === 0 ? <p className="t-support">No business actions recorded yet.</p>
-            : <ActivityTimeline items={activity.map((a) => ({ id: a.id, title: titleCase(a.action), record: `${titleCase(a.entity)}${a.entity_id ? ` #${a.entity_id}` : ""}`, who: a.user_email?.split("@")[0] ?? "system", ago: fmtAgo(a.occurred_at), at: fmtDateTime(a.occurred_at), href: a.entity_id ? open(a.entity, a.entity_id) : undefined }))} />}
         </Block>
       </div>
     </div>
