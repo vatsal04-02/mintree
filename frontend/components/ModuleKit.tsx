@@ -5,10 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, Columns3, Plus, Rows3, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fieldLabel, fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from "@/lib/format";
+import { fieldLabel, fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtRupees, titleCase } from "@/lib/format";
 import { defaultParam, toneFor, type Action, type Col, type Create, type Field, type Param, type RefKey, type Row, type Screen } from "@/lib/modules";
 import { DataTable, type Col as TCol } from "./DataTable";
 import { ScanButton, ScanDialog, resolveCode } from "./Scanner";
+import { RfqCard, RfqSummary, bidsCsv } from "./rfq";
+import { PrCard, PrSummary } from "./pr";
+import { OrderCard, OrdersSummary } from "./orders";
+import { PoCard, PoSummary } from "./po";
+import { BOARDS, WastageView } from "./boards";
 import { Badge, ConfirmDialog, Drawer, EmptyState, useDebounced, useToast } from "./ui";
 
 /* ------------------------------------------------------------------ reference pickers */
@@ -257,12 +262,13 @@ const MONEYISH = /(amount|total|value|revenue|cost|balance|price|profit|spend|pa
 /** Whether a figure named `k` is a rupee amount. The module dashboards decide this from the name, exactly as the figure cards do. */
 export const isMoneyKey = (k: string) => MONEYISH.test(k) && !/(qty|count|days)/i.test(k);
 const AGEING_BUCKET = /^(current|\d+-\d+|\d+\+)$/i;           // receivables / payables ageing columns are amounts
-function show(k: string, v: any): React.ReactNode {
+function show(k: string, v: any, headline = false): React.ReactNode {
   if (v === null || v === undefined || v === "") return <span className="text-muted">—</span>;
   if (typeof v === "boolean") return <Badge tone={v ? "success" : "neutral"}>{v ? "Yes" : "No"}</Badge>;
   if (typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18)) {
-    if (/pct|percent|rate$/i.test(k)) return `${fmtNum(v, 2)}%`;
-    if ((MONEYISH.test(k) || AGEING_BUCKET.test(k)) && !/(qty|count|days)/i.test(k)) return fmtMoney(v);
+    if (/pct|percent|rate$/i.test(k)) return `${fmtNum(v, headline ? 1 : 2)}%`;
+    // headline figures (dashboard tiles) are read at a glance: whole rupees; record details keep the paise
+    if ((MONEYISH.test(k) || AGEING_BUCKET.test(k)) && !/(qty|count|days)/i.test(k)) return headline ? fmtRupees(v) : fmtMoney(v);
     return fmtNum(v, 3);
   }
   if (typeof v === "string") {
@@ -289,14 +295,20 @@ export function ReportView({ data, depth = 0, parent = "" }: { data: any; depth?
   return (
     <div className={depth ? "space-y-3" : "space-y-5"}>
       {scalars.length > 0 && (
-        <dl className={`grid gap-x-2.5 gap-y-0 ${depth === 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3"} [&>*]:mb-2.5`}>
-          {scalars.map(([k, v]) => {
+        <dl className={`grid gap-x-2.5 gap-y-0 ${depth === 0 ? "grid-cols-2 md:grid-cols-12" : "grid-cols-2 md:grid-cols-3"} [&>*]:mb-2.5`}>
+          {scalars.map(([k, v], idx) => {
             const mk = depth > 0 && MONEYISH.test(parent) && !/(count|qty|days)/i.test(parent) ? parent : k;   // children of a money block inherit its name
             const numeric = typeof v === "number" || (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/(^|_)(id|no|number|code|awb|ref)$/i.test(k) && v.length < 18);
+            const head = depth === 0 && numeric;
+            const label = fieldLabel(k).replace(/ %$/, "").replace(/\bfollowups?\b/gi, (m) => (m.toLowerCase().endsWith("s") ? "follow-ups" : "follow-up")).replace(/\b(\d+)d\b/, "($1 days)");
+            const shown = show(mk, v, head);
+            // top-level tiles sit four to a row on a 12-column grid; a short last row shares the full width so it leaves no hole
+            const rem = scalars.length % 4, inLast = idx >= scalars.length - rem;
+            const span = depth !== 0 ? "" : !inLast || rem === 0 ? "md:col-span-3" : rem === 3 ? "md:col-span-4" : rem === 2 ? "md:col-span-6" : "md:col-span-12";
             return (
-              <div key={k} className="panel p-4 min-w-0 grid grid-rows-subgrid row-span-2 gap-y-0 content-start">
-                <dt className="t-label line-clamp-2" title={fieldLabel(k)}>{fieldLabel(k)}</dt>
-                <dd className={`${numeric ? "" : "t-value"} mt-2 break-words`}>{numeric ? <span className="kpi-fit"><span className="t-kpi" style={{ "--n": String(String(show(mk, v)).length) } as React.CSSProperties} title={String(show(mk, v))}>{show(mk, v)}</span></span> : show(mk, v)}</dd>
+              <div key={k} className={`panel ${depth === 0 ? "kpi-card" : ""} p-4 min-w-0 grid grid-rows-subgrid row-span-2 gap-y-0 content-start ${span}`}>
+                <dt className="label-caps line-clamp-2" title={label}>{label}</dt>
+                <dd className={`${numeric ? "" : "t-value"} mt-2 break-words`}>{numeric ? <span className="kpi-fit"><span className="t-kpi" style={{ "--n": String(String(shown).length) } as React.CSSProperties} title={String(shown)}>{shown}</span></span> : shown}</dd>
               </div>
             );
           })}
@@ -434,12 +446,12 @@ function cell(c: Col, r: Row): React.ReactNode {
   if (c.kind === "bool") return <Badge tone={v ? "warning" : "neutral"}>{v ? "Yes" : "No"}</Badge>;
   if (v === null || v === undefined || v === "") return <span className="text-muted">—</span>;
   switch (c.kind) {
-    case "mono": return <span className="tnum font-medium text-[0.8125rem]">{v}</span>;
+    case "mono": return <span className="font-mono text-[0.78rem] font-semibold text-brand">{v}</span>;
     case "number": return fmtNum(v, 3);
     case "money": return fmtMoney(v);
     case "date": return fmtDate(v);
     case "datetime": return fmtDateTime(v);
-    case "badge": return <Badge tone={toneFor(String(v))}>{titleCase(String(v))}</Badge>;
+    case "badge": return <Badge tone={toneFor(String(v))} live={/^(IN_PROGRESS|RUNNING|IN_TRANSIT|OUT_FOR_DELIVERY|PICKED_UP)$/.test(String(v))}>{titleCase(String(v))}</Badge>;
     default: return String(v);
   }
 }
@@ -528,29 +540,39 @@ function StocktakeCounter({ open, onClose, stocktakeId, onSaved }: { open: boole
   );
 }
 
+const CARD_EDGE: Record<string, string> = { success: "var(--brand)", warning: "var(--amber)", danger: "var(--danger)", info: "var(--info)", neutral: "var(--line-strong)" };
 const VIEWS: { mode: "cards" | "table" | "board"; Icon: typeof LayoutGrid; label: string }[] = [{ mode: "cards", Icon: LayoutGrid, label: "Cards" }, { mode: "table", Icon: Rows3, label: "Table" }, { mode: "board", Icon: Columns3, label: "Board" }];
 
 function RecordCard({ r, def, onOpen, actions, onAction, compact }: { r: Row; def: NonNullable<Screen["list"]>; onOpen: (r: Row) => void; actions: Action[]; onAction: (a: Action, r: Row) => void; compact?: boolean }) {
-  /* Card anatomy: ID + route line + key figure / label-value rows / actions / footer with date left and status right. */
+  /* Card anatomy: the reference (a mono chip when it is a code) with the status pill beside it, the key figure, the remaining fields as slate tiles, then the
+     actions and a footer with the date. The status pill carries the colour; the card itself stays neutral. */
   const title = def.cols[0];
   const badge = def.cols.find((c) => c.kind === "badge" && c.key === "status") ?? def.cols.find((c) => c.kind === "badge" && c !== title);
   const rest = def.cols.filter((c) => c !== title && c !== badge);
-  const metric = rest.find((c) => c.kind === "money" || c.kind === "number");
+  // a record id is a reference, not a figure to headline; and an empty figure is not worth the space
+  const metric = rest.find((c) => (c.kind === "money" || c.kind === "number") && !/(^|_)id$/i.test(c.key) && r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "");
   const when = rest.find((c) => c.kind === "date" || c.kind === "datetime");
-  const rows = rest.filter((c) => c !== metric && c !== when).slice(0, compact ? 2 : 4);
+  const rows = rest.filter((c) => c !== metric && c !== when && !(/(^|_)id$/i.test(c.key) && (r[c.key] === null || r[c.key] === undefined))).slice(0, compact ? 2 : 4);
   const dated = when && r[when.key] ? when : undefined;
+  const raw = String(r[title.key] ?? "");
+  const isCode = /^[A-Z0-9#][A-Z0-9/#._-]{2,}$/i.test(raw) && !/\s/.test(raw) && /\d/.test(raw);
+  const tone = badge && r[badge.key] ? toneFor(String(r[badge.key])) : "neutral";
   return (
-    <article className="panel panel-link p-4 flex flex-col gap-3">
-      <button type="button" className="text-left flex flex-col gap-3 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${String(r[title.key] ?? r.id)}`}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="ref-title min-w-0 break-words">{cell(title, r)}</span>
-          </div>
-          {metric && <span className="t-ref shrink-0" title={metric.label}>{cell(metric, r)}</span>}
+    <article className="panel panel-link kpi-card p-4 flex flex-col gap-3" style={{ "--kpi-accent": CARD_EDGE[tone] ?? CARD_EDGE.neutral } as React.CSSProperties}>
+      <button type="button" className="text-left flex flex-col gap-3 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${raw || r.id}`}>
+        <div className="flex items-start justify-between gap-2">
+          {isCode ? <span className="tag tag-mono">#{raw}</span> : <span className="ref-title text-[0.9375rem] min-w-0 break-words">{cell(title, r)}</span>}
+          {badge && <span className="shrink-0">{cell(badge, r)}</span>}
         </div>
+        {metric && (
+          <div>
+            <span className="label-caps">{metric.label}</span>
+            <div className="t-stage mt-0.5 truncate">{cell(metric, r)}</div>
+          </div>
+        )}
         {rows.length > 0 && (
-          <dl className="flex flex-col gap-1.5">
-            {rows.map((c) => <div key={c.key} className="meta-row"><dt>{c.label}</dt><dd>{cell(c, r)}</dd></div>)}
+          <dl className="grid grid-cols-2 gap-2">
+            {rows.map((c) => <div key={c.key} className="tile"><dt className="tile-label truncate">{c.label}</dt><dd className="tile-value" style={c.kind === "mono" ? undefined : { fontFamily: "var(--font-sans)", fontWeight: 600 }} title={String(r[c.key] ?? "")}>{cell(c, r)}</dd></div>)}
           </dl>
         )}
       </button>
@@ -559,10 +581,9 @@ function RecordCard({ r, def, onOpen, actions, onAction, compact }: { r: Row; de
           {actions.map((a, i) => <button key={`${a.label}-${i}`} className={`btn btn-sm ${a.danger ? "btn-danger" : ""}`} onClick={() => onAction(a, r)}>{a.labelFn ? a.labelFn(r) : a.label}</button>)}
         </div>
       )}
-      {(dated || badge) && (
+      {dated && (
         <div className="card-foot !mt-auto">
-          <span className="t-support truncate">{dated ? `${dated.label} · ` : ""}{dated ? cell(dated, r) : ""}</span>
-          {badge && <span className="shrink-0">{cell(badge, r)}</span>}
+          <span className="t-support truncate">{dated.label} · {cell(dated, r)}</span>
         </div>
       )}
     </article>
@@ -577,8 +598,8 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState("");
   const sp = useSearchParams();
+  const [status, setStatus] = useState(() => { const st = sp.get("status"); return st && def.status?.options.includes(st) ? st : ""; });   // ?status=SUBMITTED opens the list already filtered
   const [q, setQ] = useState(sp.get("q") ?? "");
   const dq = useDebounced(q, 300);
   const [page, setPage] = useState(1);
@@ -590,6 +611,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const [result, setResult] = useState<any>(null);
   const [view_, setViewMode] = useState<"table" | "cards" | "board">(def.view ?? "cards");
   const [shown, setShown] = useState(48);
+  const [meta, setMeta] = useState<{ counts?: Record<string, number>; summary?: any } | null>(null);   // tab counts and the figures strip, when the endpoint sends them
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -598,7 +620,9 @@ export function ListScreen({ screen }: { screen: Screen }) {
       if (def.paged !== false && !params.page_size && !params.limit) params.page_size = "100";
       if (status && def.status?.param) params[def.status.param] = status;
       if (dq.trim() && def.paged !== false) params.q = dq.trim();          // server-side search: the list holds only the newest 100 rows, so searching must reach the older ones
-      setRows(asRows(await api<any>(def.api, { params })).map((r, i) => (r.id === undefined ? { id: i + 1, ...r } : r)));
+      const res = await api<any>(def.api, { params });
+      setMeta(res && !Array.isArray(res) && (res.counts || res.summary) ? { counts: res.counts, summary: res.summary } : null);
+      setRows(asRows(res).map((r, i) => (r.id === undefined ? { id: i + 1, ...r } : r)));
       setError(null);
     } catch (e) { setError(e instanceof ApiError ? e.message : "Failed to load"); }
     finally { setLoading(false); }
@@ -653,23 +677,36 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const visible = (r: Row) => (def.actions ?? []).filter((a) => (!a.perm || can(a.perm)) && (!a.when || a.when(r)));
   const columns: TCol<Row & { id: number }>[] = def.cols.map((c) => ({ key: c.key, label: c.label, render: (r) => cell(c, r), align: c.kind === "money" || c.kind === "number" ? "right" : undefined }));
 
+  const rfq = def.layout === "rfq";
+  function exportBids() {
+    const url = URL.createObjectURL(new Blob([bidsCsv(filtered)], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `rfq-bids-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
+  }
+  const poHref = rfq ? "/m/procurement/orders" : undefined;
+
   return (
     <>
+      {rfq && <RfqSummary summary={loading && !meta ? null : meta?.summary} />}
+      {def.layout === "pr" && <PrSummary summary={loading && !meta ? null : meta?.summary} />}
+      {def.layout === "orders" && <OrdersSummary summary={loading && !meta ? null : meta?.summary} />}
+      {def.layout === "po" && <PoSummary summary={loading && !meta ? null : meta?.summary} />}
+      {def.layout && BOARDS[def.layout] && (() => { const B = BOARDS[def.layout!]; return <B.Summary summary={loading && !meta ? null : meta?.summary} />; })()}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input className="input !pl-8 w-64" placeholder="Search this list…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" /></div>
+        <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input className={`input !pl-8 ${def.layout ? "w-44" : "w-64"}`} placeholder="Search this list…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" /></div>
         {def.status && (
           <div className="flex flex-wrap gap-1" role="group" aria-label="Filter by status">
-            <button className={`btn btn-sm ${status === "" ? "btn-primary" : ""}`} onClick={() => setStatus("")}>All</button>
-            {def.status.options.map((o) => <button key={o} className={`btn btn-sm ${status === o ? "btn-primary" : ""}`} onClick={() => setStatus(o)}>{titleCase(o)}</button>)}
+            <button className={`btn btn-sm ${status === "" ? "btn-primary" : ""}`} onClick={() => setStatus("")}>All{meta?.counts?.ALL != null && <span className="ml-1.5 tnum opacity-80">{meta.counts.ALL}</span>}</button>
+            {def.status.options.map((o) => <button key={o} className={`btn btn-sm ${status === o ? "btn-primary" : ""}`} onClick={() => setStatus(o)}>{titleCase(o)}{meta?.counts && <span className="ml-1.5 tnum opacity-80">{meta.counts[o] ?? 0}</span>}</button>)}
           </div>
         )}
         <div className="flex-1" />
         <div className="flex rounded-md border border-line overflow-hidden" role="group" aria-label="View">
           {VIEWS.filter((v) => v.mode !== "board" || def.status).map(({ mode, Icon, label }) => (
             <button key={mode} type="button" aria-pressed={view_ === mode} title={label} onClick={() => setViewMode(mode)}
-              className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-[0.75rem] ${view_ === mode ? "bg-fg text-bg" : "hover:bg-surface-2"}`}><Icon size={14} />{label}</button>
+              className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-[0.75rem] ${view_ === mode ? "bg-fg text-bg" : "hover:bg-surface-2"}`}><Icon size={14} />{def.layout ? <span className="sr-only">{label}</span> : label}</button>
           ))}
         </div>
+        {rfq && <button type="button" className="btn btn-sm gap-1.5" onClick={exportBids} disabled={filtered.length === 0}>Export bids</button>}
         {screen.create && can(screen.create.perm) && <CreateButton create={screen.create} onDone={load} onResult={(r) => setResult({ title: screen.create!.title ?? screen.label, data: r })} />}
       </div>
       {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : view_ === "table" ? (
@@ -700,7 +737,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filtered.slice(0, shown).map((r) => <RecordCard key={r.id} r={r} def={def} onOpen={openDetail} actions={visible(r)} onAction={trigger} />)}
+            {filtered.slice(0, shown).map((r) => rfq ? <RfqCard key={r.id} r={r} onOpen={openDetail} actions={visible(r)} onAction={trigger} poHref={poHref} /> : def.layout === "pr" ? <PrCard key={r.id} r={r} onOpen={openDetail} actions={visible(r)} onAction={trigger} /> : def.layout === "orders" ? <OrderCard key={r.id} r={r} onOpen={openDetail} actions={visible(r)} onAction={trigger} /> : def.layout === "po" ? <PoCard key={r.id} r={r} onOpen={openDetail} actions={visible(r)} onAction={trigger} /> : def.layout && BOARDS[def.layout] ? (() => { const B = BOARDS[def.layout!]; return <B.Card key={r.id} r={r} onOpen={openDetail} actions={visible(r)} onAction={trigger} />; })() : <RecordCard key={r.id} r={r} def={def} onOpen={openDetail} actions={visible(r)} onAction={trigger} />)}
           </div>
           {filtered.length > shown && <div className="text-center mt-4"><button className="btn" onClick={() => setShown((n) => n + 48)}>Show more ({filtered.length - shown} left)</button></div>}
         </>
@@ -751,7 +788,7 @@ export function ReportScreen({ screen, initial }: { screen: Screen; initial?: Re
           <button className="btn btn-primary" disabled={loading || missing}>{loading ? "Loading…" : "Run report"}</button>
         </form>
       )}
-      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : loading && !data ? <div className="skeleton h-40" /> : data ? <ReportView data={data} /> : missing ? <EmptyState title="Enter the details above" hint="Then run the report." /> : null}
+      {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : loading && !data ? <div className="skeleton h-40" /> : data ? (def.layout === "wastage" ? <WastageView data={data} /> : <ReportView data={data} />) : missing ? <EmptyState title="Enter the details above" hint="Then run the report." /> : null}
     </>
   );
 }

@@ -52,7 +52,9 @@ def overview_period(start: date, end: date, fresh: bool = False, db: Session = D
 def _overview_period(start: date, end: date, db: Session):
     """Period-scoped figures the Overview needs and the all-time summary does not carry. Read-only; business dates (Asia/Kolkata) throughout.
     revenue: net ex-tax = invoice subtotals dated in the period minus credit-note subtotals created in it, plus the same for the previous period of equal length.
-    production: completed orders bucketed by ISO week of completion; weeks with no completed order have null planned/actual (no data), not zero.
+    production: completed orders bucketed by ISO week of completion (business date, Asia/Kolkata); weeks with no completed order have null planned/actual (no data), not zero.
+    "planned" is the planned quantity of the orders completed that week, so planned and actual always describe the same orders. The first and last weeks are usually partial: each bucket carries
+    from/to/days/partial so the UI can say so.
     recent: the latest documents across modules for the transactions table."""
     if end < start:
         raise HTTPException(422, "end is before start")
@@ -69,7 +71,9 @@ def _overview_period(start: date, end: date, db: Session):
     buckets, wk = [], start - timedelta(days=start.weekday())
     while wk <= end:
         r = weeks.get(wk)
-        buckets.append({"week_start": wk, "orders": r["orders"] if r else 0, "planned": str(r["planned"]) if r else None, "actual": str(r["actual"]) if r else None})
+        first, last = max(wk, start), min(wk + timedelta(days=6), end)          # the part of this ISO week that lies inside the selected period
+        buckets.append({"week_start": wk, "from": first, "to": last, "days": (last - first).days + 1, "partial": (last - first).days < 6,
+                        "orders": r["orders"] if r else 0, "planned": str(r["planned"]) if r else None, "actual": str(r["actual"]) if r else None})
         wk += timedelta(days=7)
     recent = [dict(r) for r in db.execute(text("""
         SELECT * FROM (
@@ -80,9 +84,18 @@ def _overview_period(start: date, end: date, db: Session):
           UNION ALL SELECT 'sales_invoice', inv.id, inv.number, c.name, CASE WHEN inv.total - inv.amount_paid - inv.credited_amount <= 0 THEN 'PAID' WHEN inv.amount_paid > 0 THEN 'PARTIAL' ELSE 'OPEN' END, inv.created_at
             FROM sales_invoices inv JOIN customers c ON c.id = inv.customer_id
         ) x ORDER BY created_at DESC, id DESC LIMIT 8""")).mappings()]
-    od = db.execute(text("""SELECT count(*) AS n, COALESCE(sum(i.total - i.amount_paid - i.credited_amount),0) AS amount FROM sales_invoices i JOIN customers c ON c.id = i.customer_id
+    od = db.execute(text("""SELECT count(*) AS n, COALESCE(sum(i.total - i.amount_paid - i.credited_amount),0) AS amount,
+                                   COALESCE(max(business_today() - (i.invoice_date + COALESCE(c.credit_days, 0))), 0) AS oldest_days FROM sales_invoices i JOIN customers c ON c.id = i.customer_id
                              WHERE i.total - i.amount_paid - i.credited_amount > 0 AND business_today() > i.invoice_date + COALESCE(c.credit_days, 0)""")).mappings().one()
-    return {"overdue_invoices": {"count": od["n"], "amount": od["amount"]}, "start": start, "end": end, "previous": {"start": prev_start, "end": prev_end},
+    # how long each kind of exception has been waiting, and what money is tied up in it, so the Overview can say "9 late, oldest 14 days, ₹4.2L" instead of just a count
+    late_po = db.execute(text("""SELECT count(*) AS n, COALESCE(sum(total_amount), 0) AS amount, COALESCE(max(business_today() - expected_date), 0) AS oldest_days FROM purchase_orders
+                                  WHERE status IN ('APPROVED','PARTIALLY_RECEIVED') AND expected_date < business_today()""")).mappings().one()
+    late_prod = db.execute(text("""SELECT count(*) AS n, COALESCE(max(business_today() - planned_date), 0) AS oldest_days FROM production_orders
+                                    WHERE planned_date < business_today() AND status NOT IN ('COMPLETED','CANCELLED')""")).mappings().one()
+    late_ship = db.execute(text("""SELECT count(*) AS n, COALESCE(max(floor(EXTRACT(EPOCH FROM now() - created_at) / 86400)), 0)::int AS oldest_days FROM shipments
+                                    WHERE status NOT IN ('DELIVERED','RTO','FAILED_DELIVERY') AND created_at < now() - interval '5 days'""")).mappings().one()
+    return {"overdue_invoices": {"count": od["n"], "amount": od["amount"], "oldest_days": od["oldest_days"]},
+            "exposure": {"late_purchase_orders": dict(late_po), "late_production": dict(late_prod), "late_shipments": dict(late_ship)}, "start": start, "end": end, "previous": {"start": prev_start, "end": prev_end},
             "revenue": {"net_ex_tax": cur["net"], "invoices": cur["invoices"], "previous_net_ex_tax": prev["net"], "previous_invoices": prev["invoices"]},
             "production": {"granularity": "week", "buckets": buckets, "weeks_with_data": sum(1 for b in buckets if b["orders"])}, "recent": recent}
 

@@ -58,8 +58,9 @@ export const statusItems = (rows: Count[] | undefined) => (rows ?? []).map((r) =
 export type PeriodData = {
   start: string; end: string; previous: { start: string; end: string };
   revenue: { net_ex_tax: string | number; invoices: number; previous_net_ex_tax: string | number; previous_invoices: number };
-  production: { granularity: "week"; weeks_with_data: number; buckets: { week_start: string; orders: number; planned: string | null; actual: string | null }[] };
-  overdue_invoices: { count: number; amount: string | number };
+  production: { granularity: "week"; weeks_with_data: number; buckets: { week_start: string; from: string; to: string; days: number; partial: boolean; orders: number; planned: string | null; actual: string | null }[] };
+  overdue_invoices: { count: number; amount: string | number; oldest_days: number };
+  exposure: { late_purchase_orders: { n: number; amount: string | number; oldest_days: number }; late_production: { n: number; oldest_days: number }; late_shipments: { n: number; oldest_days: number } };
   recent: { kind: string; id: number; reference: string; related: string | null; status: string; created_at: string }[];
 };
 /** undefined while loading, null when unavailable. Refetches when the range changes. */

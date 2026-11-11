@@ -3,18 +3,19 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 
 type Tone = "success" | "warning" | "danger" | "info" | "neutral";
-export function Badge({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode }) {
-  return <span className={`badge tone-${tone}`}>{children}</span>;
+export function Badge({ tone = "neutral", children, live }: { tone?: Tone; children: React.ReactNode; live?: boolean }) {
+  return <span className={`badge tone-${tone} ${live ? "badge-live" : ""}`}>{children}</span>;
 }
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: React.ReactNode }) {
+export function PageHeader({ title, description, actions, eyebrow, tag, aside }: { title: string; description?: string; actions?: React.ReactNode; eyebrow?: string; tag?: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4 mb-6">
       <div className="min-w-0">
-        <h1 className="t-page">{title}</h1>
-        {description && <p className="t-label mt-1 max-w-2xl">{description}</p>}
+        <p className="eyebrow">{eyebrow ?? "Factory Plant 01 · Mintree Factory OS"}</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5"><h1 className="t-page">{title}</h1>{tag}</div>
+        {description && <p className="t-label mt-1.5 max-w-2xl">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {(aside || actions) && <div className="flex flex-wrap items-center gap-2.5">{aside}{actions}</div>}
     </div>
   );
 }

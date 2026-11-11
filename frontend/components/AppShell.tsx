@@ -136,7 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 min-w-0 flex flex-col canvas md:rounded-3xl overflow-hidden">
         <Header current={current?.label} theme={theme} toggleTheme={toggleTheme} themeCustom={themeCustom} useSystemTheme={useSystemTheme} logout={logout} onMenu={() => { setCollapsed(false); setMobileOpen(true); }} menuOpen={mobileOpen} aiStatus={aiStatus} onAssist={toggleAssist} />
         <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
-          <div key={pathname} className="page-in max-w-[1440px] mx-auto px-4 sm:px-7 pt-2 pb-8">{children}</div>
+          <div key={pathname} className="page-in max-w-[1500px] mx-auto px-4 sm:px-7 lg:px-8 2xl:px-10 pt-2 pb-8">{children}</div>
         </main>
       </div>
       {aiStatus?.can_assist && <AssistantPanel open={assist} onClose={() => setAssist(false)} status={aiStatus} />}   {/* outside the header: its backdrop filter would become the containing block of the fixed drawer */}

@@ -59,6 +59,7 @@ await step("Overview: one strip of four indicators; money figures are not repeat
   const strip = page.getByRole("region", { name: "Key indicators" });
   await strip.waitFor();
   await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1300);                 // the indicator figures count up on arrival (900 ms); read them once they have settled
   assert.equal(await strip.locator("li").count(), 4);
   const money = (await strip.locator(".t-kpi").allInnerTexts()).filter((v) => v.startsWith("₹"));
   assert.ok(money.length >= 2, "receivables and revenue are shown in rupees");
@@ -74,7 +75,7 @@ await step("Overview: the production chart is drawn from the API's weekly series
   assert.ok(j.production.weeks_with_data >= 2, "the demo history has at least two weeks of completed orders");
   const svg = page.locator('svg[aria-label*="by week"]');
   await svg.waitFor();
-  assert.equal(await svg.locator('rect[fill="var(--accent)"]').count(), withActual, "one actual bar per week with data");
+  assert.equal(await svg.locator('rect[fill="var(--chart-actual)"]').count(), withActual, "one actual bar per week with data");
   assert.equal(await svg.locator('rect[fill="var(--line-strong)"]').count(), withActual, "one planned bar per week with data");
   const sums = j.production.buckets.reduce((a, b) => a + Number(b.actual ?? 0), 0);
   assert.ok((await page.locator("main").innerText()).includes(`${sums.toLocaleString("en-IN")} units made`), "the headline total is the sum of the series");
@@ -82,7 +83,7 @@ await step("Overview: the production chart is drawn from the API's weekly series
   const j90 = await r90.json();
   assert.notEqual(j90.start, j.start, "choosing 90 days asks the API for a longer period");
   await page.waitForLoadState("networkidle");
-  assert.equal(await svg.locator('rect[fill="var(--accent)"]').count(), j90.production.buckets.filter((b) => b.actual !== null).length);
+  assert.equal(await svg.locator('rect[fill="var(--chart-actual)"]').count(), j90.production.buckets.filter((b) => b.actual !== null).length);
   await shot("d00b-overview-90d");
 });
 

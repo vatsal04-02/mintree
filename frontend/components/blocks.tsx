@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { fmtDay, fmtNum } from "@/lib/format";
+import { CountUp, Sparkline } from "./fx";
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 const TONE_TEXT: Record<Tone, string> = { success: "text-success", warning: "text-warning", danger: "text-danger", info: "text-info", neutral: "text-muted" };
@@ -30,7 +31,7 @@ export function Block({ title, meta, action, children, className = "", bare }: {
 export function Panel({ title, meta, action, children, className = "", bodyClass = "" }: { title: string; meta?: string; action?: React.ReactNode; children: React.ReactNode; className?: string; bodyClass?: string }) {
   return (
     <section aria-label={title} className={`panel rise flex flex-col min-w-0 ${className}`}>
-      <div className="flex items-start justify-between gap-3 px-5 py-3.5 mb-3 border-b border-line">
+      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
         <div className="min-w-0"><h2 className="t-section">{title}</h2>{meta && <p className="t-support mt-0.5">{meta}</p>}</div>
         {action}
       </div>
@@ -61,37 +62,41 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
 export const Skeleton = ({ className = "" }: { className?: string }) => <span className={`skeleton block ${className}`} aria-hidden />;
 
 /* ------------------------------------------------------------------ metric cards */
-export type Metric = { label: string; value: string; note?: string; noteTone?: Tone; href?: string; loading?: boolean; hero?: boolean; icon?: LucideIcon; delta?: { text: string; tone: Tone } };
+export type Metric = { label: string; value: string; note?: string; noteTone?: Tone; href?: string; loading?: boolean; hero?: boolean; icon?: LucideIcon; delta?: { text: string; tone: Tone }; spark?: { points: number[]; label: string; caption?: string }; extra?: React.ReactNode; unit?: string; accent?: string };
 
-/** One connected row of headline figures: hairline dividers, no icons, no pills. The whole cell is the link. A delta appears only when a real previous-period figure exists. */
+/** Headline figures as separate cards: a coloured top edge, an uppercase label with its icon in a soft square, a large figure (with its unit), tinted chips for the
+ *  comparison and the note, and a small graphic underneath (sparkline or a segmented bar). The whole card is the link. */
 export function MetricStrip({ items, label }: { items: Metric[]; label: string }) {
   return (
-    <section aria-label={label} className="rise">
-      <ul className="grid grid-cols-2 xl:grid-cols-4 gap-4 [&>li]:min-w-0">
+    <section aria-label={label}>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 [&>li]:min-w-0">
         {items.map((m) => {
           const tone = m.noteTone && m.noteTone !== "neutral" ? m.noteTone : null;
+          const Icon = m.icon;
           const body = (
-            <div className={`panel h-full px-5 py-4 flex flex-col ${m.href ? "panel-link" : ""}`}>
-              <span className="t-label line-clamp-1" title={m.label}>{m.label}</span>
-              <div className="mt-2">
-                {m.loading ? <Skeleton className="h-8 w-32" /> : <span className="kpi-fit" style={{ "--kpi-max": "1.5rem" } as React.CSSProperties}><span className="t-kpi" title={m.value} style={{ "--n": String(m.value.length) } as React.CSSProperties}>{m.value}</span></span>}
+            <div className={`panel kpi-card h-full p-4 pt-[18px] flex flex-col ${m.href ? "panel-link" : ""}`} style={{ "--kpi-accent": m.accent ?? "var(--brand)" } as React.CSSProperties}>
+              <div className="flex items-start justify-between gap-3">
+                <span className="label-caps line-clamp-2" title={m.label}>{m.label}</span>
+                {Icon && <span className="icon-sq icon-sq-sm" aria-hidden><Icon size={15} strokeWidth={2} /></span>}
               </div>
-              <div className="mt-1.5 t-support flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-h-[1.2rem]">
-                {m.loading ? <Skeleton className="h-4 w-28" /> : (
+              <div className="mt-1.5 min-w-0">
+                {/* the unit sits inside the figure: the auto-fit box needs the full card width, which a flex row would take away */}
+                {m.loading ? <Skeleton className="h-8 w-32" /> : <span className="kpi-fit"><span className="t-kpi" title={m.value} style={{ "--n": String(m.value.length + (m.unit ? m.unit.length * 0.45 : 0)) } as React.CSSProperties}><CountUp text={m.value} />{m.unit && <span className="t-label !font-semibold ml-1.5 tracking-normal">{m.unit}</span>}</span></span>}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 min-h-[1.5rem]">
+                {m.loading ? <Skeleton className="h-5 w-28" /> : (
                   <>
-                    {m.delta && <span className={`font-semibold ${TONE_TEXT[m.delta.tone]}`}>{m.delta.text}</span>}
-                    <span className={`inline-flex items-center gap-1.5 min-w-0 ${tone ? TONE_TEXT[tone] : ""}`} title={m.note}>
-                      {tone && <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden />}
-                      <span className="truncate">{m.note ?? "\u00a0"}</span>
-                    </span>
+                    {m.delta && <span className={`badge tone-${m.delta.tone}`}>{m.delta.text}</span>}
+                    {m.note && (tone ? <span className={`badge tone-${tone} max-w-full`} title={m.note}><span className="truncate">{m.note}</span></span> : <span className="t-support truncate" title={m.note}>{m.note}</span>)}
                   </>
                 )}
               </div>
+              {!m.loading && (m.spark || m.extra) && <div className="mt-auto pt-3">{m.spark ? <><Sparkline points={m.spark.points} label={m.spark.label} />{m.spark.caption && <p className="t-support mt-1.5">{m.spark.caption}</p>}</> : m.extra}</div>}
             </div>
           );
           return (
             <li key={m.label}>
-              {m.href ? <Link href={m.href} className="block h-full" aria-label={`${m.label}: ${m.loading ? "loading" : m.value}${m.delta ? `, ${m.delta.text}` : ""}${m.note ? `, ${m.note}` : ""}`}>{body}</Link> : body}
+              {m.href ? <Link href={m.href} className="block h-full rounded-[14px]" aria-label={`${m.label}: ${m.loading ? "loading" : m.value}${m.delta ? `, ${m.delta.text}` : ""}${m.note ? `, ${m.note}` : ""}`}>{body}</Link> : body}
             </li>
           );
         })}
@@ -101,7 +106,7 @@ export function MetricStrip({ items, label }: { items: Metric[]; label: string }
 }
 
 /* ------------------------------------------------------------------ chart */
-export type Bucket = { start: string; planned: number | null; actual: number | null; orders: number };
+export type Bucket = { start: string; planned: number | null; actual: number | null; orders: number; from?: string; to?: string; days?: number; partial?: boolean };
 const niceMax = (v: number) => { if (v <= 0) return 10; const p = 10 ** Math.floor(Math.log10(v)); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
 function useSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -145,8 +150,8 @@ export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { bucket
             return (
               <g key={b.start} onMouseEnter={() => setHot(i)} onFocus={() => setHot(i)} onBlur={() => setHot(null)} tabIndex={b.orders ? 0 : -1} aria-label={b.orders ? `Week of ${fmtDay(b.start)}: planned ${b.planned}, actual ${b.actual}` : undefined}>
                 <rect x={cx - band / 2} y={M.t} width={band} height={ih} fill={hot === i ? "var(--surface-2)" : "transparent"} style={{ transition: "fill 140ms" }} />
-                {b.planned !== null && <rect x={cx - bw - 1.5} y={y(b.planned)} width={bw} height={Math.max(0, M.t + ih - y(b.planned))} rx={5} fill="var(--butter)" fillOpacity={0.45} stroke="var(--chart-plan)" strokeWidth={1.25} strokeDasharray="4 3" />}
-                {b.actual !== null && <rect x={cx + 1.5} y={y(b.actual)} width={bw} height={Math.max(0, M.t + ih - y(b.actual))} rx={6} fill="var(--chart-actual)" />}
+                {b.planned !== null && <rect x={cx - bw - 1.5} y={y(b.planned)} width={bw} height={Math.max(0, M.t + ih - y(b.planned))} rx={4} fill="var(--line-strong)" />}
+                {b.actual !== null && <rect x={cx + 1.5} y={y(b.actual)} width={bw} height={Math.max(0, M.t + ih - y(b.actual))} rx={4} fill="var(--chart-actual)" />}
                 {i % every === 0 && <text x={cx} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)">{fmtDay(b.start)}</text>}
               </g>
             );
@@ -156,11 +161,12 @@ export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { bucket
       )}
       {cur && cur.orders > 0 && (
         <div role="tooltip" className="pointer-events-none absolute z-10 rounded-xl px-3 py-2 text-[0.75rem] leading-[1.125rem] shadow-lg" 
-          style={{ background: "var(--ink)", color: "var(--fg-on-ink)", left: Math.min(Math.max(M.l + band * (hot as number) + band / 2 - 80, 4), Math.max(W - 168, 4)), top: 8, width: 160 }}>
+          style={{ background: "var(--ink)", color: "var(--fg-on-ink)", left: Math.min(Math.max(M.l + band * (hot as number) + band / 2 - 100, 4), Math.max(W - 208, 4)), top: 8, width: 200 }}>
           <div className="font-medium">Week of {fmtDay(cur.start)}</div>
-          <div className="flex justify-between gap-3"><span className="opacity-70">{labels[0]}</span><span className="tnum">{fmtNum(cur.planned)}</span></div>
-          <div className="flex justify-between gap-3"><span className="opacity-70">{labels[1]}</span><span className="tnum">{fmtNum(cur.actual)}</span></div>
-          <div className="flex justify-between gap-3"><span className="opacity-70">Orders</span><span className="tnum">{fmtNum(cur.orders)}</span></div>
+          {cur.partial && cur.from && cur.to && <div className="opacity-70">Partial week: {fmtDay(cur.from)} to {fmtDay(cur.to)} ({cur.days} {cur.days === 1 ? "day" : "days"})</div>}
+          <div className="flex justify-between gap-3"><span className="opacity-70">{labels[0]}</span><span className="tnum">{fmtNum(cur.planned)} {unit}</span></div>
+          <div className="flex justify-between gap-3"><span className="opacity-70">{labels[1]}</span><span className="tnum">{fmtNum(cur.actual)} {unit}</span></div>
+          <div className="flex justify-between gap-3"><span className="opacity-70">Orders completed</span><span className="tnum">{fmtNum(cur.orders)}</span></div>
         </div>
       )}
       <table className="sr-only" id={id}><caption>{labels[0]} and {labels[1]} {unit} by week</caption>
@@ -176,44 +182,58 @@ export function Legend({ items }: { items: { label: string; color: string }[] })
 }
 
 /* ------------------------------------------------------------------ exceptions */
-export type Exception = { key: string; label: string; detail?: string; value?: string; severity: "high" | "medium"; href?: string; ratio?: number };
+export type Exception = { key: string; label: string; detail?: string; value?: string; severity: "high" | "medium" | "low"; href?: string; ratio?: number };
 
-/** Needs attention: a plain ruled list, most severe first. Each row is a direct link; the count is a figure, not a badge.
- *  A `ratio` (available / reorder level) draws stock on a scale where the tick at the middle is the reorder point; at zero the bar is empty. */
-export function ExceptionList({ items, empty }: { items: Exception[]; empty: React.ReactNode }) {
+/** Needs attention: a plain ruled list in three groups (Act now, Review, Monitor), most severe first. The five most important entries show at first; "View all" reveals the rest.
+ *  Each row is a direct link; the count is a figure, not a badge. A `ratio` (available / reorder level) draws stock on a scale where the tick at the middle is the reorder point. */
+const GROUPS: { name: string; severity: Exception["severity"]; dot: string }[] = [
+  { name: "Act now", severity: "high", dot: "var(--danger)" }, { name: "Review", severity: "medium", dot: "var(--amber)" }, { name: "Monitor", severity: "low", dot: "var(--subtle)" },
+];
+export function ExceptionList({ items, empty, initial = 5 }: { items: Exception[]; empty: React.ReactNode; initial?: number }) {
+  const [all, setAll] = useState(false);
   if (items.length === 0) return <div className="px-5 pb-6 t-label">{empty}</div>;
-  const groups = [{ name: "Act now", rows: items.filter((i) => i.severity === "high") }, { name: "Review", rows: items.filter((i) => i.severity === "medium") }].filter((g) => g.rows.length);
+  const rank = { high: 0, medium: 1, low: 2 } as const;
+  const sorted = [...items].sort((a, b) => rank[a.severity] - rank[b.severity]);
+  const shown = all ? sorted : sorted.slice(0, initial);
   return (
-    <div className="px-4 pb-4 space-y-3">
-      {groups.map((g) => (
-        <div key={g.name} className="px-3">
-          <h3 className={`eyebrow pt-1 pb-1 ${g.name === "Act now" ? "!text-danger font-semibold" : ""}`}>{g.name}</h3>
-          <ul>
-            {g.rows.map((r) => {
-              const dot = r.severity === "high" ? "var(--danger)" : "var(--amber)";
-              const inner = (
-                <>
-                  <span className="w-2 h-2 rounded-full shrink-0 mt-[7px] self-start" style={{ background: dot }} aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[0.8125rem] leading-5 font-medium">{r.label}</span>
-                    {r.detail && <span className="block truncate t-support">{r.detail}</span>}
-                    {r.ratio !== undefined && (
-                      <span className="relative block mt-1.5 h-1 rounded-full" style={{ background: "var(--chart-track)" }} aria-hidden>
-                        <span className="block h-1 rounded-full" style={{ width: `${Math.max(0, Math.min(r.ratio, 2)) * 50}%`, background: dot }} />
-                        <span className="absolute -top-[3px] left-1/2 w-px h-2.5" style={{ background: "var(--fg)", opacity: 0.45 }} />
-                      </span>
-                    )}
-                  </span>
-                  {r.value && <span className={`shrink-0 tabular-nums text-[0.9375rem] font-semibold ${r.severity === "high" ? "text-danger" : ""}`}>{r.value}</span>}
-                  {r.href && <ChevronRight size={14} className="text-faint shrink-0" aria-hidden />}
-                </>
-              );
-              const cls = "flex items-center gap-3 py-2.5 border-t border-line";
-              return <li key={r.key}>{r.href ? <Link href={r.href} className={`${cls} -mx-2 px-2 rounded-md transition-colors hover:bg-[var(--inset)]`}>{inner}</Link> : <div className={cls}>{inner}</div>}</li>;
-            })}
-          </ul>
-        </div>
-      ))}
+    <div className="px-5 pb-4">
+      {GROUPS.map((g) => {
+        const rows = shown.filter((i) => i.severity === g.severity);
+        if (!rows.length) return null;
+        return (
+          <div key={g.name} className="mb-2">
+            <h3 className={`eyebrow pt-1 pb-1 ${g.severity === "high" ? "!text-danger font-semibold" : ""}`}>{g.name}</h3>
+            <ul>
+              {rows.map((r) => {
+                const inner = (
+                  <>
+                    <span className="w-2 h-2 rounded-full shrink-0 mt-[7px] self-start" style={{ background: g.dot }} aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[0.8125rem] leading-5 font-medium">{r.label}</span>
+                      {r.detail && <span className="block truncate t-support">{r.detail}</span>}
+                      {r.ratio !== undefined && (
+                        <span className="relative block mt-1.5 h-1 rounded-full" style={{ background: "var(--chart-track)" }} aria-hidden>
+                          <span className="block h-1 rounded-full" style={{ width: `${Math.max(0, Math.min(r.ratio, 2)) * 50}%`, background: g.dot }} />
+                          <span className="absolute -top-[3px] left-1/2 w-px h-2.5" style={{ background: "var(--fg)", opacity: 0.45 }} />
+                        </span>
+                      )}
+                    </span>
+                    {r.value && <span className={`shrink-0 tabular-nums text-[0.9375rem] font-semibold ${g.severity === "high" ? "text-danger" : ""}`}>{r.value}</span>}
+                    {r.href && <ChevronRight size={14} className="text-faint shrink-0" aria-hidden />}
+                  </>
+                );
+                const cls = "flex items-center gap-3 py-2.5 border-t border-line";
+                return <li key={r.key}>{r.href ? <Link href={r.href} className={`${cls} -mx-2 px-2 rounded-md transition-colors hover:bg-[var(--inset)]`}>{inner}</Link> : <div className={cls}>{inner}</div>}</li>;
+              })}
+            </ul>
+          </div>
+        );
+      })}
+      {sorted.length > initial && (
+        <button type="button" className="mt-1 text-[0.8125rem] font-medium text-brand hover:underline underline-offset-2 min-h-8 pointer-coarse:min-h-11" aria-expanded={all} onClick={() => setAll((v) => !v)}>
+          {all ? "Show fewer" : `View all ${sorted.length}`}
+        </button>
+      )}
     </div>
   );
 }
@@ -221,30 +241,40 @@ export function ExceptionList({ items, empty }: { items: Exception[]; empty: Rea
 /* ------------------------------------------------------------------ pipeline */
 export type PipelineStage = { label: string; value: string; note: string; flag?: string; href?: string; active?: boolean; alert?: "warn" | "danger" };
 
-/** Procurement to dispatch as one joined strip, left to right. Idle: a quiet figure. Has work: dark figure and a brand underline. Needs action: amber or red underline and dot. */
+/** Procurement to dispatch as numbered stage boxes in one panel. Each box has a coloured top edge (green when work is waiting, amber or red when it needs action),
+ *  the stage number, its name, how many items wait there and a one-line status. The whole box is the link. */
 export function Pipeline({ stages }: { stages: PipelineStage[] }) {
+  // the stage holding the most waiting work (and not already flagged) is the "current" one: mint edge and wash, as in the dispatch stepper
+  const num = (v: string) => Number(v.replace(/[^\d.]/g, "")) || 0;
+  const busiest = stages.reduce((best, s, i) => (!s.alert && num(s.value) > (best < 0 ? 0 : num(stages[best].value)) ? i : best), -1);
   return (
-    <ol className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 rise">
-      {stages.map((s) => {
-        const color = s.alert === "danger" ? "var(--danger)" : s.alert === "warn" ? "var(--amber)" : s.active ? "var(--brand)" : null;
-        const body = (
-          <div className={`panel h-full px-4 py-3.5 flex flex-col gap-0.5 overflow-hidden ${s.href ? "panel-link" : ""}`} style={color ? { boxShadow: `inset 0 -2px 0 ${color}, var(--shadow-md)` } : undefined}>
-            <div className="flex items-center gap-2 t-label">
-              <span className="truncate">{s.label}</span>
-              {s.alert && <span className="w-2 h-2 rounded-full ml-auto shrink-0" style={{ background: color ?? undefined }} aria-hidden />}
+    <section className="panel p-4" aria-label="Order to dispatch workflow">
+      <ol className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        {stages.map((s, i) => {
+          const state = s.alert === "danger" ? "step-danger" : s.alert === "warn" ? "step-warn" : i === busiest ? "step-active" : "";
+          const flagColor = s.alert === "warn" ? "!text-warning" : "!text-danger";
+          const body = (
+            <div className={`step ${state} kpi-card h-full px-3.5 pt-[15px] pb-3 flex flex-col gap-0.5 transition-colors ${s.href && state !== "step-active" ? "hover:bg-[var(--card-hover)]" : ""}`} style={{ "--kpi-accent": s.alert === "danger" ? "var(--danger)" : s.alert === "warn" ? "var(--amber)" : i === busiest ? "var(--brand-bright)" : "var(--line-strong)" } as React.CSSProperties}>
+              <div className="flex items-center gap-1.5">
+                <span className={`label-caps ${i === busiest ? "!text-brand" : ""}`}>Stage {String(i + 1).padStart(2, "0")}{i === busiest ? " · Current" : ""}</span>
+                {s.alert && <span className="w-2 h-2 rounded-full ml-auto shrink-0" style={{ background: s.alert === "danger" ? "var(--danger)" : "var(--amber)" }} aria-hidden />}
+              </div>
+              <div className="font-heading text-[0.875rem] font-bold leading-5 truncate">{s.label}</div>
+              <div className="flex items-baseline justify-between gap-2 mt-1">
+                <span className="t-stage tabular-nums" style={{ color: s.value === "0" ? "var(--subtle)" : i === busiest ? "var(--brand)" : "var(--fg)" }}>{s.value}</span>
+              </div>
+              <div className="t-support">{s.note}</div>
+              <div className={`t-support min-h-[18px] font-semibold ${s.flag ? flagColor : ""}`}>{s.flag ?? " "}</div>
             </div>
-            <div className="t-stage mt-1 truncate" title={s.value} style={{ color: color ? "var(--fg)" : "var(--subtle)" }}>{s.value}</div>
-            <div className="t-support">{s.note}</div>
-            <div className={`t-support min-h-[18px] ${s.flag ? "!text-danger" : ""}`}>{s.flag ?? " "}</div>
-          </div>
-        );
-        return (
-          <li key={s.label} className="min-w-0">
-            {s.href ? <Link href={s.href} className="block h-full" aria-label={`${s.label}: ${s.value} ${s.note}`}>{body}</Link> : body}
-          </li>
-        );
-      })}
-    </ol>
+          );
+          return (
+            <li key={s.label} className="min-w-0">
+              {s.href ? <Link href={s.href} className="block h-full rounded-[10px]" aria-label={`${s.label}: ${s.value} ${s.note}${s.flag ? `, ${s.flag}` : ""}`}>{body}</Link> : body}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -254,19 +284,21 @@ export function TransactionTable({ rows, empty }: { rows: TxRow[]; empty: React.
   if (rows.length === 0) return <div className="py-6 t-label">{empty}</div>;
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <table className="w-full text-[0.8125rem] leading-5 border-separate border-spacing-0 min-w-[560px]">
+      <table className="tx-table w-full text-[0.8125rem] leading-5 border-separate border-spacing-0 sm:min-w-[480px]">
         <thead><tr className="text-left">
-          {["Reference", "Activity", "Related record", "Date", "Status"].map((h) => <th key={h} className="eyebrow py-2 pr-4 border-b border-line whitespace-nowrap last:pr-0">{h}</th>)}
+          {["Reference", "Related record", "Date", "Status"].map((h) => <th key={h} className={`label-caps py-2 pr-4 whitespace-nowrap last:pr-0 ${h === "Date" || h === "Related record" ? "max-sm:hidden" : ""}`}>{h}</th>)}
         </tr></thead>
         <tbody>
           {rows.map((r) => {
-            const cell = "h-12 pr-4 border-b border-line group-last:border-b-0 whitespace-nowrap max-w-[220px] truncate";
+            const cell = "h-[52px] pr-4 border-b border-line group-last:border-b-0 whitespace-nowrap max-w-[200px] truncate";
             return (
               <tr key={r.key} className="group row-link relative">
-                <td className={`${cell} t-ref`}>{r.href ? <Link href={r.href} className="inline-block py-1.5 pointer-coarse:py-3 hover:underline underline-offset-2">{r.reference}</Link> : r.reference}</td>
-                <td className={cell}>{r.activity}</td>
-                <td className={`${cell} text-muted`}>{r.related}</td>
-                <td className={`${cell} text-muted tnum`}>{r.date}</td>
+                <td className={`${cell} !max-w-none max-sm:!max-w-[210px]`}>
+                  {r.href ? <Link href={r.href} className="t-ref block hover:text-brand hover:underline underline-offset-2">{r.reference}</Link> : <span className="t-ref block">{r.reference}</span>}
+                  <span className="block t-support truncate">{r.activity}<span className="sm:hidden"> · {r.related}</span></span>
+                </td>
+                <td className={`${cell} text-muted max-sm:hidden`}>{r.related}</td>
+                <td className={`${cell} text-muted tnum max-sm:hidden`}>{r.date}</td>
                 <td className={`${cell} pr-0`}>{r.status}</td>
               </tr>
             );

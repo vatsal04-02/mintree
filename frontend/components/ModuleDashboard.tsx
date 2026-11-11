@@ -5,13 +5,20 @@
  *    { label: number } objects -> a ranked bar panel (status mix, platform split, top products, spend by campaign)
  *  Whether a figure is money is decided from its name, as everywhere else in the module screens. */
 import { ReportView, isMoneyKey } from "./ModuleKit";
-import { fieldLabel, fmtDay, fmtMoney, fmtNum, titleCase } from "@/lib/format";
+import { InView } from "./fx";
+import { fieldLabel, fmtDay, fmtNum, fmtRupees, titleCase } from "@/lib/format";
 
 type Point = { label: string; value: number };
 const isTrend = (k: string, v: unknown): v is Point[] => k.endsWith("_trend") && Array.isArray(v) && v.length > 0 && v.every((p) => p && typeof (p as Point).value === "number");
 const isBars = (v: unknown): v is Record<string, number> => !!v && typeof v === "object" && !Array.isArray(v) && Object.values(v).length > 0 && Object.values(v).every((x) => typeof x === "number");
 
-const fmt = (k: string, n: number) => (isMoneyKey(k) ? fmtMoney(n) : fmtNum(n, Number.isInteger(n) ? 0 : 1));
+const fmt = (k: string, n: number) => (isMoneyKey(k) ? fmtRupees(n) : fmtNum(n, Number.isInteger(n) ? 0 : 1));
+/** Workflow order for status and stage lists, so a pipeline reads start to finish instead of by size. Unknown labels keep their order after these. */
+const FLOW = ["NEW", "OPEN", "CONTACTED", "PROSPECTING", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "DRAFT", "SUBMITTED", "SENT", "PENDING", "INVESTIGATING", "IN_PROGRESS",
+  "ACCEPTED", "APPROVED", "WON", "RESOLVED", "CLOSED", "COMPLETED", "REJECTED", "LOST", "CANCELLED", "EXPIRED"];
+const flowIndex = (k: string) => { const i = FLOW.indexOf(k.toUpperCase().replace(/\s+/g, "_")); return i < 0 ? FLOW.length : i; };
+/** Columns for a row of panels that leave no hole: 4 sit 2+2 or 4 across, 2 sit side by side, otherwise 3 across. */
+const colsFor = (n: number) => (n === 1 ? "" : n === 2 ? "md:grid-cols-2" : n % 4 === 0 ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-2 xl:grid-cols-3");
 /** Axis labels in the Indian grouping people read: ₹1.2Cr, ₹4.5L, ₹12k. */
 function compact(k: string, n: number) {
   const p = isMoneyKey(k) ? "₹" : "";
@@ -21,7 +28,8 @@ function compact(k: string, n: number) {
   return `${p}${fmtNum(n, 0)}`;
 }
 /** Titles come from field names: keep acronyms upper-case. */
-const nice = (t: string) => t.replace(/\b(skus|sku|gst|qc|rfq|capa|coa|po|so)\b/gi, (m) => (m.toLowerCase() === "skus" ? "SKUs" : m.toUpperCase()));
+const nice = (t: string) => t.replace(/\b(skus|sku|gst|qc|rfq|capa|coa|po|so)\b/gi, (m) => (m.toLowerCase() === "skus" ? "SKUs" : m.toUpperCase()))
+  .replace(/\b(F|f)ollowups\b/g, "$1ollow-ups").replace(/\b(F|f)ollowup\b/g, "$1ollow-up");
 /** An axis maximum that splits into four clean steps: 1, 2, 4, 8 or 10 times a power of ten. Small counts round up to a multiple of four so the ticks are whole numbers. */
 const niceMax = (v: number, whole = false) => {
   if (v <= 0) return 4;
@@ -52,10 +60,10 @@ function TrendChart({ name, points }: { name: string; points: Point[] }) {
           </div>
         ))}
         <div className="absolute inset-0 left-12 flex items-end gap-[3px]">
-          {points.map((p) => (
+          {points.map((p, i) => (
             <div key={p.label} className="flex-1 min-w-0 h-full flex items-end group">
-              <div className="w-full rounded-t-[3px] transition-opacity group-hover:opacity-70" title={`${fmtDay(p.label)}: ${fmt(name, p.value)}`}
-                style={{ height: `${Math.max(p.value > 0 ? 1.5 : 0, (p.value / max) * 100)}%`, background: "var(--chart-actual)" }} />
+              <div className="w-full rounded-t-[3px] bar-grow transition-opacity group-hover:opacity-70" title={`${fmtDay(p.label)}: ${fmt(name, p.value)}`}
+                style={{ height: `${Math.max(p.value > 0 ? 1.5 : 0, (p.value / max) * 100)}%`, background: "var(--chart-actual)", animationDelay: `${Math.min(i * 22, 600)}ms` }} />
             </div>
           ))}
         </div>
@@ -73,10 +81,11 @@ function TrendChart({ name, points }: { name: string; points: Point[] }) {
 const BAD = /(exception|reject|lost|fail|overdue|breakdown|expired|revoked)/i;
 const WARN = /(pending|review|draft|paused|investigat|quarantine|submitted|open|unmatched|partial)/i;
 function BarPanel({ name, data }: { name: string; data: Record<string, number> }) {
+  const semantic = /(status|decision|stage)/i.test(name);   // colour by meaning only where the labels are states
   const entries = Object.entries(data);
+  if (semantic && entries.some(([k]) => flowIndex(k) < FLOW.length)) entries.sort(([a], [b]) => flowIndex(a) - flowIndex(b));
   const max = Math.max(...entries.map(([, v]) => v), 1);
   const total = entries.reduce((a, [, v]) => a + v, 0);
-  const semantic = /(status|decision|stage)/i.test(name);   // colour by meaning only where the labels are states
   const title = nice(fieldLabel(name));
   return (
     <section className="panel p-5 min-w-0" aria-label={title}>
@@ -85,7 +94,7 @@ function BarPanel({ name, data }: { name: string; data: Record<string, number> }
         <span className="t-support shrink-0">{fmt(name, total)} total</span>
       </header>
       <ul className="mt-3.5 space-y-3">
-        {entries.map(([k, v]) => {
+        {entries.map(([k, v], i) => {
           const color = semantic && BAD.test(k) ? "var(--danger)" : semantic && WARN.test(k) ? "var(--amber)" : "var(--chart-actual)";
           return (
             <li key={k}>
@@ -94,7 +103,7 @@ function BarPanel({ name, data }: { name: string; data: Record<string, number> }
                 <span className="tabular-nums font-semibold shrink-0">{fmt(name, v)}</span>
               </div>
               <div className="mt-1 h-1.5 rounded-full" style={{ background: "var(--chart-track)" }} aria-hidden>
-                <div className="h-1.5 rounded-full" style={{ width: `${Math.max(v > 0 ? 2 : 0, (v / max) * 100)}%`, background: color }} />
+                <div className="h-1.5 rounded-full bar-grow-x" style={{ width: `${Math.max(v > 0 ? 2 : 0, (v / max) * 100)}%`, background: color, animationDelay: `${i * 70}ms` }} />
               </div>
             </li>
           );
@@ -113,8 +122,8 @@ export function ModuleDashboard({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="space-y-5 mb-6">
       {Object.keys(scalars).length > 0 && <ReportView data={scalars} />}
-      {trends.length > 0 && <div className={`grid gap-4 ${trends.length > 1 ? "xl:grid-cols-2" : ""}`}>{trends.map(([k, pts]) => <TrendChart key={k} name={k} points={pts} />)}</div>}
-      {bars.length > 0 && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{bars.map(([k, d]) => <BarPanel key={k} name={k} data={d} />)}</div>}
+      {trends.length > 0 && <div className={`grid gap-4 ${trends.length > 1 ? "xl:grid-cols-2" : ""}`}>{trends.map(([k, pts], i) => <InView key={k} className={trends.length % 2 === 1 && i === trends.length - 1 && trends.length > 1 ? "xl:col-span-2" : ""}><TrendChart name={k} points={pts} /></InView>)}</div>}
+      {bars.length > 0 && <div className={`grid gap-4 items-start ${colsFor(bars.length)}`}>{bars.map(([k, d]) => <InView key={k}><BarPanel name={k} data={d} /></InView>)}</div>}
       {Object.keys(other).length > 0 && <ReportView data={other} />}
     </div>
   );
