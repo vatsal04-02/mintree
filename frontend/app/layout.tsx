@@ -6,6 +6,9 @@ import { ToastProvider } from "@/components/ui";
 export const metadata: Metadata = {
   title: "Mintree Factory OS",
   description: "Manufacturing, quality, dispatch and commerce operations for Mintree.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Mintree", statusBarStyle: "default" },
+  icons: { apple: "/icons/icon-192.png" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: [{ media: "(prefers-color-scheme: light)", color: "#eaf1ef" }, { media: "(prefers-color-scheme: dark)", color: "#0b1512" }] };   // no maximumScale: people must be able to zoom

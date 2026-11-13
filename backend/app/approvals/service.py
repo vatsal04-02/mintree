@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "company.address": (None, "Registered address printed on invoices"),
     "finance.fiscal_year_start_month": (4, "1-12; Indian fiscal year starts in April"),
     "procurement.two_level_threshold": (None, "PO total at or above which two distinct approvers are required; empty = single level"),
+    "dispatch.min_shelf_life_days": (0, "Sales orders are not allocated stock with fewer than this many days of shelf life left (0 = no limit)"),
     "dispatch.require_pick_scan": (False, "When true, an order cannot be packed until every pick line has been verified by barcode scan"),
     "inventory.rotation_policy": ("FEFO", "FEFO or FIFO for batch allocation"),
     "costing.overhead_pct": (0, "Reporting-only overhead allocation as a percentage of COGS (not posted to the ledger)"),

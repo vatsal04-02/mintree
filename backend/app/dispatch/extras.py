@@ -192,7 +192,16 @@ def invoice_pdf(db: Session, iid: int) -> tuple[str, bytes]:
     els += [t, Spacer(1, 8)]
     split = [["Taxable value", f"{sub:.2f}"]] + ([["CGST", f"{tax / 2:.2f}"], ["SGST", f"{tax / 2:.2f}"]] if intra else [["IGST", f"{tax:.2f}"]]) + [["<b>Invoice total</b>", f"<b>{sub + tax:.2f}</b>"]]
     tt = Table([[Paragraph(a, small), Paragraph(b, small)] for a, b in split], colWidths=[40 * mm, 30 * mm], hAlign="RIGHT")
-    els += [tt, Spacer(1, 10), Paragraph("This is a computer-generated invoice. E-invoice IRN / e-way bill are not attached (provider integration not configured).", small)]
+    from app.core.brand import qr_footer, record_link
+    ei = db.execute(text("SELECT irn, ack_no, ack_date, signed_qr, mode, ewb_no FROM einvoices WHERE invoice_id = :i AND status = 'GENERATED'"), {"i": inv.id}).mappings().first()
+    if ei:
+        note = ("<b>SANDBOX e-invoice: not registered with the government portal; no legal value.</b>" if ei["mode"] == "SANDBOX" else "<b>e-Invoice</b>")
+        els += [tt, Spacer(1, 8), Paragraph(f"{note}<br/>IRN: {ei['irn']}<br/>Ack No: {ei['ack_no']} &nbsp; Ack Date: {ei['ack_date']:%d-%m-%Y %H:%M}" + (f"<br/>E-way bill: {ei['ewb_no']}" if ei["ewb_no"] else ""), small), Spacer(1, 6),
+                qr_footer(ei["signed_qr"], "e-Invoice QR" + (" (SANDBOX, not valid)" if ei["mode"] == "SANDBOX" else "")), Spacer(1, 6),
+                Paragraph("This is a computer-generated invoice.", small), Spacer(1, 6)]
+    else:
+        els += [tt, Spacer(1, 10), Paragraph("This is a computer-generated invoice. E-invoice IRN / e-way bill are not attached (not generated for this invoice).", small), Spacer(1, 8)]
+    els += [qr_footer(record_link(f"/m/accounts?invoice={inv.id}", inv.number), f"Scan to open invoice {inv.number} in Mintree Factory OS.")]
     doc.build(els)
     if sub + tax != inv.total:
         raise Unprocessable("Invoice lines do not reconcile with the stored invoice total; PDF refused")

@@ -4,8 +4,10 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight, type LucideIcon } from "lucide-react";
-import { fmtDay, fmtNum } from "@/lib/format";
+import { addDays as addDaysIso, fmtDay, fmtNum } from "@/lib/format";
 import { CountUp, Sparkline } from "./fx";
+import { SlideMarker } from "./motion";
+import { useChartSync } from "@/lib/chartSync";
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 const TONE_TEXT: Record<Tone, string> = { success: "text-success", warning: "text-warning", danger: "text-danger", info: "text-info", neutral: "text-muted" };
@@ -124,7 +126,13 @@ function useSize<T extends HTMLElement>() {
 export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { buckets: Bucket[]; labels: [string, string]; unit: string; minHeight?: number }) {
   const [ref, size] = useSize<HTMLDivElement>();
   const width = size.w, height = Math.max(size.h, minHeight);
-  const [hot, setHot] = useState<number | null>(null);
+  const [hotLocal, setHotLocal] = useState<number | null>(null);
+  const sync = useChartSync();
+  const hot = hotLocal;
+  const setHot = (i: number | null) => { setHotLocal(i); sync?.set(i === null ? null : buckets[i].from ?? buckets[i].start); };
+  /* a date another chart is pointing at lights up the week that contains it */
+  const ext = hotLocal === null ? sync?.date ?? null : null;
+  const extHot = ext ? buckets.findIndex((b) => { const from = b.from ?? b.start; return ext >= from && ext <= (b.to ?? addDaysIso(from, 6)); }) : -1;
   const id = useId();
   const M = { l: 44, r: 8, t: 10, b: 26 };
   const W = Math.max(width, 280), iw = W - M.l - M.r, ih = height - M.t - M.b;
@@ -149,7 +157,7 @@ export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { bucket
             const cx = M.l + band * i + band / 2;
             return (
               <g key={b.start} onMouseEnter={() => setHot(i)} onFocus={() => setHot(i)} onBlur={() => setHot(null)} tabIndex={b.orders ? 0 : -1} aria-label={b.orders ? `Week of ${fmtDay(b.start)}: planned ${b.planned}, actual ${b.actual}` : undefined}>
-                <rect x={cx - band / 2} y={M.t} width={band} height={ih} fill={hot === i ? "var(--surface-2)" : "transparent"} style={{ transition: "fill 140ms" }} />
+                <rect x={cx - band / 2} y={M.t} width={band} height={ih} fill={hot === i || extHot === i ? "var(--surface-2)" : "transparent"} style={{ transition: "fill 140ms" }} />
                 {b.planned !== null && <rect x={cx - bw - 1.5} y={y(b.planned)} width={bw} height={Math.max(0, M.t + ih - y(b.planned))} rx={4} fill="var(--line-strong)" />}
                 {b.actual !== null && <rect x={cx + 1.5} y={y(b.actual)} width={bw} height={Math.max(0, M.t + ih - y(b.actual))} rx={4} fill="var(--chart-actual)" />}
                 {i % every === 0 && <text x={cx} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)">{fmtDay(b.start)}</text>}
@@ -329,9 +337,14 @@ export function ActivityTimeline({ items }: { items: ActivityItem[] }) {
 
 /** Segmented pill tabs for short, mutually exclusive choices such as the reporting period. The active tab is ink. */
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label: string }) {
+  const id = useId();
   return (
-    <div className="seg" role="group" aria-label={label}>
-      {options.map((o) => <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}>{o.label}</button>)}
+    <div className="seg seg-slide" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}>
+          {value === o.value && <SlideMarker id={`seg-${id}`} className="seg-marker" />}<span className="lbl">{o.label}</span>
+        </button>
+      ))}
     </div>
   );
 }

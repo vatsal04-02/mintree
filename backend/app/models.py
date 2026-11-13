@@ -42,9 +42,11 @@ from app.procurement.ext_models import PoAmendment, PoAmendmentLine, PurchaseRet
 from app.masters.models import CourierPartner, PaymentMethod, TaxClass, UnitConversion  # noqa: E402,F401
 from app.crm.ext_models import CrmActivity, LeadSource, Opportunity, OpportunityStageHistory  # noqa: E402,F401
 from app.crm.models import Complaint, Lead  # noqa: E402,F401
-from app.dispatch.ext_models import DeliveryAttempt, ProofOfDelivery, ShipmentPackage  # noqa: E402,F401
+from app.dispatch.ext_models import DeliveryAttempt, InvoiceDraft, InvoiceDraftLine, ProofOfDelivery, ShipmentPackage  # noqa: E402,F401
 from app.quality.ext_models import CertificateOfAnalysis, SamplingPlan  # noqa: E402,F401
 from app.production.plan_models import ProductionPlan, ProductionPlanLine, WorkCentre  # noqa: E402,F401
 from app.notifications.models import NotificationPreference, UserNotification  # noqa: E402,F401
 from app.core.demo_models import DemoSeedStep  # noqa: E402,F401
+from app.tier1_models import EInvoice, MaterialReturn, RecallBatch, RecallCase, RecallCustomer, ReworkOrder  # noqa: E402,F401
+from app.demo_live.models import DemoLiveEvent, DemoLiveState, DemoLiveTrigger, DemoScenario  # noqa: E402,F401
 from app.ai.models import AiBriefing, AiConversation, AiExtraction, AiMessage, AiProposal, AiToolCall, AiUsage  # noqa: E402,F401

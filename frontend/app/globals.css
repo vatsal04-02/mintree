@@ -795,11 +795,11 @@ textarea.input { border-radius: 16px; }
 .progress > span { background: #151717; }
 .deal { position: relative; border-radius: 22px; padding: 14px; display: flex; flex-direction: column; min-height: 165px; transition: transform 200ms cubic-bezier(.22,1,.36,1), box-shadow 200ms; color: #fff; }
 .deal:hover { transform: translateY(-4px); box-shadow: 0 22px 40px -18px rgb(21 23 23 / 0.45); }
-.deal-black { background: #151717; } .deal-orange { background: #c6431d; } .deal-green { background: #2b5c4e; } .deal-yellow { background: #efc84b; color: #151717; }
+.deal-black { background: #151717; } .deal-orange { background: #f0bda5; color: #151717; } .deal-green { background: #2b5c4e; } .deal-yellow { background: #f4e2a1; color: #151717; }   /* soft tints with dark text: calm, and still clearly yellow / orange */
 .deal-white { background: rgb(255 255 255 / 0.55); color: #151717; border: 1px solid rgb(255 255 255 / 0.7); }
 .deal .meta { font-size: 0.75rem; opacity: 0.7; }
 .deal .ghost { width: 30px; height: 30px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.3); display: grid; place-items: center; }
-.deal-yellow .ghost, .deal-white .ghost { border-color: rgb(21 23 23 / 0.2); }
+.deal-yellow .ghost, .deal-orange .ghost, .deal-white .ghost { border-color: rgb(21 23 23 / 0.2); }
 .ctl { width: 36px; height: 36px; border-radius: 999px; display: grid; place-items: center; border: 1px solid rgb(21 23 23 / 0.15); color: var(--fg); transition: background-color 120ms, transform 120ms; }
 .ctl:hover { background: rgb(255 255 255 / 0.7); }
 .ctl:active { transform: scale(0.96); }
@@ -827,3 +827,68 @@ textarea.input { border-radius: 16px; }
 .deal-white .meta { opacity: 0.6; }
 .deal-white:hover { box-shadow: 0 18px 36px -20px rgb(70 45 20 / 0.28); }
 :root[data-theme="dark"] .deal-white { background: rgb(255 255 255 / 0.06); color: var(--fg); border-color: rgb(255 255 255 / 0.08); }
+
+/* =====================================================================================================================================================
+   Choreography (phase 1.1): one entrance for every page. The page cross-fades and de-blurs; each card arrives as a pale ghost and then fills,
+   55ms apart; the title wipes in; charts draw. Transform, opacity and blur only, so nothing shifts. Reduced motion shows the final state.
+   ===================================================================================================================================================== */
+.page-in { animation: page-in2 200ms ease-out backwards; }
+@keyframes page-in2 { from { opacity: 0; } to { opacity: 1; } }
+.rise { animation: rise2 450ms cubic-bezier(.22, 1, .36, 1) backwards; }
+@keyframes rise2 {
+  0% { opacity: 0; transform: translateY(14px); filter: blur(8px); }
+  35% { opacity: 0.3; transform: translateY(8px); filter: blur(6px); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+.rise:nth-child(1) { animation-delay: 0ms; } .rise:nth-child(2) { animation-delay: 55ms; } .rise:nth-child(3) { animation-delay: 110ms; } .rise:nth-child(4) { animation-delay: 165ms; }
+.rise:nth-child(5) { animation-delay: 220ms; } .rise:nth-child(6) { animation-delay: 275ms; } .rise:nth-child(7) { animation-delay: 330ms; } .rise:nth-child(n+8) { animation-delay: 385ms; }
+.t-page { animation: title-wipe 450ms cubic-bezier(.22, 1, .36, 1) backwards; }
+@keyframes title-wipe { from { clip-path: inset(0 0 100% 0); transform: translateY(0.4em); } to { clip-path: inset(0 0 0 0); transform: none; } }
+.ghost-tile { background: rgb(255 255 255 / 0.4); border: 1px solid rgb(255 255 255 / 0.5); }
+:root[data-theme="dark"] .ghost-tile { background: rgb(255 255 255 / 0.05); border-color: rgb(255 255 255 / 0.06); }
+.skeleton { border-radius: 16px; }
+.fx-draw { animation-duration: 900ms; }
+.bar-grow { animation-duration: 520ms; }
+/* tab groups: the active pill is a shared-layout marker that slides to the new tab */
+.seg.seg-slide button { position: relative; background: transparent !important; box-shadow: none !important; }
+.seg.seg-slide button > .lbl { position: relative; z-index: 1; }
+.seg.seg-slide button[aria-pressed="true"] { color: var(--fg); }
+.seg-marker { inset: 0; border-radius: 999px; background: #fff; box-shadow: 0 2px 8px -2px rgb(70 45 20 / 0.18); z-index: 0; }
+:root[data-theme="dark"] .seg-marker { background: rgb(255 255 255 / 0.14); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .page-in, .rise, .t-page, .fx-draw, .bar-grow { animation: none !important; } .ghost-tile { display: none; } }
+
+.deal.deal-flat:hover { transform: none; }
+.deal[role="button"] { cursor: pointer; }
+.deal[role="button"]:focus-visible { outline: 2px solid var(--ink-r); outline-offset: 2px; }
+.deal.deal-flat.deal-white { background: #fbfaf7; color: #151717; }
+:root[data-theme="dark"] .deal.deal-flat.deal-white { background: #1c211f; color: var(--fg); border-color: rgb(255 255 255 / 0.1); }
+
+/* a sheet of paper (invoice view): white with ink text in both appearances */
+.paper { background: #fff; color: #151717; }
+.drawer-panel { background: rgb(246 244 239 / 0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: -30px 0 70px -30px rgb(70 45 20 / 0.35); color: var(--fg); }
+:root[data-theme="dark"] .drawer-panel { background: rgb(24 28 26 / 0.94); box-shadow: -30px 0 70px -30px rgb(0 0 0 / 0.6); }
+
+/* table tools: keyboard cursor, selected rows, sticky totals */
+.dt tbody tr[data-active="true"] td { background: rgb(255 255 255 / 0.7); }
+.dt tbody tr[data-active="true"] td:first-child { box-shadow: inset 3px 0 0 var(--ink-r); }
+.dt tbody tr[data-selected="true"] td { background: color-mix(in srgb, var(--acc-yellow) 18%, transparent); }
+:root[data-theme="dark"] .dt tbody tr[data-active="true"] td { background: rgb(255 255 255 / 0.08); }
+.dt tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--card); border-top: 1px solid var(--line-strong); font-weight: 500; }
+.dt input[type="checkbox"] { accent-color: var(--ink-r); width: 15px; height: 15px; cursor: pointer; }
+
+/* narrower desktops: tighter cell gutters so a table with row actions fits beside the sidebar without an inner scrollbar */
+@media (min-width: 1024px) and (max-width: 1439.98px) {
+  .dt th, .dt td { padding-left: 8px; padding-right: 8px; }
+  .dt td { max-width: 240px; }
+  .dt td.wrap, .dt th.wrap { min-width: 140px; }
+}
+
+/* extra chip looks for ordered stages, drawn from the same palette so neighbouring stages never share a colour: a ringed green (sage), a pale orange (peach), a solid green (solid) */
+.tone-sage { --tone: #2b5c4e; --tone-bg: transparent; --tone-dot: #2b5c4e; box-shadow: inset 0 0 0 1px rgb(43 92 78 / 0.5); }
+.tone-peach { --tone: #6e2d10; --tone-bg: rgb(240 189 165 / 0.55); --tone-dot: #c6431d; }
+.tone-solid { --tone: #ffffff; --tone-bg: #2b5c4e; --tone-dot: #efc84b; }
+:root[data-theme="dark"] .tone-sage { --tone: #8fd3bb; --tone-dot: #5fb397; box-shadow: inset 0 0 0 1px rgb(143 211 187 / 0.5); }
+:root[data-theme="dark"] .tone-peach { --tone: #f5c3a8; --tone-bg: rgb(217 88 47 / 0.22); --tone-dot: #e46a43; }
+:root[data-theme="dark"] .tone-solid { --tone: #ffffff; --tone-bg: #3f8a74; --tone-dot: #efc84b; }
+.tone-info { --tone-bg: transparent; box-shadow: inset 0 0 0 1px rgb(21 23 23 / 0.3); }
+:root[data-theme="dark"] .tone-info { box-shadow: inset 0 0 0 1px rgb(241 239 233 / 0.35); }

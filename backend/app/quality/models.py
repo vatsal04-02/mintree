@@ -62,7 +62,8 @@ class Inspection(Base):
     __table_args__ = (CheckConstraint("status IN ('PENDING','IN_PROGRESS','DECIDED')", name="status_valid"),
                       CheckConstraint("decision IS NULL OR decision IN ('RELEASE','REJECT','HOLD')", name="decision_valid"),
                       CheckConstraint("(status = 'DECIDED') = (decision IS NOT NULL)", name="decided_consistent"),
-                      Index("uq_inspection_open_per_batch_stage", "batch_id", "stage", unique=True, postgresql_where=text("status <> 'DECIDED'")))
+                      Index("uq_inspection_open_per_batch_stage", "batch_id", "stage", unique=True, postgresql_where=text("status <> 'DECIDED'")),
+                      Index("ix_inspections_batch", "batch_id", text("created_at DESC")))
 
 
 class InspectionResult(Base):

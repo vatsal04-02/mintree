@@ -15,6 +15,8 @@ from typing import Protocol
 
 import httpx
 
+from app.core import resilience
+
 from app.core.config import get_settings
 
 
@@ -77,7 +79,9 @@ class GraphMetaProvider:
         ref = external_ref if kind != "AD_ACCOUNT" or external_ref.startswith("act_") else f"act_{external_ref}"
         try:
             with httpx.Client(timeout=15, transport=self.transport) as c:
-                r = c.get(f"https://graph.facebook.com/{self.version}/{ref}", params={"fields": "id,name"}, headers={"Authorization": f"Bearer {self.token}"})
+                r = resilience.call(resilience.BREAKERS["meta"], lambda: c.get(f"https://graph.facebook.com/{self.version}/{ref}", params={"fields": "id,name"}, headers={"Authorization": f"Bearer {self.token}"}))
+        except resilience.CircuitOpen as e:
+            raise MetaError(f"Meta is temporarily unavailable (next attempt in about {int(e.retry_in_s) + 1} s). The sandbox workspace keeps working, labelled Simulated.") from None
         except httpx.HTTPError as e:
             raise MetaError(f"Meta could not be reached ({type(e).__name__}).") from None
         if r.status_code != 200:

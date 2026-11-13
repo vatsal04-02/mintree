@@ -26,7 +26,7 @@ export function CardHead({ title, meta, href, more, children }: { title: string;
 }
 
 /** The coloured record card: top row meta + ghost "⋯", title and subtitle, then the figure with its caption at the bottom. */
-export function DealCard({ variant, meta, metaTone, valueTone, title, subtitle, value, caption, href, index = 0 }: { variant: Variant; meta?: string; metaTone?: "danger" | "warning" | "neutral"; valueTone?: string; title: string; subtitle?: string; value: string; caption?: string; href?: string; index?: number }) {
+export function DealCard({ variant, meta, metaTone, valueTone, title, subtitle, value, caption, href, index = 0, layoutId, onOpen, hidden }: { variant: Variant; meta?: string; metaTone?: "danger" | "warning" | "neutral"; valueTone?: string; title: string; subtitle?: string; value: string; caption?: string; href?: string; index?: number; layoutId?: string; onOpen?: () => void; hidden?: boolean }) {
   const reduce = useReducedMotion();
   const body = (
     <>
@@ -43,6 +43,15 @@ export function DealCard({ variant, meta, metaTone, valueTone, title, subtitle, 
     </>
   );
   const anim = reduce ? {} : { initial: { opacity: 0, y: 14, filter: "blur(8px)" }, animate: { opacity: 1, y: 0, filter: "blur(0px)" }, transition: { duration: 0.45, delay: index * 0.055, ease: [0.22, 1, 0.36, 1] as const } };
+  /* With onOpen the whole card is a button that opens the record modal (RecordModal); `layoutId` lets the modal grow out of this exact rectangle.
+     While its modal is open the card is hidden (not removed), so the grid keeps its shape. */
+  if (onOpen) {
+    return (
+      <motion.div {...anim} layoutId={layoutId} role="button" tabIndex={0} aria-haspopup="dialog" aria-label={`${title}: ${value}${caption ? `, ${caption}` : ""}. Open details`}
+        onClick={onOpen} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+        className={`deal deal-${variant}`} style={{ borderRadius: 22, visibility: hidden ? "hidden" : "visible" }}>{body}</motion.div>
+    );
+  }
   return href
     ? <motion.div {...anim}><Link href={href} className={`deal deal-${variant}`} aria-label={`${title}: ${value}${caption ? `, ${caption}` : ""}`}>{body}</Link></motion.div>
     : <motion.div {...anim} className={`deal deal-${variant}`}>{body}</motion.div>;
@@ -80,14 +89,14 @@ export function StageMix({ items }: { items: { label: string; value: number; hre
   return (
     <div className="px-[18px] pb-[18px]">
       <div className="flex gap-1.5 h-11" aria-hidden>
-        {shown.map((i) => <span key={i.label} className="rounded-[14px] min-w-[18px] bar-grow-x" style={{ flex: i.value, background: col(i, items.indexOf(i)) }} />)}
+        {shown.map((i) => <span key={i.label} className="rounded-[14px] min-w-[8px] bar-grow-x" style={{ flex: i.value, background: col(i, items.indexOf(i)) }} />)}
       </div>
       <ul className="mt-4 divide-y divide-line">
         {items.map((i, k) => (
           <li key={i.label}>
             <Link href={i.href ?? "#"} className="flex items-center justify-between gap-3 py-2 text-[0.8125rem] hover:opacity-80">
               <span className="inline-flex items-center gap-2 min-w-0"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: col(i, k) }} aria-hidden /><span className="truncate">{i.label}</span></span>
-              <span className="tabular-nums shrink-0"><span className="text-muted mr-3">{Math.round((i.value / total) * 100)}%</span>{i.value}</span>
+              <span className="tabular-nums shrink-0"><span className="text-muted mr-3">{i.value > 0 && Math.round((i.value / total) * 100) === 0 ? "<1" : Math.round((i.value / total) * 100)}%</span>{i.value}</span>
             </Link>
           </li>
         ))}

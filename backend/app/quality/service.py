@@ -5,6 +5,8 @@ from decimal import Decimal
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from app.core.context import source_var
+from app.core import activity
 from app.audit import service as audit
 from app.core import outbox
 from app.core.context import request_id_var
@@ -47,6 +49,7 @@ def _new_inspection(db: Session, batch_id: int, item_id: int, stage: str, spec: 
     ins = Inspection(number=f"QC/{business_today():%y}/{n:06d}", stage=stage, batch_id=batch_id, spec_id=spec.id, request_id=request_id_var.get())
     db.add(ins)
     db.flush()
+    activity.emit(db, "quality.inspection.created", entity="inspection", entity_id=ins.id, number=ins.number, stage=stage)
     from app.quality.ext_service import apply_sampling
     apply_sampling(db, ins, spec)
     return ins
@@ -133,7 +136,7 @@ def decide(db: Session, cu: CurrentUser, inspection_id: int, decision: str, reas
     audit.record(db, user=cu, action=f"inspection_{decision.lower()}", entity="inspection", entity_id=ins.id,
                  before={"qc_status": qc["from"]}, after={"qc_status": qc["to"]}, reason=reason)
     outbox.add(db, event_type="quality.inspection.decided", aggregate_type="inspection", aggregate_id=ins.id,
-               payload={"inspection_id": ins.id, "batch_id": ins.batch_id, "decision": decision, "stage": ins.stage})
+               payload={"inspection_id": ins.id, "batch_id": ins.batch_id, "decision": decision, "stage": ins.stage, "number": ins.number, "actor_id": cu.id, **({"source": s} if (s := source_var.get()) else {})})
     return inspection_dict(db, ins)
 
 

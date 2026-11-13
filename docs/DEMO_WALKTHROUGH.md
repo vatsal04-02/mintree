@@ -98,6 +98,16 @@ Product: **NOURISHING Oud Body Wash 200 ml** (`FG-BW-OUD-200`). *Master data →
 ### 13. Close (1 min), `demo.mgmt`
 Return to the Management summary. Show *Approvals* and *Notifications*. State what is not built (see below).
 
+### Live activity and the Demo Control Centre (5 minutes), `demo.admin` plus a second browser as `demo.disp`
+1. In a second window sign in as **demo.disp** and open **Live activity** (sidebar). The top bar says **Live**.
+2. In the first window open the **Demo mode** pill, then **Open the Demo Control Centre**. Press **New B2B order**. Within a few seconds the second window shows *New customer order SO/... (Demo)* with no refresh; open the arrow to land on the order.
+3. Press **Create draft invoice** and point out that the Sales invoices list did not change: a draft posts nothing. Press **Post invoice**: the goods ship and the gapless invoice appears. **Generate invoice PDF** produces it.
+4. Press **Record and allocate payment**, then open Accounts: receivables fall and the invoice is PARTIAL or PAID.
+5. For the full story press **Start scenario** (use x3 if short of time): an order arrives, stock is short, a purchase request is raised and approved, materials arrive and pass QC, production runs, QC releases the batch, the order is allocated, invoiced, dispatched, delivered and paid, and the management dashboard shows it. Pause and resume it to talk over any step. It stops with a plain reason if anything cannot run.
+6. Failure paths worth showing: **Fail inspection** (the batch goes on HOLD and leaves available stock; **Release a held batch** re-tests it), **Failed import** then **Retry failed import**, **Duplicate delivery** (one internal order), **Delivery exception**.
+
+Everything created is labelled **Demo**; the courier, the supplier-delay message and instrument readings are labelled **Simulated**. See `DEMO_CONTROL_CENTRE.md`.
+
 ## Known limits to state honestly
 
 - Notifications currently cover purchase approvals and amendments, RFQ quotations, goods receipts, follow-ups, delivery failures and failed process checks. Alerts such as low stock, QC hold, production delay, invoice overdue, payment received, maintenance due and marketplace sync failure appear as exception lists and dashboards, but **do not generate notifications yet**.

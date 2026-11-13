@@ -57,7 +57,7 @@ def convert_lead(db: Session, cu: CurrentUser, *, lead_id: int, customer_id: int
     for o in db.scalars(select(Opportunity).where(Opportunity.lead_id == lead.id, Opportunity.customer_id.is_(None))):
         o.customer_id = cust.id                                         # open opportunities of this lead now point at the master customer
     audit.record(db, user=cu, action="convert", entity="lead", entity_id=lead.id, before={"status": "QUALIFIED"}, after={"status": "WON", "customer_id": cust.id, "matched_existing": matched})
-    outbox.add(db, event_type="crm.lead.converted", aggregate_type="lead", aggregate_id=lead.id, payload={"lead_id": lead.id, "customer_id": cust.id, "matched_existing": matched})
+    outbox.add(db, event_type="crm.lead.converted", aggregate_type="lead", aggregate_id=lead.id, payload={"lead_id": lead.id, "customer_id": cust.id, "matched_existing": matched, "actor_id": cu.id})
     return {"lead_id": lead.id, "status": "WON", "customer_id": cust.id, "customer_code": cust.code, "matched_existing": matched}
 
 
@@ -148,7 +148,7 @@ def move_stage(db: Session, cu: CurrentUser, *, opportunity_id: int, stage: str,
     db.refresh(o)
     audit.record(db, user=cu, action="stage", entity="opportunity", entity_id=o.id, before={"stage": before}, after={"stage": stage}, reason=lost_reason or note)
     if stage in ("WON", "LOST"):
-        outbox.add(db, event_type=f"crm.opportunity.{stage.lower()}", aggregate_type="opportunity", aggregate_id=o.id, payload={"number": o.number, "value": str(o.expected_value)})
+        outbox.add(db, event_type=f"crm.opportunity.{stage.lower()}", aggregate_type="opportunity", aggregate_id=o.id, payload={"number": o.number, "value": str(o.expected_value), "actor_id": cu.id})
     return opp_dict(o)
 
 

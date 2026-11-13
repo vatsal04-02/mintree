@@ -57,10 +57,10 @@ def receive(db: Session, *, item_id: int, warehouse_id: int, location_id: int | 
 
 
 def reserve(db: Session, *, item_id: int, warehouse_id: int, qty, reference_type: str, reference_id: str, actor_id: int,
-            batch_id: int | None = None) -> list[dict]:
-    """Reserve eligible stock (QC-released, unexpired) in FEFO order, possibly across several batches."""
+            batch_id: int | None = None, min_days: int = 0) -> list[dict]:
+    """Reserve eligible stock (QC-released, unexpired, with at least `min_days` of shelf life left) in FEFO order, possibly across several batches."""
     need = _positive(qty)
-    cands = repo.fefo_candidates(db, item_id=item_id, warehouse_id=warehouse_id, batch_id=batch_id)
+    cands = repo.fefo_candidates(db, item_id=item_id, warehouse_id=warehouse_id, batch_id=batch_id, min_days=min_days)
     total = sum((c["qty_available"] for c in cands), Decimal(0))
     if total < need:
         raise InsufficientStock(item_id, need, total)

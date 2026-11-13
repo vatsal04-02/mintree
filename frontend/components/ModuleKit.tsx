@@ -1,13 +1,15 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLiveRevision } from "@/lib/live";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Columns3, Plus, Rows3, Search, Trash2 } from "lucide-react";
+import { LayoutGrid, Columns3, Plus, Rows3, Search, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fieldLabel, fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtRupees, titleCase } from "@/lib/format";
 import { defaultParam, toneFor, type Action, type Col, type Create, type Field, type Param, type RefKey, type Row, type Screen } from "@/lib/modules";
 import { DataTable, type Col as TCol } from "./DataTable";
+import { RowActions } from "./RowActions";
 import { ScanButton, ScanDialog, resolveCode } from "./Scanner";
 import { RfqCard, RfqSummary, bidsCsv } from "./rfq";
 import { PrCard, PrSummary } from "./pr";
@@ -15,7 +17,10 @@ import { OrderCard, OrdersSummary } from "./orders";
 import { PoCard, PoSummary } from "./po";
 import { BOARDS, WastageView } from "./boards";
 import { ModuleDashboard } from "./ModuleDashboard";
-import { Badge, ConfirmDialog, Drawer, EmptyState, useDebounced, useToast } from "./ui";
+import { TableTools, BulkBar, type SavedView } from "./TableTools";
+import { usePref } from "@/lib/prefs";
+import { downloadCsv } from "@/lib/csv";
+import { Badge, ConfirmDialog, Drawer, EmptyState, useDebounced, useToast, useUndoable } from "./ui";
 
 /* ------------------------------------------------------------------ reference pickers */
 const REFS: Record<RefKey, { api: string; params?: Record<string, string>; label: (r: Row) => string }> = {
@@ -477,12 +482,16 @@ const hasFile = (fields: Field[]) => fields.some((f) => f.type === "file");
 function toForm(body: Row): FormData { const fd = new FormData(); for (const [k, v] of Object.entries(body)) if (v !== undefined && v !== null) fd.append(k, v instanceof File ? v : String(v)); return fd; }
 
 export function CreateButton({ create, onDone, onResult }: { create: Create; onDone: () => void; onResult?: (r: any) => void }) {
-  const [open, setOpen] = useState(false);
+  const sp = useSearchParams();
+  const router = useRouter();
+  const [open, setOpen] = useState(() => sp.get("create") === "1");   // ?create=1 (from the quick-action dock or the palette) opens the form straight away
   const toast = useToast();
+  useEffect(() => { if (sp.get("create") === "1") setOpen(true); }, [sp]);   // also when you are already on this screen and use the dock
+  const close = () => { setOpen(false); if (sp.get("create")) router.replace(window.location.pathname, { scroll: false }); };
   return (
     <>
       <button className="btn btn-primary" onClick={() => setOpen(true)}><Plus size={14} />{create.label}</button>
-      <FormDrawer open={open} title={create.title ?? create.label} fields={create.fields} submitLabel={create.title ? "Run" : "Create"} onClose={() => setOpen(false)}
+      <FormDrawer open={open} title={create.title ?? create.label} fields={create.fields} submitLabel={create.title ? "Run" : "Create"} onClose={close}
         onSubmit={async (body) => {
           const payload = create.body ? create.body(body) : body;
           const path = typeof create.path === "function" ? create.path(body) : create.path;
@@ -611,8 +620,10 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const def = screen.list!;
   const { can } = useAuth();
   const toast = useToast();
+  const undoable = useUndoable();
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
+  const [pending, setPending] = useState<Record<string, string>>({});   // rows whose approve or reject is waiting out the undo window
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const sp = useSearchParams();
@@ -630,9 +641,17 @@ export function ListScreen({ screen }: { screen: Screen }) {
   const [sort, setSort] = useState<string>("");
   const [shown, setShown] = useState(48);
   const [meta, setMeta] = useState<{ counts?: Record<string, number>; summary?: any } | null>(null);   // tab counts and the figures strip, when the endpoint sends them
+  const listKey = def.api.replace(/\W+/g, "_");
+  const [dense, setDense] = usePref<boolean>(`dense:${listKey}`, false);
+  const [hidden, setHidden] = usePref<string[]>(`cols:${listKey}`, []);
+  const [views, setViews] = usePref<SavedView[]>(`views:${listKey}`, []);
+  const [totals, setTotals] = useState(false);
+  const [selected, setSelected] = useState<Set<number | string>>(new Set());
+  const [cursor, setCursor] = useState(-1);          // the keyboard cursor: an index into the rows on this page
+  const [peekId, setPeekId] = useState<number | string | null>(null);   // the record open in the drawer, so J and K can step to its neighbours
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent: boolean = false) => {
+    if (silent !== true) setLoading(true);          // a live refresh swaps rows in place; only user-driven loads show the loading state
     try {
       const params: Record<string, string> = { ...(def.params ?? {}) };
       if (def.paged !== false && !params.page_size && !params.limit) params.page_size = "100";
@@ -645,11 +664,14 @@ export function ListScreen({ screen }: { screen: Screen }) {
     } catch (e) { setError(e instanceof ApiError ? e.message : "Failed to load"); }
     finally { setLoading(false); }
   }, [def, status, dq]);
+  const liveRev = useLiveRevision(["orders", "inventory", "purchase", "production", "quality", "accounts"]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); setShown(48); }, [q, status]);
+  useEffect(() => { if (liveRev > 0) load(true); }, [liveRev]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1); setShown(48); setSelected(new Set()); setCursor(-1); }, [q, status]);
 
+  const live = useMemo(() => (Object.keys(pending).length ? rows.map((x) => (pending[x.id] ? { ...x, status: pending[x.id] } : x)) : rows), [rows, pending]);
   const filtered = useMemo(() => {
-    let r = rows;
+    let r = live;
     if (status && !def.status?.param) r = r.filter((x) => x.status === status);
     if (q.trim()) { const t = q.toLowerCase(); r = r.filter((x) => JSON.stringify(x).toLowerCase().includes(t)); }
     if (sort) {
@@ -663,7 +685,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
       });
     }
     return r;
-  }, [rows, q, status, def.status?.param, sort]);
+  }, [live, q, status, def.status?.param, sort]);
   const pageSize = 50;
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
@@ -673,6 +695,19 @@ export function ListScreen({ screen }: { screen: Screen }) {
     try { setView({ title: label, data: await api(href.replace(/^\/api/, "")) }); } catch (e) { toast("error", e instanceof ApiError ? e.message : "Could not open"); }
   }
   async function run(a: Action, row: Row, values?: Row) {
+    if (/^(Approve|Reject)\b/i.test(a.label) && a.path) {
+      /* a decision: the row shows "Approving" or "Rejecting" at once and the server is told after four seconds, unless Undo is pressed */
+      const approve = /^Approve/i.test(a.label);
+      const clear = () => setPending((p) => { const n = { ...p }; delete n[row.id]; return n; });
+      const name = String(row.number ?? row.name ?? row.title ?? `#${row.id}`);
+      setAct(null);
+      undoable({ message: `${approve ? "Approved" : "Rejected"} ${name}`, apply: () => setPending((p) => ({ ...p, [row.id]: approve ? "APPROVING" : "REJECTING" })), revert: clear,
+        commit: async () => {
+          const body = a.body ? a.body(row, values ?? {}) : { ...(a.versioned ? { expected_version: row.version } : {}), ...(values ?? {}) };
+          try { await api<any>(a.path!(row), { method: a.method ?? "POST", body: body ?? {}, headers: a.idempotent ? { "Idempotency-Key": crypto.randomUUID() } : undefined }); } finally { clear(); load(); }
+        } });
+      return;
+    }
     setBusy(true);
     try {
       const body = a.body ? a.body(row, values ?? {}) : { ...(a.versioned ? { expected_version: row.version } : {}), ...(values ?? {}) };
@@ -685,6 +720,7 @@ export function ListScreen({ screen }: { screen: Screen }) {
   }
   async function openDetail(r: Row) {
     setView({ title: "Loading…", data: null });
+    setPeekId(r.id);
     try { setView({ title: String(r.number ?? r.name ?? r.title ?? r.code ?? (r.item_code ? `${r.item_code}${r.version_no ? ` · v${r.version_no}` : ""}` : `#${r.id}`)), data: def.detail ? await api(def.detail(r)) : r }); }
     catch (e) { setView(null); toast("error", e instanceof ApiError ? e.message : "Could not load"); }
   }
@@ -703,7 +739,44 @@ export function ListScreen({ screen }: { screen: Screen }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, rows, loading]);
   const visible = (r: Row) => (def.actions ?? []).filter((a) => (!a.perm || can(a.perm)) && (!a.when || a.when(r)));
-  const columns: TCol<Row & { id: number }>[] = def.cols.filter((c) => rows.length === 0 || c.kind === "badge" || rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")).map((c) => ({ key: c.key, label: c.label, sortKey: c.key, render: (r) => cell(c, r), align: c.kind === "money" || c.kind === "number" ? "right" : undefined }));
+  const columns: TCol<Row & { id: number }>[] = def.cols.filter((c) => !hidden.includes(c.key)).filter((c) => rows.length === 0 || c.kind === "badge" || rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")).map((c) => ({ key: c.key, label: c.label, sortKey: c.key, render: (r) => cell(c, r), align: c.kind === "money" || c.kind === "number" ? "right" : undefined }));
+
+  /* ---- table tools: totals, CSV, saved views, selection, keyboard ---- */
+  const moneyCols = columns.filter((c) => def.cols.find((d) => d.key === c.key)?.kind === "money");
+  const csvRows = (list: Row[]) => list.map((r) => def.cols.filter((c) => !hidden.includes(c.key)).map((c) => (r[c.key] ?? "") as string | number));
+  const csvHead = def.cols.filter((c) => !hidden.includes(c.key)).map((c) => c.label);
+  const exportView = () => downloadCsv(`${listKey}.csv`, csvHead, csvRows(filtered));
+  const exportSelected = () => downloadCsv(`${listKey}-selected.csv`, csvHead, csvRows(filtered.filter((r) => selected.has(r.id))));
+  const copyNumbers = () => { const t = filtered.filter((r) => selected.has(r.id)).map((r) => String(r.number ?? r.name ?? r.code ?? r.id)).join("\n"); navigator.clipboard?.writeText(t).then(() => toast("success", `${selected.size} copied`)).catch(() => toast("error", "Could not copy")); };
+  const currentView: SavedView = { name: "", status, q, sort, hidden, dense };
+  const applyView = (v: SavedView) => { setStatus(v.status); setQ(v.q); setSort(v.sort); setHidden(v.hidden); setDense(v.dense); setPage(1); };
+  const toggleOne = (id: number | string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleAll = (ids: (number | string)[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
+  const peekIdx = peekId === null ? -1 : filtered.findIndex((r) => r.id === peekId);
+  const step = (d: number) => { const r = filtered[peekIdx + d]; if (r) openDetail(r); };
+  useEffect(() => {
+    /* J and K move the cursor down and up the rows, Enter opens the row, X selects it; with a record open, J/K or the arrows step to the next record */
+    const k = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey || t?.closest("input, textarea, select, [contenteditable=true]")) return;
+      const key = e.key.toLowerCase();
+      if (view) { if (key === "j" || e.key === "ArrowDown") { e.preventDefault(); step(1); } else if (key === "k" || e.key === "ArrowUp") { e.preventDefault(); step(-1); } return; }
+      if (view_ !== "table" || t?.closest("[role=dialog]") || act || result || scanAct || countRow) return;
+      if (key === "j") { e.preventDefault(); setCursor((c) => Math.min(c + 1, pageRows.length - 1)); }
+      else if (key === "k") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
+      else if (key === "x" && cursor >= 0 && pageRows[cursor]) { e.preventDefault(); toggleOne(pageRows[cursor].id); }
+      else if (e.key === "Enter" && cursor >= 0 && pageRows[cursor] && document.activeElement === document.body) { e.preventDefault(); openDetail(pageRows[cursor]); }
+    };
+    document.addEventListener("keydown", k);
+    return () => document.removeEventListener("keydown", k);
+  });
+  useEffect(() => { if (cursor >= 0) document.querySelector('tr[data-active="true"]')?.scrollIntoView({ block: "nearest" }); }, [cursor]);
+  const totalsFooter = totals && moneyCols.length > 0 ? (
+    <tfoot><tr className="dt-total">
+      {columns.map((c, i) => <td key={c.key} className={c.align === "right" ? "num" : ""}>{i === 0 ? `Total of ${filtered.length} rows` : moneyCols.some((m) => m.key === c.key) ? fmtRupees(filtered.reduce((a, r) => a + (Number(r[c.key]) || 0), 0)) : ""}</td>)}
+      {def.actions && <td />}
+    </tr></tfoot>
+  ) : null;
 
   const rfq = def.layout === "rfq";
   function exportBids() {
@@ -734,18 +807,18 @@ export function ListScreen({ screen }: { screen: Screen }) {
               className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-[0.75rem] ${view_ === mode ? "bg-fg text-bg" : "hover:bg-surface-2"}`}><Icon size={14} />{def.layout ? <span className="sr-only">{label}</span> : label}</button>
           ))}
         </div>
+        {view_ === "table" && <TableTools dense={dense} onDense={setDense} cols={def.cols.map((c) => ({ key: c.key, label: c.label }))} hidden={hidden} onHidden={setHidden} views={views} onViews={setViews} current={currentView} onApply={applyView}
+          totals={totals} onTotals={setTotals} canTotal={moneyCols.length > 0} onExport={exportView} exportCount={filtered.length} />}
         {rfq && <button type="button" className="btn btn-sm gap-1.5" onClick={exportBids} disabled={filtered.length === 0}>Export bids</button>}
         {screen.create && can(screen.create.perm) && <CreateButton create={screen.create} onDone={load} onResult={(r) => setResult({ title: screen.create!.title ?? screen.label, data: r })} />}
       </div>
       {error ? <div className="panel p-4 text-danger text-[0.8125rem]" role="alert">{error}</div> : view_ === "table" ? (
         <DataTable columns={columns} rows={pageRows as (Row & { id: number })[]} loading={loading} sort={sort} onSort={(v) => { setSort(v); setPage(1); }} page={page} pageSize={pageSize} total={filtered.length} onPage={setPage}
+          dense={dense} selected={selected} onToggle={toggleOne} onToggleAll={toggleAll} activeId={cursor >= 0 ? pageRows[cursor]?.id : null} footer={totalsFooter}
           onRowClick={openDetail} empty={<EmptyState title="Nothing here yet" hint={screen.create ? `Use “${screen.create.label}” to add the first one.` : "Records appear here as work happens in other modules."} />}
           rowActions={def.actions ? (r) => (
-            <div className="flex justify-end gap-1">
-              {visible(r).map((a, i) => (
-                <button key={`${a.label}-${i}`} className={`btn btn-sm ${a.danger ? "btn-danger" : ""}`} onClick={() => trigger(a, r)}>{a.labelFn ? a.labelFn(r) : a.label}</button>
-              ))}
-            </div>
+            <RowActions subject={r.number ?? r.name ?? undefined}
+              actions={visible(r).map((a, i) => ({ key: `${a.label}-${i}`, label: a.labelFn ? a.labelFn(r) : a.label, danger: a.danger, link: !!a.href, secondary: a.secondary, prefer: a.label === "Award" || a.label === "Send", run: () => trigger(a, r) }))} />
           ) : undefined} />
       ) : loading && rows.length === 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-36 !rounded-lg" />)}</div>
@@ -771,7 +844,15 @@ export function ListScreen({ screen }: { screen: Screen }) {
         </>
       )}
 
-      <Drawer open={!!view} onClose={() => setView(null)} title={view?.title ?? ""} width={820}>{view?.data ? <RecordView data={view.data} /> : <div className="skeleton h-24" />}</Drawer>
+      <Drawer open={!!view} onClose={() => { setView(null); setPeekId(null); }} title={view?.title ?? ""} width={820}
+        headerExtra={peekIdx >= 0 && filtered.length > 1 ? (
+          <div className="flex items-center gap-1.5" role="group" aria-label="Step through records">
+            <span className="t-support tabular-nums mr-1" aria-live="polite">{peekIdx + 1} of {filtered.length}</span>
+            <button type="button" className="ctl" onClick={() => step(-1)} disabled={peekIdx <= 0} aria-label="Previous record (K)" title="Previous (K)"><ChevronUp size={16} strokeWidth={1.5} /></button>
+            <button type="button" className="ctl" onClick={() => step(1)} disabled={peekIdx >= filtered.length - 1} aria-label="Next record (J)" title="Next (J)"><ChevronDown size={16} strokeWidth={1.5} /></button>
+          </div>
+        ) : undefined}>{view?.data ? <RecordView data={view.data} /> : <div className="skeleton h-24" />}</Drawer>
+      <BulkBar count={selected.size} onExport={exportSelected} onCopy={copyNumbers} onClear={() => setSelected(new Set())} />
       <Drawer open={!!result} onClose={() => setResult(null)} title={result?.title ?? ""} width={820}>{result && <ReportView data={result.data} />}</Drawer>
       <FormDrawer open={!!act?.a.fields} title={act?.a.label ?? ""} subtitle={act ? String(act.row.number ?? act.row.name ?? `#${act.row.id}`) : undefined} fields={act?.a.fields ?? []} submitLabel={act?.a.label ?? "Run"}
         ctx={act?.row} onClose={() => setAct(null)} onSubmit={async (_body, raw) => { const { body } = buildBody(act!.a.fields!, raw); await run(act!.a, act!.row, body); }} />

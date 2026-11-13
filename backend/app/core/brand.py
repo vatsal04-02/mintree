@@ -71,3 +71,31 @@ def header_flowable(company: str, title: str, subtitle: str = "", width_mm: floa
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LINEBELOW", (0, 0), (-1, 0), 0.6, colors.HexColor("#01877A")),
                            ("BOTTOMPADDING", (0, 0), (-1, -1), 6), ("LEFTPADDING", (0, 0), (0, 0), 0)]))
     return t
+
+
+def qr_footer(value: str, caption: str, size_mm: float = 22.0, width_mm: float = 182.0):
+    """A QR code and one line saying what it opens, for the foot of a printed document. `value` is a link when MINTREE_PUBLIC_BASE_URL is set, otherwise the
+    document number itself, which the in-app scanner resolves to the record."""
+    from reportlab.graphics import renderPDF
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, Table, TableStyle
+    w = QrCodeWidget(value)
+    x0, y0, x1, y1 = w.getBounds()
+    side = size_mm * mm
+    d = Drawing(side, side, transform=[side / (x1 - x0), 0, 0, side / (y1 - y0), 0, 0])
+    d.add(w)
+    cap = ParagraphStyle("qr-cap", fontName="Helvetica", fontSize=8, leading=10, textColor=colors.HexColor("#666666"))
+    t = Table([[d, Paragraph(caption, cap)]], colWidths=[(size_mm + 4) * mm, (width_mm - size_mm - 4) * mm])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (0, 0), 0)]))
+    return t
+
+
+def record_link(path: str, fallback: str) -> str:
+    """`path` on the public address when one is configured, otherwise `fallback` (the document number)."""
+    from app.core.config import get_settings
+    base = (get_settings().public_base_url or "").rstrip("/")
+    return f"{base}{path}" if base else fallback

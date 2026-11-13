@@ -7,6 +7,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import activity
 from app.accounts import service as acct
 from app.audit import service as audit
 from app.core.deps import CurrentUser
@@ -147,6 +148,7 @@ def create_quotation(db: Session, cu: CurrentUser, *, customer_id: int, valid_un
     db.add(q)
     db.flush()
     audit.record(db, user=cu, action="create", entity="sales_quotation", entity_id=q.id, after={"number": q.number, "total": str(q.total), "customer": cust.code})
+    activity.emit(db, "sales.quotation.created", entity="sales_quotation", entity_id=q.id, number=q.number, actor_id=cu.id, total=q.total)
     return quotation_dict(q)
 
 
@@ -169,6 +171,8 @@ def quotation_action(db: Session, cu: CurrentUser, qid: int, action: str, *, exp
         q.sales_order_id = so["id"]
     q.status, q.version = to, q.version + 1
     audit.record(db, user=cu, action=action, entity="sales_quotation", entity_id=q.id, after={"status": to})
+    activity.emit(db, {"send": "sales.quotation.sent", "accept": "sales.quotation.accepted", "reject": "sales.quotation.rejected", "convert": "sales.quotation.convert"}[action],
+                  entity="sales_quotation", entity_id=q.id, number=q.number, actor_id=cu.id)
     return quotation_dict(q)
 
 

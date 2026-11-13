@@ -99,6 +99,8 @@ def put_setting(key: str, body: SettingIn, db: Session = DB, cu: CurrentUser = D
             raise Unprocessable("Month must be 1-12")
         if key == "dispatch.require_pick_scan" and not isinstance(body.value, bool):
             raise Unprocessable("Must be true or false")
+        if key == "dispatch.min_shelf_life_days" and (isinstance(body.value, bool) or not isinstance(body.value, int) or not 0 <= body.value <= 3650):
+            raise Unprocessable("Must be a whole number of days from 0 to 3650")
         if key == "inventory.rotation_policy" and body.value not in ("FEFO", "FIFO"):
             raise Unprocessable("Policy must be FEFO or FIFO")
         row = d.get(CompanySetting, key)

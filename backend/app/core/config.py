@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="MINTREE_", extra="ignore")
 
     database_url: str = "postgresql+psycopg://mintree:mintree@localhost:5433/mintree"
+    public_base_url: str = ""                      # the address people open the app at (e.g. https://factory.mintree.example); when set, QR codes on documents link straight to the record
     environment: str = "development"  # development | test | production
     # Documentation only: the business zone is a code constant (app/core/clock.py + SQL functions from migration 0015)
     # so it cannot drift per environment. All instants are stored/handled as UTC.
@@ -89,9 +90,42 @@ class Settings(BaseSettings):
     meta_access_token: str = ""
     meta_graph_version: str = "v21.0"
 
+    # Demo Live Mode (docs/DEMO_RUNBOOK.md). OFF by default and refused outside a demo database (app/demo_live/guard.py).
+    demo_live: bool = False
+    einvoice_mode: str = "off"                   # off | sandbox | live. Sandbox computes a real IRN but registers nothing; live needs a GSP adapter (accounts/einvoice.py)
+    demo_live_interval_min_s: float = 20.0         # a new action every min..max seconds (jittered), divided by the speed multiplier
+    demo_live_interval_max_s: float = 60.0
+    demo_live_seed: int = 20261112                 # deterministic choices: same seed, same sequence of picks
+    demo_live_max_events: int = 2000               # event-log rows kept
+    demo_live_max_created: int = 400               # most records Live Mode may create in one run of the demo (volume cap)
+    demo_live_user_prefix: str = "demo."           # live actors are the seeded demo.* users, with their normal permissions
+    demo_live_password: str = "Mintree-Demo#2026"
+    demo_admin_email: str = "demo.admin@example.com"
+    demo_admin_session_hours: int = 72             # session length for the demo admin only (never logs out mid-presentation)
+
     # First-run bootstrap admin (used only by `python -m app.seed`)
     bootstrap_admin_email: str = "admin@example.com"  # override via MINTREE_BOOTSTRAP_ADMIN_EMAIL
     bootstrap_admin_password: str = ""
+
+
+def production_problems(s: "Settings") -> list[str]:
+    """Settings that must never reach a real deployment. Empty list = fine. Called at start-up when MINTREE_ENVIRONMENT=production (the API refuses to start otherwise)."""
+    bad = []
+    if s.courier_webhook_secret in ("dev-courier-secret", "", "CHANGE_ME") or s.marketplace_webhook_secret in ("dev-marketplace-secret", "", "CHANGE_ME"):
+        bad.append("webhook secrets are still the development defaults (MINTREE_COURIER_WEBHOOK_SECRET / MINTREE_MARKETPLACE_WEBHOOK_SECRET)")
+    if not s.cookie_secure:
+        bad.append("MINTREE_COOKIE_SECURE must be true behind HTTPS")
+    if not s.rate_limit_enabled:
+        bad.append("MINTREE_RATE_LIMIT_ENABLED must be true")
+    if "mintree:mintree@" in s.database_url:
+        bad.append("the database still uses the default mintree/mintree credentials")
+    if s.demo_live:
+        bad.append("MINTREE_DEMO_LIVE must be off in production")
+    if (s.einvoice_mode or "off").lower() == "sandbox":
+        bad.append("MINTREE_EINVOICE_MODE=sandbox has no legal value; use off, or live with a configured provider")
+    if s.bootstrap_admin_password and s.bootstrap_admin_password.upper().startswith("CHANGE_ME"):
+        bad.append("MINTREE_BOOTSTRAP_ADMIN_PASSWORD is still the placeholder")
+    return bad
 
 
 @lru_cache

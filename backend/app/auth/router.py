@@ -73,7 +73,8 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     token = new_token()
     sess = SessionRecord(
         token_hash=hash_token(token), csrf_token=new_token(), user_id=user.id,
-        expires_at=now + timedelta(hours=s.session_ttl_hours),
+        # Only in a demo environment, and only for the one demo administrator: the session outlives a presentation. Everyone else keeps the normal TTL.
+        expires_at=now + timedelta(hours=s.demo_admin_session_hours if (s.environment == "demo" and user.email == s.demo_admin_email) else s.session_ttl_hours),
         ip=request.client.host if request.client else None,
         user_agent=(request.headers.get("user-agent") or "")[:255],
         last_seen_at=now,

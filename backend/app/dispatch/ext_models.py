@@ -2,8 +2,8 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 
@@ -53,3 +53,41 @@ class ProofOfDelivery(Base):
     remarks: Mapped[str | None] = mapped_column(Text)
     recorded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class InvoiceDraft(Base):
+    """A reviewed customer invoice that has not been posted (migration 0030). It carries no journal entry and no invoice number; see app/dispatch/invoice_drafts.py."""
+    __tablename__ = "invoice_drafts"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    so_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    status: Mapped[str] = mapped_column(String(10), default="DRAFT", server_default="DRAFT")
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    tax_total: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    total: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    posted_invoice_id: Mapped[int | None] = mapped_column(ForeignKey("sales_invoices.id"))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    validated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    posted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lines: Mapped[list["InvoiceDraftLine"]] = relationship(cascade="all, delete-orphan", lazy="selectin", order_by="InvoiceDraftLine.id")
+    __table_args__ = (CheckConstraint("status IN ('DRAFT','VALIDATED','POSTED','CANCELLED')", name="status_valid"),
+                      CheckConstraint("total = subtotal + tax_total", name="total_consistent"),
+                      Index("uq_invoice_drafts_open_order", "so_id", unique=True, postgresql_where=text("status IN ('DRAFT','VALIDATED')")),
+                      Index("ix_invoice_drafts_status", "status", "id"))
+
+
+class InvoiceDraftLine(Base):
+    __tablename__ = "invoice_draft_lines"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    draft_id: Mapped[int] = mapped_column(ForeignKey("invoice_drafts.id", ondelete="CASCADE"))
+    so_item_id: Mapped[int] = mapped_column(ForeignKey("sales_order_items.id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
+    qty: Mapped[Decimal] = mapped_column(Numeric(18, 3))
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4))
+    tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"), UniqueConstraint("draft_id", "so_item_id", name="uq_invoice_draft_lines_item"), Index("ix_invoice_draft_lines_draft", "draft_id"))

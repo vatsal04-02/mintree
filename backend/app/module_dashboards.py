@@ -3,17 +3,47 @@
 Each endpoint is read-only and returns plain counts and sums computed from the business tables, the same way /production/dashboard and
 /dispatch/dashboard do. Scalars become the figure cards at the top of the page; the nested objects become small breakdown sections.
 Money keys carry a money word (value, total, spend, amount ...) because the UI formats a figure from its name."""
+import functools
+import json
 from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core import rcache
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.deps import CurrentUser, require
 
 router = APIRouter(tags=["module-dashboards"])
+
+
+DASH_TTL_S = 15.0
+
+
+def dash_cached(ns: str):
+    """Serve a read-only module dashboard / board from the response cache: at most DASH_TTL_S old, and rebuilt within rcache.DASH_FLOOR_S (3 s) of any business write.
+    The endpoint's output does not depend on who asks (the permission gate runs first, outside this wrapper), so one entry serves everyone; single-flight stops a stampede."""
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(*a, **kw):
+            if get_settings().environment == "test" and not rcache.TEST_CACHE_ON:               # tests read straight after writes; they get no dashboard cache unless they ask for it
+                return Response(json.dumps(jsonable_encoder(fn(*a, **kw))).encode(), media_type="application/json")
+            key = json.dumps({k: str(v) for k, v in kw.items() if k not in ("db", "_", "cu")}, sort_keys=True)
+            body, ver = rcache.dash_lookup(ns, key, DASH_TTL_S)
+            if body is None:
+                with rcache.single_flight(ns, key):
+                    body, ver = rcache.dash_lookup(ns, key, DASH_TTL_S)
+                    if body is None:
+                        body = json.dumps(jsonable_encoder(fn(*a, **kw))).encode()
+                        rcache.store(ns, key, ver or rcache._version("dash") or "ttl", body)
+            return Response(body, media_type="application/json")
+        return wrapper
+    return deco
+
 DB = Depends(get_db, scope="function")
 
 
@@ -54,6 +84,7 @@ def _pct(part, whole):
 
 
 @router.get("/crm/dashboard")
+@dash_cached("mod:crm:dashboard")
 def crm_dashboard(db: Session = DB, _: CurrentUser = Depends(require("crm.lead:read"))):
     open_ = "stage NOT IN ('WON', 'LOST')"
     won = _one(db, "SELECT count(*) FROM opportunities WHERE stage = 'WON'")
@@ -81,6 +112,7 @@ def crm_dashboard(db: Session = DB, _: CurrentUser = Depends(require("crm.lead:r
 
 
 @router.get("/branding/dashboard")
+@dash_cached("mod:branding:dashboard")
 def branding_dashboard(db: Session = DB, _: CurrentUser = Depends(require("branding.campaign:read"))):
     window = "metric_date > business_today() - 30"
     impressions = _one(db, f"SELECT COALESCE(sum(impressions), 0) FROM campaign_metrics WHERE {window}")
@@ -111,6 +143,7 @@ def branding_dashboard(db: Session = DB, _: CurrentUser = Depends(require("brand
 
 
 @router.get("/ecommerce/dashboard")
+@dash_cached("mod:ecommerce:dashboard")
 def ecommerce_dashboard(db: Session = DB, _: CurrentUser = Depends(require("ecommerce.order:read"))):
     recent = "order_date > business_today() - 30"
     return {
@@ -133,6 +166,7 @@ def ecommerce_dashboard(db: Session = DB, _: CurrentUser = Depends(require("ecom
 
 
 @router.get("/rnd/dashboard")
+@dash_cached("mod:rnd:dashboard")
 def rnd_dashboard(db: Session = DB, _: CurrentUser = Depends(require("rnd.formula:read"))):
     passed = _one(db, "SELECT count(*) FROM lab_trials WHERE status = 'PASSED'")
     failed = _one(db, "SELECT count(*) FROM lab_trials WHERE status = 'FAILED'")
@@ -152,6 +186,7 @@ def rnd_dashboard(db: Session = DB, _: CurrentUser = Depends(require("rnd.formul
 
 
 @router.get("/quality/dashboard")
+@dash_cached("mod:quality:dashboard")
 def quality_dashboard(db: Session = DB, _: CurrentUser = Depends(require("quality.inspection:read"))):
     release = _one(db, "SELECT count(*) FROM inspections WHERE decision = 'RELEASE'")
     reject = _one(db, "SELECT count(*) FROM inspections WHERE decision = 'REJECT'")
@@ -174,6 +209,7 @@ def quality_dashboard(db: Session = DB, _: CurrentUser = Depends(require("qualit
 
 
 @router.get("/procurement/dashboard")
+@dash_cached("mod:procurement:dashboard")
 def procurement_dashboard(db: Session = DB, _: CurrentUser = Depends(require("procurement.po:read"))):
     open_po = "status IN ('APPROVED', 'PARTIALLY_RECEIVED')"
     return {
@@ -195,6 +231,7 @@ def procurement_dashboard(db: Session = DB, _: CurrentUser = Depends(require("pr
 
 
 @router.get("/inventory/dashboard")
+@dash_cached("mod:inventory:dashboard")
 def inventory_dashboard(db: Session = DB, _: CurrentUser = Depends(require("inventory.stock:read"))):
     return {
         "active_items": _one(db, "SELECT count(*) FROM items WHERE is_active"),
@@ -215,6 +252,7 @@ def inventory_dashboard(db: Session = DB, _: CurrentUser = Depends(require("inve
 
 
 @router.get("/accounts/dashboard")
+@dash_cached("mod:accounts:dashboard")
 def accounts_dashboard(db: Session = DB, _: CurrentUser = Depends(require("accounts.report:read"))):
     return {
         "receivable_outstanding": _one(db, "SELECT COALESCE(sum(total - amount_paid - credited_amount), 0) FROM sales_invoices WHERE status <> 'PAID'"),
@@ -240,6 +278,7 @@ from app.production import extras as _production_extras  # noqa: E402
 
 
 @router.get("/production/dashboard")
+@dash_cached("mod:production:dashboard")
 def production_dashboard(db: Session = DB, _: CurrentUser = Depends(require("production.order:read"))):
     out = _production_extras.dashboard(db)
     out["units_made_weekly_trend"] = _weekly(db, "production_orders", "completed_at", "sum(t.actual_qty)")
@@ -251,6 +290,7 @@ def production_dashboard(db: Session = DB, _: CurrentUser = Depends(require("pro
 
 
 @router.get("/dispatch/dashboard")
+@dash_cached("mod:dispatch:dashboard")
 def dispatch_dashboard(db: Session = DB, _: CurrentUser = Depends(require("dispatch.order:read"))):
     out = _dispatch_extras.dashboard(db)
     # a count, not rupees: a name containing "charge" would be formatted as money
@@ -262,6 +302,7 @@ def dispatch_dashboard(db: Session = DB, _: CurrentUser = Depends(require("dispa
 
 
 @router.get("/maintenance/dashboard")
+@dash_cached("mod:maintenance:dashboard")
 def maintenance_dashboard(db: Session = DB, _: CurrentUser = Depends(require("maintenance.equipment:read"))):
     out = _maintenance_base(db=db, _=None)
     out["work_orders_by_status"] = _by(db, "SELECT status, count(*) FROM maintenance_work_orders GROUP BY 1 ORDER BY 2 DESC")
@@ -365,6 +406,7 @@ def production_floor(db: Session = DB, _: CurrentUser = Depends(require("product
 
 
 @router.get("/procurement/vault")
+@dash_cached("mod:procurement:vault")
 def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procurement.po:read"))):
     """Raw and packaging material capital, open commitments, items below their reorder point (with the last supplier and price), the next inbound
     purchase order as a receipt tracker, the material table, supplier on-time scores and open spend split by material class."""
@@ -372,20 +414,21 @@ def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procur
     value_by_kind = _by(db, "SELECT i.kind, COALESCE(sum(v.value), 0) FROM item_valuation v JOIN items i ON i.id = v.item_id GROUP BY 1")
     count_by_kind = _by(db, "SELECT i.kind, count(*) FROM items i WHERE i.is_active GROUP BY 1")
     open_po = "status IN ('APPROVED', 'PARTIALLY_RECEIVED')"
-    last_supplier = """(SELECT s.name FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id JOIN suppliers s ON s.id = po.supplier_id
-                         WHERE pi.item_id = i.id AND po.status NOT IN ('DRAFT', 'CANCELLED') ORDER BY po.id DESC LIMIT 1)"""
-    last_city = """(SELECT s.city FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id JOIN suppliers s ON s.id = po.supplier_id
-                     WHERE pi.item_id = i.id AND po.status NOT IN ('DRAFT', 'CANCELLED') ORDER BY po.id DESC LIMIT 1)"""
-    last_price = """(SELECT pi.unit_price FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
-                      WHERE pi.item_id = i.id AND po.status NOT IN ('DRAFT', 'CANCELLED') ORDER BY po.id DESC LIMIT 1)"""
-    materials = _rows(db, f"""
+    # One pass over the purchase lines for "the latest PO line per item" and one for "still on order", instead of four correlated sub-selects per item (each a scan of the PO lines).
+    materials = _rows(db, """
+        WITH last_po AS (
+            SELECT DISTINCT ON (pi.item_id) pi.item_id, s.name AS vendor, s.city AS vendor_city, pi.unit_price AS last_price
+              FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id JOIN suppliers s ON s.id = po.supplier_id
+             WHERE po.status NOT IN ('DRAFT', 'CANCELLED') ORDER BY pi.item_id, po.id DESC, pi.line_no),
+        on_order AS (
+            SELECT pi.item_id, COALESCE(sum(pi.qty_ordered - pi.qty_received), 0) AS qty FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
+             WHERE po.status IN ('APPROVED', 'PARTIALLY_RECEIVED') GROUP BY pi.item_id)
         SELECT i.id, i.item_code, i.name, i.kind, i.description, u.code AS uom, i.reorder_level, c.name AS category,
                COALESCE(sum(b.qty_physical), 0) AS on_hand, COALESCE(sum(b.qty_reserved), 0) AS allocated, COALESCE(sum(b.qty_available), 0) AS free,
-               {last_supplier} AS vendor, {last_city} AS vendor_city, {last_price} AS last_price,
-               (SELECT COALESCE(sum(pi.qty_ordered - pi.qty_received), 0) FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
-                 WHERE pi.item_id = i.id AND po.status IN ('APPROVED', 'PARTIALLY_RECEIVED')) AS on_order
+               lp.vendor, lp.vendor_city, lp.last_price, COALESCE(oo.qty, 0) AS on_order
           FROM items i LEFT JOIN stock_balances b ON b.item_id = i.id LEFT JOIN units_of_measure u ON u.id = i.uom_id LEFT JOIN product_categories c ON c.id = i.category_id
-         WHERE i.is_active AND i.kind IN ('RM', 'PM') GROUP BY i.id, u.code, c.name
+               LEFT JOIN last_po lp ON lp.item_id = i.id LEFT JOIN on_order oo ON oo.item_id = i.id
+         WHERE i.is_active AND i.kind IN ('RM', 'PM') GROUP BY i.id, u.code, c.name, lp.vendor, lp.vendor_city, lp.last_price, oo.qty
          ORDER BY (COALESCE(sum(b.qty_available), 0) < COALESCE(i.reorder_level, 0)) DESC, i.kind, i.item_code""")
     for m in materials:
         lvl, free = float(m["reorder_level"] or 0), float(m["free"] or 0)
@@ -402,7 +445,7 @@ def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procur
                                   WHERE po.{open_po} GROUP BY po.id, s.name ORDER BY po.expected_date NULLS LAST, po.id LIMIT 8""")
     for r in inbound_list:
         r["pending"] = float(r["ordered"]) - float(r["received"])
-    vendors = _rows(db, """SELECT s.name, count(g.id) AS receipts, round(100.0 * count(*) FILTER (WHERE g.received_at::date <= po.expected_date) / NULLIF(count(g.id), 0), 1) AS on_time_pct
+    vendors = _rows(db, """SELECT s.name, count(g.id) AS receipts, round(100.0 * count(*) FILTER (WHERE business_date(g.received_at) <= po.expected_date) / NULLIF(count(g.id), 0), 1) AS on_time_pct
                              FROM goods_receipts g JOIN purchase_orders po ON po.id = g.po_id JOIN suppliers s ON s.id = po.supplier_id
                             GROUP BY s.name ORDER BY count(g.id) DESC LIMIT 3""")
     spend = _by(db, f"""SELECT i.kind, COALESCE(sum(pi.qty_ordered * pi.unit_price), 0) FROM purchase_order_items pi JOIN purchase_orders po ON po.id = pi.po_id
@@ -428,6 +471,7 @@ def procurement_vault(db: Session = DB, _: CurrentUser = Depends(require("procur
 
 
 @router.get("/ecommerce/omnihub")
+@dash_cached("mod:ecommerce:omnihub")
 def ecommerce_omnihub(db: Session = DB, _: CurrentUser = Depends(require("ecommerce.order:read"))):
     """Marketplace channels with what is still to ship, the 30-day dispatch velocity, the five fulfilment stages for marketplace orders, the live
     dispatch queue (order, customer, items, invoice, courier, AWB, status) and shipments by courier."""
@@ -473,6 +517,7 @@ def ecommerce_omnihub(db: Session = DB, _: CurrentUser = Depends(require("ecomme
 
 
 @router.get("/procurement/rfq-board")
+@dash_cached("mod:procurement:rfq-board")
 def rfq_board(status: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("procurement.rfq:read"))):
     """RFQs with everything a card needs: the first item, each invited supplier's quote (or that it is still awaited), the recommended quotation, the price the
     item was last bought at, and for an awarded RFQ the supplier, price and purchase order. Plus the tab counts and the four figures above the board."""
@@ -530,6 +575,7 @@ def rfq_board(status: str | None = None, page_size: int = 100, db: Session = DB,
 
 
 @router.get("/procurement/pr-board")
+@dash_cached("mod:procurement:pr-board")
 def pr_board(status: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("procurement.pr:read"))):
     """Purchase requests with what a buyer needs on the card: who asked, for which items and how much, what is in stock for each, whether it has been taken
     on to an RFQ or a purchase order, and how close the required-by date is. Plus the tab counts and the four figures above the board."""
@@ -562,7 +608,7 @@ def pr_board(status: str | None = None, page_size: int = 100, db: Session = DB, 
     one = lambda sql: _one(db, sql)
     summary = {
         "awaiting_approval": one("SELECT count(*) FROM purchase_requests WHERE status = 'SUBMITTED'"),
-        "oldest_waiting_days": one("SELECT COALESCE(max(business_today() - created_at::date), 0) FROM purchase_requests WHERE status = 'SUBMITTED'"),
+        "oldest_waiting_days": one("SELECT COALESCE(max(business_today() - business_date(created_at)), 0) FROM purchase_requests WHERE status = 'SUBMITTED'"),
         "to_source": one("SELECT count(*) FROM purchase_requests p WHERE p.status = 'APPROVED' AND NOT EXISTS (SELECT 1 FROM rfqs r WHERE r.pr_id = p.id) AND NOT EXISTS (SELECT 1 FROM purchase_orders o WHERE o.pr_id = p.id AND o.status <> 'CANCELLED')"),
         "approved": one("SELECT count(*) FROM purchase_requests WHERE status = 'APPROVED'"),
         "due_soon": one("SELECT count(*) FROM purchase_requests WHERE status IN ('SUBMITTED', 'APPROVED') AND required_by BETWEEN business_today() AND business_today() + 7"),
@@ -573,6 +619,7 @@ def pr_board(status: str | None = None, page_size: int = 100, db: Session = DB, 
 
 
 @router.get("/ecommerce/orders-board")
+@dash_cached("mod:ecommerce:orders-board")
 def ecommerce_orders_board(status: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("ecommerce.order:read"))):
     """Imported marketplace orders with the channel, the buyer, each line matched to our item (or flagged unmapped), the sales order it became, and the reason
     when it is stuck in the exception queue. Plus the tab counts and the four figures above the board."""
@@ -610,6 +657,7 @@ def ecommerce_orders_board(status: str | None = None, page_size: int = 100, db: 
 
 
 @router.get("/procurement/po-board")
+@dash_cached("mod:procurement:po-board")
 def po_board(status: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("procurement.po:read"))):
     """Purchase orders with the supplier, each line's ordered and received quantity, how far the receipt has got, where the order came from (RFQ or request)
     and how close the expected date is. Plus the tab counts and the four figures above the board."""
@@ -649,6 +697,7 @@ def po_board(status: str | None = None, page_size: int = 100, db: Session = DB, 
 
 # ------------------------------------------------------------------ returns to supplier
 @router.get("/procurement/returns-board")
+@dash_cached("mod:procurement:returns-board")
 def returns_board(reason_type: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("procurement.return:read"))):
     """Goods sent back to suppliers: who, why, which receipt and PO, what was returned and its value, plus the tab counts and four figures."""
     page_size = max(1, min(page_size, 100))
@@ -675,6 +724,7 @@ def returns_board(reason_type: str | None = None, page_size: int = 100, db: Sess
 
 # ------------------------------------------------------------------ production orders
 @router.get("/production/orders-board")
+@dash_cached("mod:production:orders-board")
 def production_orders_board(status: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("production.order:read"))):
     """Production orders with the product, quantities, yield and cost, how far the stages and the material issue have got, and the planned date."""
     page_size = max(1, min(page_size, 100))
@@ -707,6 +757,7 @@ def production_orders_board(status: str | None = None, page_size: int = 100, db:
 
 # ------------------------------------------------------------------ work centres
 @router.get("/production/work-centres-board")
+@dash_cached("mod:production:work-centres-board")
 def work_centres_board(page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("production.work_centre:read"))):
     """Work centres with capacity per day, whether they are in use, the stages run on them in the last 30 days and the stages waiting."""
     rows = _rows(db, """SELECT w.id, w.code, w.name, w.kind, w.capacity_per_day, w.is_active, d.name AS department,
@@ -725,6 +776,7 @@ def work_centres_board(page_size: int = 100, db: Session = DB, _: CurrentUser = 
 
 # ------------------------------------------------------------------ bills of materials
 @router.get("/production/boms-board")
+@dash_cached("mod:production:boms-board")
 def boms_board(status: str | None = None, page_size: int = 100, db: Session = DB, _: CurrentUser = Depends(require("production.bom:read"))):
     """Bills of materials with the product, batch size, the components per batch, whether it is linked to an approved formula, and how it has been used."""
     page_size = max(1, min(page_size, 100))
@@ -754,6 +806,7 @@ def boms_board(status: str | None = None, page_size: int = 100, db: Session = DB
 
 # ------------------------------------------------------------------ wastage & yield
 @router.get("/production/wastage-board")
+@dash_cached("mod:production:wastage-board")
 def wastage_board(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("production.order:read"))):
     """Wastage and yield for a period: totals, wastage by category, and the completed orders with the lowest yield (with the product named)."""
     from app.production.extras import wastage_report
@@ -769,6 +822,7 @@ def wastage_board(start: date, end: date, db: Session = DB, _: CurrentUser = Dep
 
 
 @router.get("/inventory/hub")
+@dash_cached("mod:inventory:hub")
 def inventory_hub(db: Session = DB, _: CurrentUser = Depends(require("inventory.stock:read"))):
     """The inventory landing page: stock value by class, warehouse occupancy, items at or near their reorder level (with what is already on order),
     batches that expire soonest while still holding stock, the latest stock movements and the items holding the most value."""
@@ -797,6 +851,10 @@ def inventory_hub(db: Session = DB, _: CurrentUser = Depends(require("inventory.
         SELECT w.id, w.code, w.name, count(*) FILTER (WHERE s.qty_physical > 0) AS lines, count(DISTINCT s.item_id) FILTER (WHERE s.qty_physical > 0) AS items,
                COALESCE(sum(s.qty_physical), 0) AS qty, COALESCE(sum(s.qty_blocked), 0) AS blocked, COALESCE(sum(s.qty_reserved), 0) AS reserved
           FROM warehouses w LEFT JOIN stock_balances s ON s.warehouse_id = w.id WHERE w.is_active GROUP BY w.id ORDER BY 4 DESC, w.code""")
+    expiry_grid = _rows(db, """
+        SELECT to_char(date_trunc('month', b.expiry_date), 'YYYY-MM') AS month, i.kind, count(DISTINCT b.id) AS batches, COALESCE(sum(s.qty_physical), 0) AS qty
+          FROM inventory_batches b JOIN items i ON i.id = b.item_id JOIN stock_balances s ON s.batch_id = b.id AND s.qty_physical > 0
+         WHERE b.expiry_date IS NOT NULL GROUP BY 1, 2 ORDER BY 1, 2""")
     top_value = _rows(db, """SELECT i.id, i.item_code, i.name, i.kind, v.qty, v.value FROM item_valuation v JOIN items i ON i.id = v.item_id
                               WHERE v.qty > 0 ORDER BY v.value DESC LIMIT 6""")
     return {
@@ -804,5 +862,129 @@ def inventory_hub(db: Session = DB, _: CurrentUser = Depends(require("inventory.
         "value_by_kind": _by(db, "SELECT i.kind, COALESCE(sum(v.value), 0) FROM item_valuation v JOIN items i ON i.id = v.item_id WHERE v.qty > 0 GROUP BY 1 ORDER BY 2 DESC"),
         "movements_7d": _one(db, "SELECT count(*) FROM stock_ledger WHERE posted_at > now() - interval '7 days'"),
         "movements_by_type_30d": _by(db, "SELECT movement_type, count(*) FROM stock_ledger WHERE posted_at > now() - interval '30 days' GROUP BY 1 ORDER BY 2 DESC"),
-        "reorder": reorder, "expiring": expiring, "movements": movements, "warehouses": warehouses, "top_value": top_value,
+        "reorder": reorder, "expiring": expiring, "movements": movements, "warehouses": warehouses, "top_value": top_value, "expiry_grid": expiry_grid,
     }
+
+
+@router.get("/crm/customers-board")
+@dash_cached("mod:crm:customers-board")
+def crm_customers_board(db: Session = DB, _: CurrentUser = Depends(require("masters.customer:read"))):
+    """The customer directory: who they are, what they have bought (ex-tax invoiced revenue), what is still owed, how much of the credit limit that
+    uses, the value of their open deals and when they last ordered. Everything is read from invoices, orders and opportunities; nothing is scored."""
+    rows = _rows(db, """
+        SELECT c.id, c.code, c.name, c.customer_type, c.contact_name, c.phone, c.email, c.state, c.credit_limit, c.credit_days,
+               COALESCE(i.revenue, 0) AS revenue, COALESCE(i.outstanding, 0) AS outstanding, COALESCE(i.invoices, 0) AS invoices, i.last_invoice,
+               COALESCE(o.open_pipeline, 0) AS open_pipeline, COALESCE(o.open_deals, 0) AS open_deals, so.last_order, COALESCE(so.orders, 0) AS orders
+          FROM customers c
+          LEFT JOIN (SELECT customer_id, sum(subtotal) AS revenue, sum(total - amount_paid - credited_amount) FILTER (WHERE status <> 'PAID') AS outstanding,
+                            count(*) AS invoices, max(invoice_date) AS last_invoice FROM sales_invoices GROUP BY customer_id) i ON i.customer_id = c.id
+          LEFT JOIN (SELECT customer_id, sum(expected_value) AS open_pipeline, count(*) AS open_deals FROM opportunities
+                      WHERE stage NOT IN ('WON', 'LOST') AND customer_id IS NOT NULL GROUP BY customer_id) o ON o.customer_id = c.id
+          LEFT JOIN (SELECT customer_id, max(created_at) AS last_order, count(*) AS orders FROM sales_orders GROUP BY customer_id) so ON so.customer_id = c.id
+         WHERE c.is_active ORDER BY COALESCE(i.revenue, 0) DESC, c.name""")
+    types = _by(db, "SELECT customer_type, count(*) FROM customers WHERE is_active GROUP BY 1 ORDER BY 2 DESC")
+    return {
+        "items": rows, "by_type": types,
+        "total_revenue": sum(float(r["revenue"]) for r in rows), "total_outstanding": sum(float(r["outstanding"] or 0) for r in rows),
+        "open_pipeline": sum(float(r["open_pipeline"]) for r in rows),
+        "active_buyers_90d": _one(db, "SELECT count(DISTINCT customer_id) FROM sales_orders WHERE created_at > now() - interval '90 days'"),
+    }
+
+
+@router.get("/dispatch/invoices/{iid}/paper")
+def invoice_paper(iid: int, db: Session = DB, _: CurrentUser = Depends(require("accounts.sales_invoice:read"))):
+    """The invoice as data for the on-screen paper view: seller, buyer, the shipped lines with GST, and the split of tax (CGST + SGST within the
+    state, IGST across states). It uses the same lines and the same reconciliation as the PDF, so the screen and the PDF always agree."""
+    from app.accounts.reports import state_code
+    from app.approvals.service import get_setting
+    from app.core.errors import NotFound
+    inv = _rows(db, """SELECT i.id, i.number, i.invoice_date, i.invoice_date + COALESCE(c.credit_days, 0) AS due_date, i.status, i.so_id, i.shipment_id, i.customer_id, i.subtotal, i.tax_total,
+                              i.total, i.amount_paid, i.credited_amount FROM sales_invoices i JOIN customers c ON c.id = i.customer_id WHERE i.id = :i""", i=iid)
+    if not inv:
+        raise NotFound("Invoice")
+    inv = inv[0]
+    cust = _rows(db, "SELECT name, gstin, state, billing_address, shipping_address FROM customers WHERE id = :c", c=inv["customer_id"])[0]
+    order = _rows(db, "SELECT number, shipping_address FROM sales_orders WHERE id = :o", o=inv["so_id"])[0]
+    lines = _rows(db, """SELECT it.name, it.hsn_code AS hsn, soi.tax_rate, soi.unit_price AS rate, sum(sl.qty) AS qty FROM shipment_lines sl JOIN shipments s ON s.id = sl.shipment_id
+                           JOIN sales_order_items soi ON soi.id = sl.so_item_id JOIN items it ON it.id = sl.item_id WHERE s.id = :sid OR (CAST(:sid AS bigint) IS NULL AND s.so_id = :o)
+                          GROUP BY it.name, it.hsn_code, soi.tax_rate, soi.unit_price, soi.line_no ORDER BY soi.line_no""", o=inv["so_id"], sid=inv["shipment_id"])
+    for l in lines:
+        taxable = round(float(l["qty"]) * float(l["rate"]), 2)
+        l["taxable"] = taxable
+        l["gst"] = round(taxable * float(l["tax_rate"]) / 100, 2)
+        l["amount"] = round(taxable + l["gst"], 2)
+    company = {k: get_setting(db, f"company.{k}") for k in ("name", "gstin", "address", "state_code")}
+    intra = (state_code(cust["gstin"], cust["state"]) or str(company["state_code"])) == str(company["state_code"])
+    gst = round(sum(l["gst"] for l in lines), 2)
+    return {
+        "number": inv["number"], "date": inv["invoice_date"], "due_date": inv["due_date"], "status": inv["status"], "order_number": order["number"],
+        "seller": {"name": company["name"] or "Mintree", "gstin": company["gstin"], "address": company["address"]},
+        "buyer": {"name": cust["name"], "gstin": cust["gstin"], "address": cust["billing_address"]},
+        "ship_to": order["shipping_address"] or cust["shipping_address"], "lines": lines,
+        "taxable": round(sum(l["taxable"] for l in lines), 2), "tax": ([{"label": "CGST", "amount": round(gst / 2, 2)}, {"label": "SGST", "amount": round(gst / 2, 2)}] if intra else [{"label": "IGST", "amount": gst}]),
+        "total": float(inv["total"]), "paid": float(inv["amount_paid"]), "credited": float(inv["credited_amount"]),
+        "outstanding": round(float(inv["total"]) - float(inv["amount_paid"]) - float(inv["credited_amount"]), 2),
+    }
+
+
+@router.get("/analytics/growth")
+def analytics_growth(months: int = 6, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
+    """Month-by-month sales for the Management page: what was invoiced each month split into collected, overdue and not yet due (these three add up to the
+    invoiced total, tax included), revenue by sales channel, and invoices raised per month. Months with nothing in them are listed as zero."""
+    months = max(1, min(int(months), 24))
+    first = "date_trunc('month', business_today()) - make_interval(months => :m)"
+    grid = f"SELECT to_char(g, 'YYYY-MM') AS month FROM generate_series({first.replace(':m', str(months - 1))}, date_trunc('month', business_today()), interval '1 month') g"
+    start = f"({first.replace(':m', str(months - 1))})"
+    stacked = {r["month"]: r for r in _rows(db, f"""
+        SELECT to_char(date_trunc('month', invoice_date), 'YYYY-MM') AS month, count(*) AS invoices, COALESCE(sum(amount_paid + credited_amount), 0) AS collected,
+               COALESCE(sum(total - amount_paid - credited_amount) FILTER (WHERE invoice_date + COALESCE(c.credit_days, 0) < business_today() AND status <> 'PAID'), 0) AS overdue,
+               COALESCE(sum(total - amount_paid - credited_amount) FILTER (WHERE invoice_date + COALESCE(c.credit_days, 0) >= business_today() AND status <> 'PAID'), 0) AS open_amount
+          FROM sales_invoices i JOIN customers c ON c.id = i.customer_id WHERE invoice_date >= {start} GROUP BY 1""")}
+    out = []
+    for g in _rows(db, grid):
+        m = g["month"]; s = stacked.get(m, {})
+        out.append({"month": m, "collected": s.get("collected", 0), "overdue": s.get("overdue", 0), "open": s.get("open_amount", 0), "invoices": s.get("invoices", 0)})
+    channels = _by(db, f"""SELECT o.channel, COALESCE(sum(i.subtotal), 0) FROM sales_invoices i JOIN sales_orders o ON o.id = i.so_id
+                            WHERE i.invoice_date >= {start} GROUP BY 1 ORDER BY 2 DESC""")
+    return {"months": out, "by_channel": channels, "window_months": months}
+
+
+@router.get("/analytics/annotations")
+def analytics_annotations(start: date, end: date, db: Session = DB, _: CurrentUser = Depends(require("analytics.dashboard:read"))):
+    """Real events to pin on the time-series charts: equipment breakdowns, failed deliveries and the largest invoices of the period. Each comes straight
+    from its own record (the date it was raised or issued); nothing is estimated. A period with none returns an empty list."""
+    p = {"s": start, "e": end}
+    rows = _rows(db, """
+        SELECT * FROM (
+          SELECT business_date(w.created_at) AS date, 'Breakdown' AS kind, e.name || ' (' || w.number || ')' AS title, w.production_impact::text AS detail
+            FROM maintenance_work_orders w JOIN equipment e ON e.id = w.equipment_id WHERE w.kind = 'BREAKDOWN' AND business_date(w.created_at) BETWEEN :s AND :e
+          UNION ALL
+          SELECT business_date(s.created_at), 'Failed delivery', COALESCE(s.shipment_no::text, s.awb::text, 'Shipment ' || s.id), s.last_error::text
+            FROM shipments s WHERE s.status = 'FAILED_DELIVERY' AND business_date(s.created_at) BETWEEN :s AND :e
+          UNION ALL
+          SELECT i.invoice_date, 'Large invoice', i.number || ' · ' || c.name, to_char(i.subtotal, 'FM999999990.00')
+            FROM (SELECT * FROM sales_invoices WHERE invoice_date BETWEEN :s AND :e ORDER BY subtotal DESC LIMIT 2) i JOIN customers c ON c.id = i.customer_id
+        ) x ORDER BY date LIMIT 40""", **p)
+    return {"events": [{"date": r["date"], "kind": r["kind"], "title": r["title"], "detail": r["detail"]} for r in rows]}
+
+
+@router.get("/quality/control-chart")
+def quality_control_chart(test: str | None = None, db: Session = DB, _: CurrentUser = Depends(require("quality.inspection:read"))):
+    """Readings of one numeric test in time order with the specification limits that applied to each. `test` defaults to the test with the most numeric
+    readings. Limits are the spec's own minimum and maximum; the centre line and spread are computed from the readings shown."""
+    tests = _rows(db, "SELECT test_name, count(value) AS n FROM inspection_results WHERE value IS NOT NULL GROUP BY 1 HAVING count(value) >= 5 ORDER BY 2 DESC")
+    if not tests:
+        return {"tests": [], "test": None, "points": []}
+    name = test if test in {t["test_name"] for t in tests} else tests[0]["test_name"]
+    pts = _rows(db, """
+        SELECT r.value, r.passed, r.tested_at, i.number AS inspection, b.batch_no, t.min_value, t.max_value, t.unit
+          FROM inspection_results r JOIN inspections i ON i.id = r.inspection_id LEFT JOIN inventory_batches b ON b.id = i.batch_id
+          LEFT JOIN quality_spec_tests t ON t.spec_id = i.spec_id AND t.test_name = r.test_name
+         WHERE r.test_name = :t AND r.value IS NOT NULL ORDER BY r.tested_at, r.id LIMIT 200""", t=name)
+    vals = [float(p["value"]) for p in pts]
+    mean = sum(vals) / len(vals)
+    sd = (sum((v - mean) ** 2 for v in vals) / max(len(vals) - 1, 1)) ** 0.5
+    lows = [float(p["min_value"]) for p in pts if p["min_value"] is not None]
+    highs = [float(p["max_value"]) for p in pts if p["max_value"] is not None]
+    return {"tests": [t["test_name"] for t in tests], "test": name, "unit": next((p["unit"] for p in pts if p["unit"]), None), "points": pts,
+            "mean": round(mean, 4), "sd": round(sd, 4), "lsl": min(lows) if lows else None, "usl": max(highs) if highs else None}

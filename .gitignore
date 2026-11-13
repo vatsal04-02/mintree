@@ -11,3 +11,13 @@ storage/
 
 # Redis snapshots (created when redis-server is started from a project folder)
 dump.rdb
+
+# Demo stack (scripts/demo_stack.py, make demo-up): logs and pids, the exported golden snapshot, the demo web build
+/logs/
+ops/demo/golden.dump
+.next-demo/
+
+# local run output and dev build folders
+/*.log
+frontend/.next-*/
+backend/package-lock.json

@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -20,6 +21,11 @@ from app.production.extras_router import router as production_extras_router
 from app.quality.extras_router import router as quality_extras_router
 from app.rnd.extras_router import router as rnd_extras_router
 from app.dispatch.extras_router import router as dispatch_extras_router
+from app.accounts.einvoice import router as einvoice_router
+from app.inventory.expiry import router as expiry_router
+from app.production.rework import router as rework_router
+from app.quality.recall import router as recall_router
+from app.dispatch.invoice_router import router as invoice_drafts_router
 from app.sales.router import router as sales_router
 from app.approvals.router import router as approvals_router
 from app.notifications.router import router as notifications_router
@@ -32,7 +38,7 @@ from app.module_dashboards import router as module_dashboards_router
 from app.accounts.router import router as accounts_router
 from app.administration.jobs import router as jobs_router
 from app.auth.router import router as auth_router
-from app.core.config import get_settings
+from app.core.config import get_settings, production_problems
 from app.dispatch.router import router as dispatch_router
 from app.core.errors import BusinessConflict
 from app.core.context import client_ip_var, request_id_var
@@ -52,15 +58,45 @@ from app.procurement.router import router as procurement_router
 from app.production.router import router as production_router
 from app.quality.router import router as quality_router
 from app.rnd.router import router as rnd_router
+from app.demo_live.router import router as demo_live_router
+from app.core import readiness
 
 configure_logging()
 obs.instrument_engine(engine)
 log = logging.getLogger("mintree")
 
+def warm_up() -> dict:
+    """Prime what the first request would otherwise pay for: ORM mapper configuration, the DB connection pool (opened up to the pool size), planner statistics for the hot
+    tables and the per-process caches. Safe to run in any environment; failures are logged, never fatal. `make warm` additionally primes the HTTP-level caches."""
+    t0 = time.perf_counter()
+    out: dict = {}
+    try:
+        from sqlalchemy.orm import configure_mappers
+        configure_mappers()
+        conns = [engine.connect() for _ in range(max(1, min(get_settings().db_pool_size, 8)))]
+        for c in conns:
+            c.execute(text("SELECT 1"))
+        for c in conns:
+            c.close()
+        with SessionLocal() as db:
+            for t in ("items", "customers", "sales_orders", "stock_balances"):
+                db.execute(text(f"SELECT 1 FROM {t} LIMIT 1"))                    # touches the table and its first index pages
+        out["pool"] = len(conns)
+    except Exception as e:  # noqa: BLE001
+        log.warning("warm-up skipped: %s", e)
+    out["ms"] = round((time.perf_counter() - t0) * 1000)
+    return out
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     s = get_settings()
+    if s.environment == "production":
+        problems = production_problems(s)
+        if problems:
+            raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
     anyio.to_thread.current_default_thread_limiter().total_tokens = s.threadpool_size or (slots() + 4)
+    log.info("warm-up", extra={"fields": await anyio.to_thread.run_sync(warm_up)})
     yield
 
 
@@ -73,7 +109,7 @@ app = FastAPI(title="Mintree Factory OS", version="0.1.0", docs_url="/api/docs",
               lifespan=lifespan)
 # Order: last added runs first. Request context must wrap admission control so shed requests still get an ID.
 app.add_middleware(AdmissionControl, slots=slots(), timeout_s=get_settings().admission_timeout_s,
-                   exempt_prefixes=("/api/metrics",))
+                   exempt_prefixes=("/api/metrics", "/api/events"))   # the event stream is long-lived: it must not hold an admission slot
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(RateLimit)                      # outermost: rejects abusive login/webhook traffic before anything else runs
@@ -110,8 +146,15 @@ def health():
     return {"status": "ok", "environment": get_settings().environment}
 
 
+@app.get("/api/ready")
+def ready():
+    """Readiness: database + migrations + disk are required (503 when not ok); cache, queue, outbox and the live scheduler only degrade."""
+    ok, body = readiness.run_checks()
+    return JSONResponse(body, status_code=200 if ok else 503)
+
+
 # Extras routers first: their specific paths (e.g. .../stages/{seq}/checks) must win over the base routers' generic {action} routes.
-for r in (module_dashboards_router, auth_router, admin_router, jobs_router, procurement_ext_router, crm_ext_router, ship_router, quality_ext_router2, plan_router, production_extras_router, accounts_ext_router, dispatch_extras_router, quality_extras_router, rnd_extras_router, inventory_extras_router,
+for r in (module_dashboards_router, auth_router, admin_router, jobs_router, procurement_ext_router, crm_ext_router, ship_router, quality_ext_router2, plan_router, production_extras_router, accounts_ext_router, invoice_drafts_router, einvoice_router, expiry_router, rework_router, recall_router, dispatch_extras_router, quality_extras_router, rnd_extras_router, inventory_extras_router,
           rfq_router, listings_router, barcodes_router, masters_router, documents_router, inventory_router, procurement_router, accounts_router, rnd_router, quality_router, production_router, dispatch_router,
-          maintenance_router, traceability_router, ecommerce_router, crm_router, branding_router, analytics_router, ai_router, approvals_router, notifications_router, sales_router):
+          maintenance_router, traceability_router, ecommerce_router, crm_router, branding_router, analytics_router, ai_router, approvals_router, notifications_router, sales_router, demo_live_router):
     app.include_router(r, prefix="/api")

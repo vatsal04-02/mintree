@@ -27,6 +27,9 @@ export const fmtDate = (v?: string | null) =>
   v ? new Date(v).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "numeric" }) : "—";
 export const fmtDateTime = (v?: string | null) =>
   v ? new Date(v).toLocaleString(LOCALE, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+/** Wall-clock time in the business zone (Asia/Kolkata), whatever the browser's own zone is: "14:05:09". */
+const IST_TIME = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+export const fmtTimeIST = (v?: string | null) => (v ? IST_TIME.format(new Date(v)) : "—");
 const ACRONYM = /\b(so|po|pr|grn|qc|rto|awb|sku|gst|rfq|bom|capa|coa|uom|hsn|pdf|id|ai)\b/gi;
 export const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()).replace(ACRONYM, (m) => m.toUpperCase());
 /** "5 min ago", "3 h ago", "yesterday", else the date. Pair with fmtDateTime in a title attribute for the exact time. */

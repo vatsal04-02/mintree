@@ -54,7 +54,8 @@ class SalesOrderItem(Base):
     qty_shipped: Mapped[Decimal] = mapped_column(QTY, default=0, server_default="0")
     qty_returned: Mapped[Decimal] = mapped_column(QTY, default=0, server_default="0")
     __table_args__ = (UniqueConstraint("so_id", "line_no", name="uq_sales_order_items_line"), CheckConstraint("qty > 0", name="qty_positive"),
-                      CheckConstraint("qty_shipped <= qty AND qty_returned <= qty_shipped", name="shipped_returned_within"))
+                      CheckConstraint("qty_shipped <= qty AND qty_returned <= qty_shipped", name="shipped_returned_within"),
+                      Index("ix_sales_order_items_item", "item_id"))
 
 
 class SalesInvoice(Base):
@@ -75,7 +76,8 @@ class SalesInvoice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (Index("ix_sales_invoices_order", "so_id"), CheckConstraint("total = subtotal + tax_total", name="total_consistent"),
                       CheckConstraint("amount_paid >= 0 AND credited_amount >= 0 AND amount_paid + credited_amount <= total", name="settled_within_total"),
-                      CheckConstraint("status IN ('OPEN','PARTIAL','PAID')", name="status_valid"))
+                      CheckConstraint("status IN ('OPEN','PARTIAL','PAID')", name="status_valid"),
+                      Index("ix_sales_invoices_customer", "customer_id", text("invoice_date DESC")), Index("ix_sales_invoices_open", "invoice_date", postgresql_where=text("status <> 'PAID'")))
 
 
 class Shipment(Base):
@@ -116,7 +118,8 @@ class ShipmentLine(Base):
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(18, 4))
     net_amount: Mapped[Decimal | None] = mapped_column(MONEY)      # invoiced taxable value of this line (NULL on legacy rows)
     tax_amount: Mapped[Decimal | None] = mapped_column(MONEY)
-    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"), Index("ix_shipment_lines_batch", "batch_id"))
+    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"), Index("ix_shipment_lines_batch", "batch_id"),
+                      Index("ix_shipment_lines_shipment", "shipment_id"), Index("ix_shipment_lines_so_item", "so_item_id"))
 
 
 class CourierEvent(Base):

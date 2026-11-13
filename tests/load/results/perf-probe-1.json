@@ -1,0 +1,173 @@
+{
+ "classes": {
+  "dashboard": {
+   "n": 252,
+   "p50": 5,
+   "p95": 97,
+   "p99": 184,
+   "max": 288,
+   "cold_p95": 173
+  },
+  "list": {
+   "n": 1692,
+   "p50": 9,
+   "p95": 25,
+   "p99": 56,
+   "max": 837,
+   "cold_p95": 24
+  },
+  "detail": {
+   "n": 387,
+   "p50": 9,
+   "p95": 24,
+   "p99": 44,
+   "max": 67,
+   "cold_p95": 22
+  },
+  "search": {
+   "n": 837,
+   "p50": 9,
+   "p95": 28,
+   "p99": 48,
+   "max": 137,
+   "cold_p95": 24
+  }
+ },
+ "slowest": [
+  {
+   "route": "/api/procurement/vault",
+   "class": "list",
+   "params": {},
+   "median": 606,
+   "p95": 837
+  },
+  {
+   "route": "/api/quality/inspections",
+   "class": "list",
+   "params": {
+    "page_size": 50
+   },
+   "median": 54,
+   "p95": 94
+  },
+  {
+   "route": "/api/quality/inspections",
+   "class": "list",
+   "params": {
+    "page": 2,
+    "page_size": 50
+   },
+   "median": 52,
+   "p95": 78
+  },
+  {
+   "route": "/api/admin/audit-logs",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 48,
+   "p95": 116
+  },
+  {
+   "route": "/api/accounts/reports/balance-sheet",
+   "class": "dashboard",
+   "params": {},
+   "median": 46,
+   "p95": 77
+  },
+  {
+   "route": "/api/accounts/reports/trial-balance",
+   "class": "dashboard",
+   "params": {},
+   "median": 45,
+   "p95": 85
+  },
+  {
+   "route": "/api/quality/inspections/4351/coa",
+   "class": "detail",
+   "params": {},
+   "median": 44,
+   "p95": 67
+  },
+  {
+   "route": "/api/dispatch/shipments",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 34,
+   "p95": 59
+  },
+  {
+   "route": "/api/dispatch/invoices",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 33,
+   "p95": 37
+  },
+  {
+   "route": "/api/traceability/batches",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 28,
+   "p95": 47
+  },
+  {
+   "route": "/api/inventory/reports/slow-moving",
+   "class": "list",
+   "params": {
+    "page_size": 50
+   },
+   "median": 28,
+   "p95": 69
+  },
+  {
+   "route": "/api/inventory/reports/reorder",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 26,
+   "p95": 34
+  },
+  {
+   "route": "/api/inventory/reports/slow-moving",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 26,
+   "p95": 54
+  },
+  {
+   "route": "/api/accounts/reports/payables",
+   "class": "list",
+   "params": {
+    "page_size": 50
+   },
+   "median": 26,
+   "p95": 30
+  },
+  {
+   "route": "/api/accounts/reports/payables",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 25,
+   "p95": 37
+  }
+ ]
+}

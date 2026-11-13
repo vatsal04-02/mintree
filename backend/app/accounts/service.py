@@ -10,6 +10,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.context import source_var
 from app.accounts.models import (Account, AccountingPeriod, ItemValuation, JournalEntry, JournalLine, Payment, PaymentAllocation,
                                  SupplierInvoice, SupplierInvoiceLine)
 from app.audit import service as audit
@@ -231,7 +232,7 @@ def post_payment(db: Session, cu: CurrentUser, *, direction: str, party_id: int,
                       source_type="payment", source_id=pay.id, lines=lines, actor_id=cu.id)
     pay.journal_entry_id = je.id
     audit.record(db, user=cu, action="post", entity="payment", entity_id=pay.id, after={"number": pay.number, "amount": str(amount)})
-    outbox.add(db, event_type="accounts.payment.posted", aggregate_type="payment", aggregate_id=pay.id, payload={"id": pay.id, "number": pay.number, "amount": str(amount)})
+    outbox.add(db, event_type="accounts.payment.posted", aggregate_type="payment", aggregate_id=pay.id, payload={"id": pay.id, "number": pay.number, "amount": str(amount), "direction": direction, "actor_id": cu.id, **({"source": s} if (s := source_var.get()) else {})})
     return {"id": pay.id, "number": pay.number, "amount": str(amount), "journal_entry_id": je.id,
             "allocations": [{"invoice_id": a["invoice_id"], "amount": str(money(a["amount"]))} for a in allocations]}
 

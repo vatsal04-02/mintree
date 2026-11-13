@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core import activity
 from app.core.db import get_db
 from app.core.deps import CurrentUser, require
 from app.core.errors import NotFound
@@ -101,7 +102,7 @@ def qc_decision(batch_id: int, body: s.QCDecision, key: str = Depends(require_id
         r = svc.set_qc_status(d, batch_id=batch_id, decision=body.decision, reason=body.reason, actor_id=cu.id)
         audit.record(d, user=cu, action=f"qc_{body.decision.lower()}", entity="inventory_batch", entity_id=batch_id,
                      before={"qc_status": r["from"]}, after={"qc_status": r["to"]}, reason=body.reason)
-        outbox.add(d, event_type="inventory.batch.qc_decided", aggregate_type="inventory_batch", aggregate_id=batch_id, payload=r)
+        outbox.add(d, event_type="inventory.batch.qc_decided", aggregate_type="inventory_batch", aggregate_id=batch_id, payload={**r, "number": f"batch {batch_id}", "actor_id": cu.id})
         return 200, r, "inventory_batch", batch_id
     return idempotent_post(db, cu, scope="inventory.batch.qc", key=key, payload={"batch_id": batch_id, **body.model_dump()}, effect=effect)
 
@@ -135,11 +136,12 @@ def issue(body: s.IssueIn, key: str = Depends(require_idempotency_key), db: Sess
 
 @router.post("/transfers", status_code=201)
 def transfer(body: s.TransferIn, key: str = Depends(require_idempotency_key), db: Session = DB, cu: CurrentUser = Depends(require("inventory.transfer:post"))):
-    return idempotent_post(db, cu, scope="inventory.transfer.post", key=key, payload=body.model_dump(mode="json"),
-                           effect=lambda d: (201, svc.transfer(d, item_id=body.item_id, batch_id=body.batch_id, from_warehouse_id=body.from_warehouse_id,
-                                                               to_warehouse_id=body.to_warehouse_id, qty=body.qty, source_type="transfer",
-                                                               source_id=body.source_id, actor_id=cu.id, from_location_id=body.from_location_id,
-                                                               to_location_id=body.to_location_id), "transfer", body.source_id))
+    def effect(d):
+        r = svc.transfer(d, item_id=body.item_id, batch_id=body.batch_id, from_warehouse_id=body.from_warehouse_id, to_warehouse_id=body.to_warehouse_id, qty=body.qty,
+                         source_type="transfer", source_id=body.source_id, actor_id=cu.id, from_location_id=body.from_location_id, to_location_id=body.to_location_id)
+        activity.emit(d, "inventory.stock.transferred", entity="stock_transfer", entity_id=body.source_id, number=f"TR-{body.source_id}", actor_id=cu.id)
+        return 201, r, "transfer", body.source_id
+    return idempotent_post(db, cu, scope="inventory.transfer.post", key=key, payload=body.model_dump(mode="json"), effect=effect)
 
 
 @router.post("/adjustments", status_code=201)

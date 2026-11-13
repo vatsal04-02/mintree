@@ -83,6 +83,7 @@ class PurchaseOrderItem(Base):
         CheckConstraint("qty_received <= qty_ordered", name="no_over_receipt"),   # final guard against over-receipt
         CheckConstraint("qty_invoiced >= 0 AND qty_invoiced <= qty_received", name="invoiced_within_received"),
         CheckConstraint("unit_price >= 0", name="price_non_negative"),
+        Index("ix_purchase_order_items_item", "item_id", "po_id"),
     )
 
 

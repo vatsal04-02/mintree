@@ -6,6 +6,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from app.core.context import source_var
+from app.core import activity
 from app.accounts import service as acct
 from app.audit import service as audit
 from app.core import outbox
@@ -110,6 +112,7 @@ def create_order(db: Session, cu: CurrentUser, *, bom_id: int, planned_qty, ware
     db.add(o)
     db.flush()
     audit.record(db, user=cu, action="create", entity="production_order", entity_id=o.id, after={"number": o.number, "bom_id": bom.id, "planned_qty": str(pq)})
+    activity.emit(db, "production.order.created", entity="production_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 
@@ -152,6 +155,7 @@ def release_order(db: Session, cu: CurrentUser, order_id: int, expected_version:
         raise BusinessConflict("material_shortage", "Not enough released stock to cover this order", shortages=short)   # rolls back every reservation
     o.status, o.version = "RELEASED", o.version + 1
     audit.record(db, user=cu, action="release", entity="production_order", entity_id=o.id)
+    activity.emit(db, "production.order.released", entity="production_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 
@@ -184,6 +188,7 @@ def issue_materials(db: Session, cu: CurrentUser, order_id: int) -> dict:
     o.wip_cost, o.input_cost = o.wip_cost + total, o.input_cost + total
     o.status, o.started_at, o.version = "IN_PROGRESS", datetime.now(timezone.utc), o.version + 1
     audit.record(db, user=cu, action="issue_materials", entity="production_order", entity_id=o.id, after={"cost": str(total)})
+    activity.emit(db, "production.order.materials_issued", entity="production_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 
@@ -220,6 +225,7 @@ def stage_action(db: Session, cu: CurrentUser, order_id: int, seq: int, action: 
         check_stage_can_complete(db, order_id, seq)                  # a failing in-process reading blocks completion until a passing re-check
         st.status, st.completed_at, st.parameters, st.notes = "DONE", datetime.now(timezone.utc), parameters, notes
     audit.record(db, user=cu, action=f"stage_{action}", entity="production_order", entity_id=o.id, after={"stage": st.name})
+    activity.emit(db, "production.order.stage", entity="production_order", entity_id=o.id, number=o.number, actor_id=cu.id, stage=st.name.title(), action="started" if action == "start" else "completed")
     return order_dict(o)
 
 
@@ -258,7 +264,7 @@ def complete_order(db: Session, cu: CurrentUser, order_id: int, expected_version
     quality.auto_inspection(db, batch_id, out.id, "FINISHED")
     audit.record(db, user=cu, action="complete", entity="production_order", entity_id=o.id, after={"actual": str(actual), "yield_pct": str(yield_pct), "batch_id": batch_id})
     outbox.add(db, event_type="production.order.completed", aggregate_type="production_order", aggregate_id=o.id,
-               payload={"order_id": o.id, "number": o.number, "output_batch_id": batch_id, "actual_qty": str(actual), "yield_pct": str(yield_pct)})
+               payload={"order_id": o.id, "number": o.number, "output_batch_id": batch_id, "actual_qty": str(actual), "yield_pct": str(yield_pct), "actor_id": cu.id, **({"source": s} if (s := source_var.get()) else {})})
     return order_dict(o)
 
 
@@ -271,6 +277,7 @@ def cancel_order(db: Session, cu: CurrentUser, order_id: int, reason: str) -> di
         inv.release_reservations(db, ids)
     o.status, o.version = "CANCELLED", o.version + 1
     audit.record(db, user=cu, action="cancel", entity="production_order", entity_id=o.id, reason=reason)
+    activity.emit(db, "production.order.cancelled", entity="production_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 

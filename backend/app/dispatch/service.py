@@ -14,6 +14,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.context import source_var
+from app.core import activity
 from app.accounts import service as acct
 from app.audit import service as audit
 from app.core import outbox
@@ -76,6 +78,7 @@ def create_order(db: Session, cu: CurrentUser, *, customer_id: int, warehouse_id
             raise BusinessConflict("duplicate_order", "An order with this channel and external reference already exists") from e
         raise
     audit.record(db, user=cu, action="create", entity="sales_order", entity_id=o.id, after={"number": o.number, "total": str(o.total)})
+    activity.emit(db, "sales.order.created", entity="sales_order", entity_id=o.id, number=o.number, actor_id=cu.id, total=o.total, channel=channel)
     return order_dict(o)
 
 
@@ -98,6 +101,7 @@ def confirm_order(db: Session, cu: CurrentUser, order_id: int, expected_version:
                                    limit=str(cust.credit_limit), exposure=str(exp), order_total=str(o.total))
     o.status, o.version = "CONFIRMED", o.version + 1
     audit.record(db, user=cu, action="confirm", entity="sales_order", entity_id=o.id)
+    activity.emit(db, "sales.order.confirmed", entity="sales_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 
@@ -106,15 +110,18 @@ def allocate_order(db: Session, cu: CurrentUser, order_id: int, expected_version
     if o.status != "CONFIRMED":
         raise BusinessConflict("invalid_status", f"Cannot allocate an order in status {o.status}")
     short = []
+    from app.approvals.service import get_setting
+    min_days = int(get_setting(db, "dispatch.min_shelf_life_days") or 0)          # short-dated stock is not allocated to orders (0 = off)
     for l in sorted(o.items, key=lambda x: x.item_id):
         try:
-            inv.reserve(db, item_id=l.item_id, warehouse_id=o.warehouse_id, qty=l.qty, reference_type="sales_order", reference_id=str(o.id), actor_id=cu.id)
+            inv.reserve(db, item_id=l.item_id, warehouse_id=o.warehouse_id, qty=l.qty, reference_type="sales_order", reference_id=str(o.id), actor_id=cu.id, min_days=min_days)
         except InsufficientStock as e:
             short.append({"item_id": l.item_id, "requested": str(l.qty), "available": e.detail["available"]})
     if short:
         raise BusinessConflict("insufficient_stock", "Not enough QC-released, unexpired stock to allocate this order", shortages=short)
     o.status, o.version = "ALLOCATED", o.version + 1
     audit.record(db, user=cu, action="allocate", entity="sales_order", entity_id=o.id)
+    activity.emit(db, "sales.order.allocated", entity="sales_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 
@@ -144,6 +151,7 @@ def cancel_order(db: Session, cu: CurrentUser, order_id: int, reason: str) -> di
         inv.release_reservations(db, ids)
     o.status, o.version = "CANCELLED", o.version + 1
     audit.record(db, user=cu, action="cancel", entity="sales_order", entity_id=o.id, reason=reason)
+    activity.emit(db, "sales.order.cancelled", entity="sales_order", entity_id=o.id, number=o.number, actor_id=cu.id)
     return order_dict(o)
 
 
@@ -170,6 +178,18 @@ def _shipment_plan(o: SalesOrder, lines: list[dict] | None) -> dict[int, Decimal
     if not plan:
         raise BusinessConflict("nothing_to_ship", "This order has no unshipped quantity")
     return plan
+
+
+def line_amounts(db: Session, l: SalesOrderItem, take: Decimal) -> tuple[Decimal, Decimal]:
+    """Taxable value and GST for shipping `take` of an order line now. The final shipment of a line bills the exact remainder, so invoices always sum to the order total.
+    Used by the dispatch posting AND by the invoice-draft preview, so a draft always shows exactly what posting will bill."""
+    final = l.qty_shipped + take == l.qty
+    done_net, done_tax = db.execute(text("SELECT COALESCE(sum(net_amount),0), COALESCE(sum(tax_amount),0) FROM shipment_lines WHERE so_item_id = :i"), {"i": l.id}).one()
+    full_net = acct.money(l.qty * l.unit_price)
+    full_tax = acct.money(full_net * l.tax_rate / 100)
+    net = full_net - done_net if final else acct.money(take * l.unit_price)
+    line_tax = full_tax - done_tax if final else acct.money(net * l.tax_rate / 100)
+    return net, line_tax
 
 
 def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version: int, courier_name: str | None, lines: list[dict] | None = None,
@@ -201,12 +221,7 @@ def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version
     total_cost = sub = tax = Decimal(0)
     for so_item_id in sorted(legs, key=lambda i: by_id[i].item_id):
         l, take = by_id[so_item_id], plan[so_item_id]
-        final = l.qty_shipped + take == l.qty
-        done_net, done_tax = db.execute(text("SELECT COALESCE(sum(net_amount),0), COALESCE(sum(tax_amount),0) FROM shipment_lines WHERE so_item_id = :i"), {"i": l.id}).one()
-        full_net = acct.money(l.qty * l.unit_price)
-        full_tax = acct.money(full_net * l.tax_rate / 100)
-        net = full_net - done_net if final else acct.money(take * l.unit_price)
-        line_tax = full_tax - done_tax if final else acct.money(net * l.tax_rate / 100)
+        net, line_tax = line_amounts(db, l, take)
         sub, tax = sub + net, tax + line_tax
         gl = legs[so_item_id]
         net_left, tax_left = net, line_tax
@@ -242,7 +257,7 @@ def dispatch_order(db: Session, cu: CurrentUser, order_id: int, expected_version
                  after={"invoice": inv_row.number, "shipment_id": ship.id, "shipment_no": shipment_no, "cogs": str(total_cost), "complete": complete})
     outbox.add(db, event_type="dispatch.shipment.requested", aggregate_type="shipment", aggregate_id=ship.id, payload={"shipment_id": ship.id, "order": o.number, "courier": courier_name})
     outbox.add(db, event_type="dispatch.order.dispatched", aggregate_type="sales_order", aggregate_id=o.id,
-               payload={"order_id": o.id, "number": o.number, "invoice": inv_row.number, "total": str(total), "shipment_no": shipment_no, "complete": complete})
+               payload={"order_id": o.id, "number": o.number, "invoice": inv_row.number, "total": str(total), "shipment_no": shipment_no, "complete": complete, "actor_id": cu.id, **({"source": s} if (s := source_var.get()) else {})})
     return order_dict(o) | {"invoice": {"id": inv_row.id, "number": inv_row.number, "total": str(inv_row.total)}, "shipment_id": ship.id, "shipment_no": shipment_no}
 
 
@@ -447,7 +462,7 @@ def decide_return(db: Session, cu: CurrentUser, return_id: int, decision: str) -
     db.flush()
     r.status, r.decision, r.credit_note_id = "DECIDED", decision, cn.id
     audit.record(db, user=cu, action=f"return_{decision.lower()}", entity="sales_return", entity_id=r.id, after={"credit_note": cn.number, "total": str(total)})
-    outbox.add(db, event_type="dispatch.return.decided", aggregate_type="sales_return", aggregate_id=r.id, payload={"return_id": r.id, "decision": decision, "credit_note": cn.number})
+    outbox.add(db, event_type="dispatch.return.decided", aggregate_type="sales_return", aggregate_id=r.id, payload={"return_id": r.id, "decision": decision, "credit_note": cn.number, "number": cn.number, "actor_id": cu.id})
     return return_dict(r) | {"credit_note": {"number": cn.number, "total": str(total)}}
 
 

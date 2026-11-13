@@ -79,6 +79,31 @@ def lookup(ns: str, key: str, ttl_s: float, check_version: bool = True) -> tuple
     return None, ver
 
 
+DASH_IGNORED = {"audit_logs", "idempotency_keys", "outbox_events", "processed_events", "sessions", "user_notifications", "notification_preferences", "job_failures", "webhook_events",
+                "integration_logs", "demo_live_state", "demo_live_events", "demo_live_triggers", "demo_scenario", "ai_conversations", "ai_messages", "ai_tool_calls", "ai_usage"}
+DASH_FLOOR_S = 3.0
+TEST_CACHE_ON = False            # tests that exercise the module-dashboard cache set this; every other test sees live figures
+
+
+def dash_lookup(ns: str, key: str, ttl_s: float, floor_s: float = DASH_FLOOR_S) -> tuple[bytes | None, str]:
+    """Dashboard read: an entry is served while it is younger than `ttl_s` AND (no business write has committed since it was built OR it is younger than `floor_s`).
+    So a payment or order shows on the Overview within `floor_s` seconds (not the full TTL), and a burst of writes recomputes a dashboard at most once per `floor_s`.
+    Redis down -> pure TTL. Raw-SQL writes do not bump the write counter, so the TTL remains the upper bound for those."""
+    ver = _version("dash") or "ttl"
+    full = f"{ns}|{key}"
+    e = _entries.get(full)
+    if e:
+        age = time.monotonic() - e[1]
+        if age < ttl_s and (e[0] == ver or age < floor_s):
+            with _lock:
+                if full in _entries:
+                    _entries.move_to_end(full)
+            RESULT.labels(ns, "hit").inc()
+            return e[2], ver
+    RESULT.labels(ns, "miss").inc()
+    return None, ver
+
+
 def store(ns: str, key: str, ver: str, body: bytes) -> None:
     global _bytes
     full = f"{ns}|{key}"
@@ -123,6 +148,10 @@ def clear() -> None:
 # ---- invalidation: note which cached tables a flush touched, bump their versions only after the commit succeeds
 @event.listens_for(Session, "after_flush")
 def _flag(session: Session, _ctx) -> None:
+    for obj in (*session.new, *session.dirty, *session.deleted):
+        if getattr(obj, "__tablename__", "") not in DASH_IGNORED and hasattr(obj, "__tablename__"):
+            session.info["dash_dirty"] = True
+            break
     if not CACHED_TABLES:
         return
     touched = session.info.setdefault("rc_dirty", set())
@@ -134,6 +163,8 @@ def _flag(session: Session, _ctx) -> None:
 
 @event.listens_for(Session, "after_commit")
 def _bump(session: Session) -> None:
+    if session.info.pop("dash_dirty", None):
+        bump("dash")                                                    # one business commit -> dashboards rebuild within DASH_FLOOR_S
     for ns in session.info.pop("rc_dirty", ()):
         bump(ns)
 
@@ -141,3 +172,4 @@ def _bump(session: Session) -> None:
 @event.listens_for(Session, "after_rollback")
 def _clear(session: Session) -> None:
     session.info.pop("rc_dirty", None)
+    session.info.pop("dash_dirty", None)

@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import activity
 from app.audit import service as audit
 from app.core.config import get_settings
 from app.core.deps import CurrentUser
@@ -110,7 +111,13 @@ def ingest_order(db: Session, cu: CurrentUser, acct: MarketplaceAccount, o: dict
         eo = db.get(ExternalOrder, ins)
         db.refresh(eo)
         _try_create_sales_order(db, cu, acct, eo)
-        return "created" if eo.status == "SO_CREATED" else "exception"
+        if eo.status == "SO_CREATED":
+            activity.emit(db, "ecommerce.order.imported", entity="external_order", entity_id=eo.id, number=eo.external_order_id, actor_id=cu.id, platform=acct.platform,
+                          external_id=eo.external_order_id, so=db.scalar(text("SELECT number FROM sales_orders WHERE id = :i"), {"i": eo.sales_order_id}))
+            return "created"
+        activity.emit(db, "ecommerce.order.exception", entity="external_order", entity_id=eo.id, number=eo.external_order_id, actor_id=cu.id, platform=acct.platform,
+                      external_id=eo.external_order_id, reason=eo.exception_reason)
+        return "exception"
 
 
 def ingest_orders(db: Session, cu: CurrentUser, account_id: int, orders: list[dict], kind: str = "ORDER_IMPORT") -> dict:

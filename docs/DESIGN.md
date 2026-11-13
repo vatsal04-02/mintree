@@ -132,7 +132,9 @@ circle (`.ctl`) for "more" and "open" controls. Icons are always decorative (`ar
 Library: Framer Motion, plus CSS transitions for small state changes. Principles: motion explains cause and effect, stays under about 0.9 seconds, and
 is switched off for people who ask for reduced motion (`prefers-reduced-motion`).
 
-- **Page entry:** content fades and rises a few pixels; cards below the fold animate when scrolled into view (`InView`).
+- **Page entry (choreography):** the page cross-fades and de-blurs over 200ms; the title wipes in (450ms); each card arrives as a pale ghost and then fills (fade, rise 14px, de-blur 8px, 450ms, `cubic-bezier(.22,1,.36,1)`), 55ms after the previous one; KPI figures count up from a fifth of their value over 900ms; charts draw (lines 900ms, bars grow from the baseline). Total feel is about 1.1s. The previous page cannot stay on screen in the App Router, so there is no exit animation. Cards below the fold animate when scrolled into view (`InView`).
+- **Sliding markers:** the active sidebar item and every `Segmented` tab group use a shared-layout marker (Framer `layoutId`, spring stiffness 380, damping 32) that glides to the new item.
+- **Record modal:** a clicked record card grows into a centred modal in its own colour (about 450ms spring), the page behind blurs (20px) and dims, content fades in after 150ms, and closing folds it back into the card.
 - **Numbers:** KPI figures count up on first paint (`CountUp`), skipped when reduced motion is on.
 - **Charts:** bars grow from the baseline (about 0.4s, staggered up to 0.6s); area lines draw in; donut arcs sweep over 0.9s; progress bars grow along the
   x axis.
@@ -219,6 +221,12 @@ the shape of the API response (section 9).
 - **CRM pipeline board:** four tinted columns (Prospecting ink, Qualified yellow, Proposal green, Negotiation orange); draggable coloured deal cards with a
   move menu; dashed Won and Lost drop zones; KPI chips (open pipeline, weighted, closing this month, win rate); search pill; Board/List toggle.
 
+### 6.4a Customers, Accounts and Growth
+
+- **Customers** (`/crm/customers`, CRM & Sales): a table by default (sortable, 24 per page) with a Grid alternative of customer cards, type chips with counts, search, Export CSV and a black "New customer" button. Each card shows initials, name, contact and state, type tag, an inset tile (open pipeline or invoiced, and last order), a thin bar and round mail and phone buttons. The bar is the share of the credit limit in use (or, with no limit, of invoiced revenue still unpaid): orange from 60%, green below. There is no score, tier or star because the database has none. The detail page (`/crm/customers/{id}`) shows KPI chips, a profile card (initials in a ring showing the paid share), contact and credit details, and the latest orders as record cards.
+- **Accounts** (`/m/accounts`): KPI chips; a cash-flow chart (green money received, dashed money invoiced); receivables ageing as five tall rounded bars (ink, over 90 days in orange) with count and amount per bucket; the latest sales invoices with status badges. Selecting an invoice (or opening `?invoice=<id>`) shows a frosted drawer holding a paper invoice: logo, From and Bill to, lines with GST, CGST and SGST or IGST, totals, credit notes, balance due, and a rotated outlined green "PAID" stamp when paid. Actions: Copy link, Download PDF, and Record payment when unpaid. The lines come from the same query as the PDF.
+- **Growth** (Management page): 3M, 6M or 12M toggle and Export CSV. "Invoiced by month" is a stacked bar (green collected, yellow not yet due, orange overdue, adding up to the invoiced total including GST); "Revenue by channel" is a donut with a legend (channels are not good or bad, so they are drawn in shades of ink); "Invoices per month" is a small bar chart with the latest month in orange.
+
 ### 6.5 List screens (tables first)
 
 Every master and transaction list uses `ListScreen`: a status tab strip with counts, search, table by default (sortable, 50 per page, empty columns
@@ -231,6 +239,55 @@ orders, work centres and BOMs. Row actions sit on the right; clicking a row open
   orange dot when unread, title, optional body, relative time, an "Open" button (which also marks it read) and a round tick. All/Unread toggle and
   "Mark all read".
 - **Approvals, Reports, Admin, Master data:** same header, KPI-less list or report layout as above; reports use hairline grids and titled cards.
+
+---
+
+## 6b. Interaction, storytelling, showpieces and finishing (phases 2 to 5)
+
+### Quick actions and navigation
+- **Dock** (from 1280px wide): a slim ink capsule at the left edge of the content area holding up to eight pinned actions (scan, approvals, new purchase order, start stocktake, new production order, new sales order, and more). The pencil at its foot chooses them. Only actions you hold the permission for are listed; the choice is remembered per user in this browser. Hover scales an icon and shows its name and shortcut. On phones the same actions are in the bottom bar's "More" sheet.
+- **Command palette (Ctrl K)**: sections for Recent, Actions, Pages and Records; fuzzy matching; keyboard only (arrows, Enter, Esc); shortcut hints. Records come from items, suppliers and customers, plus the barcode resolver, so a batch label or an order or invoice number opens its record.
+- **Pinned pages and recents**: a star beside the breadcrumb pins a page to the top of the sidebar; the last three pages visited are listed under it. The breadcrumb shows the module and a switcher to the module's other screens. Once you scroll past a page title it moves into the top bar.
+- **Shortcuts**: `?` opens a sheet of every shortcut with a What's new tab (`lib/whatsnew.ts`). `g` then `o`, `a` or `n` goes to Overview, Approvals or Notifications.
+- **Phones**: a bottom bar (Overview, Approvals, Scan in the centre, Alerts, More). The app has a web manifest and icons, so it can be installed to the home screen. The scanner opens full width on phones.
+
+### Undo, peeking and tables
+- **Undo**: approving or rejecting on a list, moving a deal between stages, and marking an alert read take effect on screen at once; the server is told after four seconds, and "Undo" in the toast cancels it, so nothing needs reversing. If the server then refuses (for example, you cannot approve your own request), the screen is put back and the reason is shown. Pending changes are sent at once if the tab is hidden or closed.
+- **Peek**: opening a record from a list shows "3 of 50" with up and down buttons; `J`/`K` or the arrow keys step through the rows as filtered and sorted.
+- **Tables**: row size (comfortable or compact), a column chooser, saved views (filter, search, sort, columns and row size), an optional totals row on screens with money columns, CSV export of exactly what is shown, and row selection with a floating bar (export or copy the selected). Keyboard: `J`/`K` move a cursor, `Enter` opens, `X` selects. Selection never changes a record.
+
+### Telling the story with the figures
+- **Insight lines** (`lib/insights.ts`): one plain sentence under the Overview figures, from fixed templates and numbers already on the page ("Net revenue is 15% above the previous 30 days, led by ... (21% of invoiced value)"). They are hidden when the data is too thin.
+- **Trend lines and arrows**: a KPI chip can carry a small trend line (shown from 1600px wide) and an arrow in its pill. Colour follows meaning, not direction; a text equivalent is always present.
+- **Morning brief**: "Needs you today" shows approvals waiting (count, oldest, largest), the most urgent act-now item and overdue invoices, each linking to its screen.
+- **Linked crosshair**: hovering the revenue chart marks the same date on the production chart, and the reverse (`lib/chartSync.tsx`).
+- **Drill-down**: bars and segments in a status breakdown link to the list they count, already filtered (`?status=`), so the address can be shared.
+- **Chart pins**: real events appear as small pins on the revenue line: equipment breakdowns, failed deliveries and the two largest invoices of the period (`/analytics/annotations`). A period with none shows no pins.
+- **Projection**: a dashed line and shaded range carry the recent revenue trend forward (a straight line fitted to the last three weeks, one spread either side). It is always badged "Projected", appears only when the period ends today, and feeds no figure (`lib/forecast.ts`).
+
+### Showpieces
+- **Expiry heatmap** (Inventory): batches still holding stock by expiry month and item class; past months orange, the next three months yellow, later months ink; darker means more batches.
+- **QC control chart** (Quality): the readings of one numeric test in time order, with the mean, control limits at three spreads, and the specification limits; readings outside specification are orange. Switch between tests with the toggle.
+- The batch genealogy graph and impact analysis already existed (Inventory, Batch traceability) and were not rebuilt.
+
+### Finishing
+- **QR on PDFs**: the invoice and the certificate of analysis carry a QR code. With `MINTREE_PUBLIC_BASE_URL` set it links straight to the record; without it, it holds the document or batch number, which the in-app scanner resolves.
+- **Notifications**: Open now goes to the real screen with the record opened (it used to link to an API address); Snooze hides an alert for an hour or until 9:00 tomorrow (this browser only), with Undo.
+- **Empty states**: a one-colour line drawing (tray, check or search), one sentence and, where it helps, one action.
+- **Speed**: palette results prefetch their page when hovered or focused.
+
+---
+
+## 6c. Demo mode and live updates
+
+Only in a demo environment (`MINTREE_ENVIRONMENT=demo`, a database whose name contains "demo", `MINTREE_DEMO_LIVE=true`); nothing below renders or runs anywhere else. Operating detail is in `DEMO_RUNBOOK.md`.
+
+- **Demo mode pill** (top bar, left of the bell): a small outlined pill with a green dot, "Demo mode", or a yellow dot and "Demo mode · paused". For the demo administrator it opens the **Demo controls** drawer; for everyone else it is a quiet label.
+- **Demo controls drawer** (460px, the standard drawer): Pause / Resume live, a ×1 / ×3 segmented speed toggle, "Trigger now" (New order, Quality alert, Big payment, Low stock), a Server panel (requests per second, p95, error rate, DB connections, in flight, queue depth, six small tiles refreshed every 3 seconds), "Created this session" counts with the last few events, an **Instruments** list marked with the yellow **Simulated** tag (temperature, weigh scale, line speed per running batch), and a quiet red "Reset to golden snapshot" at the foot (asks first).
+- **Live updates, never reloads.** One event stream (`GET /api/events`, Server-Sent Events) carries `order.created`, `payment.received`, `stock.changed`, `batch.stage`, `quality.alert`, `notification.new`, `kpi.invalidate` and `telemetry`. It is authenticated, filtered by the viewer's permissions, sends a heartbeat every 15 seconds, reconnects by itself and falls back to polling every 20 seconds. Screens re-read only what they show, 3.3 seconds after an event (a moment past the server cache), at most once every 1.5 seconds, and swap the figures in place: no skeleton, no flicker. The bell count updates at once and an urgent alert (HIGH priority) also shows a toast.
+- **Simulated stays Simulated.** Instrument readings are generated by the stream, are labelled with the yellow Simulated tag wherever they appear, are stored nowhere and feed no calculation. Everything else Live Mode creates is a real record made through the real API and tagged `source: demo-live` in its event log.
+- **Freshness.** Dashboards and boards are cached for at most 15 seconds and rebuilt within 3 seconds of any business write (`meta.generated_at` says when); the Overview's `?fresh=true` bypasses the cache.
+- **Menus above neighbours.** A card's open "..." menu sits above the cards below it (the pipeline board's "Move to Won" was previously hidden behind the next card).
 
 ---
 
@@ -315,13 +372,34 @@ chart; breakdown cards flow in columns so short cards do not leave holes.
 - Shared building blocks: `components/ui.tsx` (PageHeader, Badge, Drawer, toast, confirm, empty state), `kpi.tsx` (Strip), `rapport.tsx` (CardHead,
   DealCard, Donut, StageMix), `fx.tsx` (AreaChart, CountUp, InView), `ModuleDashboard.tsx` (generic landing page), `ModuleKit.tsx` (ListScreen,
   ReportScreen, record drawer), `screens.tsx` (Purchase, Production, Omni), `inventory.tsx` (Inventory), `AppShell.tsx` (sidebar and top bar).
+- Phase 1 additions: `components/motion.tsx` (`PageTransition`, `Reveal`, `SlideMarker`, `EASE`, `SPRING`, `STAGGER`), `RecordModal.tsx`, `customers.tsx`, `finance.tsx` (`FinanceScreen`, `InvoiceDrawer`), `growth.tsx`, `lib/csv.ts` (`downloadCsv`).
+- **How to use `Reveal`:** wrap a card in `<Reveal index={i}>` for the ghost-then-fill arrival; plain `.panel.rise` cards get the same entrance from CSS. **`SlideMarker`:** render `<SlideMarker id="…" className="seg-marker" />` inside the active item of a group (items need `relative`); the same `id` makes it glide. **`RecordModal`:** give the card `layoutId={recordLayoutId(id)}` and an `onOpen`, hold a `RecordView` in state and render `<RecordModal record={view} onClose={…} />`; only the sections you pass (stage track, tiles, note, actions) are drawn. **`downloadCsv(name, header, rows)`:** writes raw values for a spreadsheet. **`useTopLayer(open, onEscape)`** (in `ui.tsx`): makes Escape close only the topmost drawer or modal.
+- New endpoints behind these screens (all in `backend/app/module_dashboards.py`): `/inventory/hub`, `/crm/customers-board`, `/dispatch/invoices/{id}/paper`, `/analytics/growth`, `/analytics/annotations`, `/quality/control-chart`.
+- Demo mode: `lib/live.tsx` (`LiveProvider`, `useLiveEvent`, `useLiveRevision`, `useLiveTelemetry`), `components/DemoControls.tsx` (`DemoPill`, the drawer). Backend: `app/demo_live/` (engine, store, ops, router), `scripts/demo_check.py`, `scripts/demo_ops.py`, `scripts/demo_prep.py`, `scripts/demo/bulk.py`.
+- Phase 2 to 5 additions: `components/Dock.tsx` (`Dock`, `usePinned`), `ShellExtras.tsx` (`ShortcutSheet`, `MobileBar`), `TableTools.tsx` (`TableTools`, `BulkBar`), `quality.tsx` (`ControlChart`), `lib/actions.ts` (the action registry), `lib/prefs.ts` (`usePref`), `lib/insights.ts`, `lib/forecast.ts`, `lib/chartSync.tsx`, `lib/whatsnew.ts`, `lib/useOutsideClick.ts`; `public/manifest.webmanifest` and `public/icons/`.
+- **How to add a quick action:** add an entry to `ACTIONS` in `lib/actions.ts` with its permission and address (`?create=1` opens a list's create form); the dock, palette and mobile sheet pick it up. **`usePref(name, default)`** keeps a per-user preference in this browser. **`useUndoable()`** (in `ui.tsx`): `undoable({ message, apply, revert, commit })` applies the change on screen, sends `commit` after four seconds, and calls `revert` on Undo or on failure. **`ChartSyncProvider`** wraps the charts that should share a hovered date. **`projectSeries(points, ahead, stepDays)`** returns a labelled projection; anything that draws it must say "Projected".
+- **Table keyboard and tools** live in `ListScreen` (`ModuleKit.tsx`); `DataTable` takes optional `dense`, `selected`, `onToggle`, `onToggleAll`, `activeId` and `footer`.
 - Checks that guard the design: the page audit (no horizontal overflow, console errors or broken pages across 90 views), the Overview and full demo
   end-to-end tests, ESLint rules for formatting, and the type checker.
 
 ---
 
-## 13. Known gaps and next candidates
+## 13. Known gaps
 
-Not yet restyled in the Rapport language: the Customers directory and detail pages, the coloured record modal, the Finance cash-flow and ageing cards
-and the invoice paper drawer, the growth charts, and a fuller tab-switch motion choreography. The generic report view still renders nested figures
-as plain tiles in a few places.
+Everything in phases 1 to 5 of the plan is built except the items below, each skipped because the data or the right to do it does not exist.
+
+- **Exit animation** between pages: the App Router unmounts the old page, so only the entrance is animated.
+- **Record modal on table rows**: only record cards open it. A deal's modal shows only what the API returns (no company, opened date, owner name or note).
+- **Customer tier, score, star, avatars and a task schedule**; **Growth win-rate trend** (all stage changes fall in one month); **Mark paid** (a payment needs a bank account and method, so the drawer links to Payments).
+- **Approve in a notification**: the decision depends on the record's current state, version, authority limit and who raised it, so Open takes you to the record where those are shown. Approve and reject on lists and Undo are built.
+- **Undo for "mark paid"**: there is no mark-paid action to undo.
+- **"Create PO for <material>" in the palette**: the purchase order form cannot be pre-filled, so the palette offers "New purchase order" instead.
+- **In-cell sparklines in tables**: no list endpoint returns a time series per row.
+- **Cost waterfall**: the costing report has no bulk, packaging, labour and overhead split per product (labour and overhead are not recorded), so a waterfall would be invented.
+- **Production Gantt with drag to reschedule**: not built; rescheduling needs the production scheduling rules, which deserve their own design.
+- **Warehouse bin map**: no bin capacity or fill data.
+- **Product photography tiles**: there are no SKU images; the one product photograph is not mapped to items.
+- **Batch manufacturing record PDF**: no such document exists yet; the invoice and certificate of analysis carry the QR.
+- **Presence avatars** ("Rohan is viewing"): there is no presence channel.
+- **View Transitions API**: left out; it needs experimental React support and the page entrance already cross-fades.
+- **Chart annotations**: only the three event kinds above exist as records; price changes and shutdowns are not recorded with dates.

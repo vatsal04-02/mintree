@@ -13,6 +13,8 @@ from typing import Any, Protocol
 
 import httpx
 
+from app.core import resilience
+
 from app.core.config import get_settings
 
 
@@ -64,8 +66,10 @@ class AnthropicProvider:
                 body["tool_choice"] = {"type": "tool", "name": force_tool}
         try:
             with httpx.Client(timeout=self.timeout, transport=self.transport) as c:
-                r = c.post(f"{self.base}/v1/messages", json=body,
-                           headers={"x-api-key": self.key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+                r = resilience.call(resilience.BREAKERS["ai"], lambda: c.post(f"{self.base}/v1/messages", json=body,
+                                    headers={"x-api-key": self.key, "anthropic-version": "2023-06-01", "content-type": "application/json"}))
+        except resilience.CircuitOpen as e:
+            raise ProviderError(f"The AI provider is temporarily unavailable ({int(e.retry_in_s) + 1} s until the next attempt). The offline demo provider can answer meanwhile.") from None
         except httpx.HTTPError as e:
             raise ProviderError(f"The AI provider could not be reached ({type(e).__name__}).") from None
         if r.status_code >= 400:

@@ -105,6 +105,8 @@ Demo users (password `Mintree-Demo#2026`, demo databases only): `demo.admin`, `d
 
 Marketplace accounts are **labelled DEMO with sample orders**; the only courier adapter is an in-process fake; marketing posts are recorded manually. Nothing contacts a live service.
 
+**Presenting it.** `docs/DEMO_RUNBOOK.md` is the single source of truth for the stakeholder demo: setup, the timed run of show (with the database result and a fallback for every step), **Demo Live Mode** (orders, payments, receipts, production steps and an out-of-limit reading arrive on their own, all through the real API, plus a controls drawer), full-scale data (2,500 customers, 25k orders, 4k batches, 13 months), the one-command pre-flight (`make demo-check`, or `python -m scripts.demo_check`), the golden snapshot and instant reset (`make demo-snapshot` / `make demo-reset`), health and readiness (`/api/health`, `/api/ready`), the latency probe and the load/soak results. Without `make` (Windows): `python -m scripts.demo_stack up`, then the `python -m scripts.demo_*` commands in `backend/`.
+
 ## Tests
 
 ```bash

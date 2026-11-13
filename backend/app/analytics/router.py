@@ -28,16 +28,16 @@ DASHBOARD_TTL_S = 15.0
 def _cached_dashboard(ns: str, key: str, compute, fresh: bool = False) -> Response:
     """Dashboards are aggregates over many tables; serving them from a 15 s cache keeps ten browsers from running the same ten queries ten times. The figures say so:
     `meta.cached`, `meta.generated_at` and `meta.max_age_s` travel with every response (the Overview shows the as-of time). Single-flight: concurrent misses compute once."""
-    body, ver = (None, None) if fresh else rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)       # ?fresh=true recomputes now (and refreshes the cache)
+    body, ver = (None, None) if fresh else rcache.dash_lookup(ns, key, DASHBOARD_TTL_S)       # ?fresh=true recomputes now (and refreshes the cache)
     if body is None:
         with rcache.single_flight(ns, key):
-            body, ver = (None, None) if fresh else rcache.lookup(ns, key, DASHBOARD_TTL_S, check_version=False)
+            body, ver = (None, None) if fresh else rcache.dash_lookup(ns, key, DASHBOARD_TTL_S)
             if body is None:
                 from datetime import datetime, timezone
                 data = jsonable_encoder(compute())
                 data["meta"] = {"cached": False, "generated_at": datetime.now(timezone.utc).isoformat(), "max_age_s": DASHBOARD_TTL_S}
                 body = json.dumps(data).encode()
-                rcache.store(ns, key, "ttl", body)
+                rcache.store(ns, key, ver or rcache._version("dash") or "ttl", body)
                 return Response(body, media_type="application/json", headers={"X-Cache": "miss"})
     data = json.loads(body)
     data["meta"]["cached"] = True

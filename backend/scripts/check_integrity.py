@@ -133,10 +133,10 @@ CHECKS: list[tuple[str, str, str]] = [
           (SELECT COALESCE(sum(l.credit - l.debit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code = '2000') gl,
           (SELECT COALESCE(sum(total - amount_paid - credited_amount),0) outstanding FROM supplier_invoices) sub WHERE gl.bal <> sub.outstanding"""),
     ("inventory_gl_reconciles_with_item_valuation",
-     "GL inventory accounts 1300+1310+1320 (debit - credit) equal item valuations plus cost sitting in open production orders (WIP)",
+     "GL inventory accounts 1300+1310+1320 (debit - credit) equal item valuations plus cost sitting in open production orders (WIP) and in started rework orders",
      """SELECT gl.bal, v.val FROM
           (SELECT COALESCE(sum(l.debit - l.credit),0) bal FROM journal_lines l JOIN accounts a ON a.id = l.account_id WHERE a.code IN ('1300','1310','1320')) gl,
-          (SELECT (SELECT COALESCE(sum(value),0) FROM item_valuation) + (SELECT COALESCE(sum(wip_cost),0) FROM production_orders) val) v WHERE gl.bal <> v.val"""),
+          (SELECT (SELECT COALESCE(sum(value),0) FROM item_valuation) + (SELECT COALESCE(sum(wip_cost),0) FROM production_orders) + (SELECT COALESCE(sum(input_cost),0) FROM rework_orders WHERE status = 'STARTED') val) v WHERE gl.bal <> v.val"""),
     ("production_orders_are_consistent",
      "Issued quantities match the ledger; completed orders have an output batch whose receipt equals actual qty; consumption cost = order input cost; pinned BOM/formula present",
      """SELECT 'issued', pm.id FROM production_materials pm LEFT JOIN (SELECT source_id, source_line, -sum(qty_delta) s FROM stock_ledger WHERE source_type='production_order' AND movement_type='PRODUCTION_ISSUE' GROUP BY 1,2) l

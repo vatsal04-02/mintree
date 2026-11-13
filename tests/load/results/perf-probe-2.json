@@ -1,0 +1,173 @@
+{
+ "classes": {
+  "dashboard": {
+   "n": 392,
+   "p50": 10,
+   "p95": 194,
+   "p99": 280,
+   "max": 361,
+   "cold_p95": 249
+  },
+  "list": {
+   "n": 2632,
+   "p50": 12,
+   "p95": 33,
+   "p99": 78,
+   "max": 325,
+   "cold_p95": 36
+  },
+  "detail": {
+   "n": 588,
+   "p50": 12,
+   "p95": 27,
+   "p99": 38,
+   "max": 46,
+   "cold_p95": 24
+  },
+  "search": {
+   "n": 1302,
+   "p50": 13,
+   "p95": 36,
+   "p99": 54,
+   "max": 105,
+   "cold_p95": 39
+  }
+ },
+ "slowest": [
+  {
+   "route": "/api/quality/inspections",
+   "class": "list",
+   "params": {
+    "page_size": 50
+   },
+   "median": 85,
+   "p95": 114
+  },
+  {
+   "route": "/api/quality/inspections",
+   "class": "list",
+   "params": {
+    "page": 2,
+    "page_size": 50
+   },
+   "median": 83,
+   "p95": 115
+  },
+  {
+   "route": "/api/accounts/reports/trial-balance",
+   "class": "dashboard",
+   "params": {},
+   "median": 59,
+   "p95": 78
+  },
+  {
+   "route": "/api/admin/audit-logs",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 59,
+   "p95": 82
+  },
+  {
+   "route": "/api/accounts/reports/balance-sheet",
+   "class": "dashboard",
+   "params": {},
+   "median": 58,
+   "p95": 76
+  },
+  {
+   "route": "/api/quality/inspections",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 40,
+   "p95": 57
+  },
+  {
+   "route": "/api/inventory/reports/slow-moving",
+   "class": "list",
+   "params": {
+    "page_size": 50
+   },
+   "median": 39,
+   "p95": 44
+  },
+  {
+   "route": "/api/dispatch/invoices",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 36,
+   "p95": 43
+  },
+  {
+   "route": "/api/production/floor",
+   "class": "list",
+   "params": {},
+   "median": 36,
+   "p95": 51
+  },
+  {
+   "route": "/api/dispatch/shipments",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 36,
+   "p95": 39
+  },
+  {
+   "route": "/api/accounts/reports/payables",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 34,
+   "p95": 38
+  },
+  {
+   "route": "/api/traceability/batches",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 34,
+   "p95": 47
+  },
+  {
+   "route": "/api/procurement/delivery-tracking",
+   "class": "list",
+   "params": {
+    "page_size": 50
+   },
+   "median": 34,
+   "p95": 45
+  },
+  {
+   "route": "/api/inventory/reports/slow-moving",
+   "class": "search",
+   "params": {
+    "page_size": 20,
+    "q": "a"
+   },
+   "median": 33,
+   "p95": 42
+  },
+  {
+   "route": "/api/analytics/growth",
+   "class": "dashboard",
+   "params": {},
+   "median": 33,
+   "p95": 49
+  }
+ ]
+}

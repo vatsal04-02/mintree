@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { sharedGet } from "@/lib/api";
+import { useLiveRevision } from "@/lib/live";
 import { useAuth } from "@/lib/auth";
 import { greeting, greetName } from "@/lib/persona";
 import { addDays, businessToday, daysBetween, formatName, fmtAgo, fmtDate, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees, fyStart, titleCase } from "@/lib/format";
@@ -12,11 +13,16 @@ import { EmptyState, GroupedBars, Legend, Segmented, Skeleton, TransactionTable,
 import { Strip, type StripCard } from "@/components/kpi";
 import { AreaChart, InView, type Point } from "@/components/fx";
 import { CardHead, DealCard, Donut, StageMix } from "@/components/rapport";
+import { RecordModal, recordLayoutId, type RecordView } from "@/components/RecordModal";
+import { ChartSyncProvider } from "@/lib/chartSync";
+import { projectSeries } from "@/lib/forecast";
+import { attentionInsight, planInsight, revenueInsight } from "@/lib/insights";
+import type { ChartEvent } from "@/components/fx";
 import { ArrowUpRight, Factory, Package, Receipt, TrendingUp } from "lucide-react";
 
-type Approval = { type: string; id: number; number: string; since: string };
+type Approval = { type: string; id: number; number: string; since: string; amount?: string | null };
 type PeriodKey = "30d" | "90d" | "fy" | "custom";
-type Trends = { granularity: "day" | "week"; revenue_trend: Point[]; revenue_prev_trend: Point[] };
+type Trends = { granularity: "day" | "week"; revenue_trend: Point[]; revenue_prev_trend: Point[]; top_products?: Record<string, number> };
 /* record-card colour by severity: problems alternate orange and black, items to review are green, items to watch are yellow */
 /* attention cards stay light; severity is a small pill, and only urgent counts take the orange */
 const SEV: Record<string, { label: string; tone: "danger" | "warning" | "neutral" }> = { high: { label: "Act now", tone: "danger" }, medium: { label: "Review", tone: "warning" }, low: { label: "Monitor", tone: "neutral" } };
@@ -36,6 +42,7 @@ export default function Overview() {
   const canSummary = can("analytics.dashboard:read");
   const today = businessToday();
   const [key, setKey] = useState<PeriodKey>("30d");
+  const [record, setRecord] = useState<RecordView | null>(null);
   const [custom, setCustom] = useState({ start: addDays(today, -29), end: today });
   const range = key === "30d" ? { start: addDays(today, -29), end: today } : key === "90d" ? { start: addDays(today, -89), end: today } : key === "fy" ? { start: fyStart(today), end: today } : custom;
   const rangeError = range.end < range.start ? "The end date is before the start date." : daysBetween(range.start, range.end) > 399 ? "The period cannot exceed 400 days." : null;
@@ -43,17 +50,20 @@ export default function Overview() {
   const { summary, error } = useSummary(canSummary);
   const period = usePeriod(canSummary && !rangeError, rangeError ? today : range.start, rangeError ? today : range.end);
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
+  const rev = useLiveRevision(["overview"]);
   useEffect(() => {
     sharedGet<{ items: Approval[] }>("/approvals/pending").then((d) => setApprovals(d.items)).catch(() => setApprovals([]));
-  }, []);
+  }, [rev]);
 
   const [trends, setTrends] = useState<Trends | null | undefined>(undefined);
+  const [events, setEvents] = useState<ChartEvent[]>([]);
   useEffect(() => {
     if (!canSummary || rangeError) return;
     let live = true;
     sharedGet<Trends>("/analytics/overview-trends", { start: range.start, end: range.end }).then((d) => live && setTrends(d)).catch(() => live && setTrends(null));
+    sharedGet<{ events: ChartEvent[] }>("/analytics/annotations", { start: range.start, end: range.end }).then((d) => live && setEvents(d.events)).catch(() => live && setEvents([]));
     return () => { live = false; };
-  }, [canSummary, rangeError, range.start, range.end]);
+  }, [canSummary, rangeError, range.start, range.end, rev]);
 
   const to = (m: string, s: string) => screenHref(can, m, s);
   const withQuery = (href: string | undefined, qs: string) => (href ? `${href}?${qs}` : undefined);
@@ -71,14 +81,15 @@ export default function Overview() {
     return [
       { label: "Receivables outstanding", icon: Receipt, value: fmtRupees(s.sales.receivable_outstanding), foot: plural(s.finance_extended.open_sales_invoices, "open invoice", "open invoices") },
       { label: "Net revenue, ex-tax", icon: TrendingUp, value: period === undefined ? "…" : period ? fmtRupees(period.revenue.net_ex_tax) : "—",
-        chip: period && delta ? `${delta} vs previous ${days} days` : undefined, tone: delta && delta.startsWith("−") ? "danger" : undefined,
+        chip: period && delta ? `${delta} vs previous ${days} days` : undefined, tone: delta ? (delta.startsWith("−") ? "danger" : "success") : undefined, arrow: delta ? (delta.startsWith("−") ? "down" : "up") : undefined,
+        spark: trends?.revenue_trend.map((p) => p.value), sparkBad: delta ? delta.startsWith("−") : undefined, sparkNote: trends ? `Daily invoiced revenue over the period, from ${fmtRupees(trends.revenue_trend[0]?.value ?? 0)} to ${fmtRupees(trends.revenue_trend[trends.revenue_trend.length - 1]?.value ?? 0)}` : undefined,
         foot: period ? plural(period.revenue.invoices, "invoice", "invoices") : "Loading the period" },
       { label: "Active production orders", icon: Factory, value: fmtNum(s.production.active_orders), chip: s.production.delayed_work_orders ? `${fmtNum(s.production.delayed_work_orders)} past planned date` : "On schedule", tone: s.production.delayed_work_orders ? "danger" : undefined },
       { label: "Inventory alerts", icon: Package, value: fmtNum(attention),
         chip: attention ? [s.inventory.below_reorder_level && `${fmtNum(s.inventory.below_reorder_level)} below reorder`, held && `${fmtNum(held)} held`, s.inventory.expired_with_stock && `${fmtNum(s.inventory.expired_with_stock)} expired`].filter(Boolean).join(" · ") : "Nothing flagged",
         tone: s.inventory.expired_with_stock ? "danger" : attention ? "warning" : undefined },
     ];
-  }, [s, period]);
+  }, [s, period, trends]);
 
   /* ---- exceptions: real, non-zero conditions only, most severe first. Act now / Review / Monitor; each says how long it has waited and what money is tied up where the data has it ---- */
   const exceptions: Exception[] = useMemo(() => {
@@ -136,13 +147,28 @@ export default function Overview() {
 
   const mine = approvals?.length ?? 0;
   const oldest = [...(approvals ?? [])].sort((a, b) => a.since.localeCompare(b.since));   // the ones that have waited longest come first
+  const revenueTotal = (trends?.revenue_trend ?? []).reduce((a, p) => a + p.value, 0);
+  /* ---- insight lines, the projection and the morning brief: all from figures already on this page ---- */
+  const topProduct = trends?.top_products ? Object.entries(trends.top_products).sort((a, b) => b[1] - a[1])[0] : undefined;
+  const insights = [
+    period && trends ? revenueInsight({ net: num(period.revenue.net_ex_tax), prev: num(period.revenue.previous_net_ex_tax), days: daysBetween(period.previous.start, period.previous.end) + 1, topName: topProduct ? formatName(topProduct[0]) : undefined, topValue: topProduct?.[1], total: revenueTotal }) : null,
+    s ? attentionInsight({ high: exceptions.filter((e) => e.severity === "high").length, medium: exceptions.filter((e) => e.severity === "medium").length, oldestOverdueDays: period?.overdue_invoices?.oldest_days, overdueAmount: period?.overdue_invoices ? num(period.overdue_invoices.amount) : undefined }) : null,
+  ].filter((t): t is string => !!t);
+  const forecast = useMemo(() => (trends && range.end === today ? projectSeries(trends.revenue_trend, trends.granularity === "week" ? 2 : 7, trends.granularity === "week" ? 7 : 1) : []), [trends, range.end, today]);
+  const biggest = (approvals ?? []).reduce((m, a) => Math.max(m, Number(a.amount ?? 0) || 0), 0);
+  const topAct = exceptions.find((e) => e.severity === "high");
+  const brief: { key: string; variant: "yellow" | "orange" | "white"; meta: string; title: string; subtitle?: string; value: string; caption?: string; href?: string }[] = [
+    ...(mine > 0 ? [{ key: "appr", variant: "yellow" as const, meta: "Waiting for you", title: "Approvals", subtitle: oldest[0] ? `Oldest has waited ${plural(daysBetween(String(oldest[0].since).slice(0, 10), today), "day", "days")}` : undefined, value: fmtNum(mine), caption: biggest ? `Largest ${fmtRupees(biggest)}` : undefined, href: "/approvals" }] : []),
+    ...(topAct ? [{ key: "act", variant: "orange" as const, meta: "Most urgent", title: topAct.label, subtitle: topAct.detail, value: topAct.value ?? "", caption: `${plural(exceptions.filter((e) => e.severity === "high").length, "item needs", "items need")} action now`, href: topAct.href }] : []),
+    ...(period?.overdue_invoices && period.overdue_invoices.count > 0 ? [{ key: "od", variant: "white" as const, meta: "Money owed", title: "Overdue invoices", subtitle: period.overdue_invoices.oldest_days ? `Oldest ${plural(period.overdue_invoices.oldest_days, "day", "days")} past due` : undefined, value: fmtRupees(num(period.overdue_invoices.amount)), caption: `${plural(period.overdue_invoices.count, "invoice", "invoices")}`, href: to("accounts", "ageing") }] : []),
+  ];
   const partialWeeks = (period?.production.buckets ?? []).filter((b) => b.partial);
 
-  const revenueTotal = (trends?.revenue_trend ?? []).reduce((a, p) => a + p.value, 0);
   const attainment = totals.p > 0 ? (totals.a / totals.p) * 100 : 0;
   const card = "panel rise flex flex-col min-w-0";
 
   return (
+    <ChartSyncProvider>
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 pt-2">
         <div className="min-w-0">
@@ -173,6 +199,21 @@ export default function Overview() {
 
       {canSummary && <Strip cards={kpis} className="py-1" label="Key indicators" />}
 
+      {canSummary && insights.length > 0 && (
+        <div className="space-y-1.5 -mt-1" aria-label="What the figures say">
+          {insights.map((t) => <p key={t} className="t-label flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full mt-[7px] shrink-0" style={{ background: "var(--ink-r)", opacity: 0.55 }} aria-hidden />{t}</p>)}
+        </div>
+      )}
+
+      {canSummary && brief.length > 0 && (
+        <section className={card} aria-label="Needs you today">
+          <CardHead title="Needs you today" meta="From the approvals waiting for you and the most urgent items" />
+          <div className="px-[18px] pb-[18px] grid gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
+            {brief.map((b, i) => <DealCard key={b.key} index={i} variant={b.variant} meta={b.meta} title={b.title} subtitle={b.subtitle} value={b.value} caption={b.caption} href={b.href} />)}
+          </div>
+        </section>
+      )}
+
       {canSummary && (
         <div className="grid gap-4 xl:grid-cols-12 items-stretch">
           <section className={`${card} xl:col-span-8`} aria-label="Revenue">
@@ -183,7 +224,7 @@ export default function Overview() {
             </div>
             {trends === undefined ? <div className="px-5 pb-5 pt-3"><Skeleton className="h-[220px]" /></div>
               : !trends ? <p className="t-support px-5 pb-5">Revenue could not be loaded.</p>
-              : <div className="pt-1"><AreaChart points={trends.revenue_trend} compare={trends.revenue_prev_trend} weekly={trends.granularity === "week"} height={150} name="Invoiced revenue" color="#c6431d" compareColor="var(--fg)" summary={false} /></div>}
+              : <div className="pt-1"><AreaChart points={trends.revenue_trend} compare={trends.revenue_prev_trend} weekly={trends.granularity === "week"} height={150} name="Invoiced revenue" color="#c6431d" compareColor="var(--fg)" summary={false} forecast={forecast} events={events} /></div>}
           </section>
           <section className="panel rise xl:col-span-4 flex flex-col p-4 min-w-0" aria-label="Plan attainment">
             <div className="flex items-start justify-between gap-3">
@@ -209,7 +250,8 @@ export default function Overview() {
             {loading ? <div className="grid gap-[11px] sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[165px] !rounded-[22px]" />)}</div>
               : exceptions.length === 0 ? <p className="t-support py-4">Nothing needs attention right now.</p>
               : <div className="grid gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
-                  {exceptions.slice(0, 6).map((e, i) => <DealCard key={e.key} index={i} variant="white" meta={(SEV[e.severity] ?? SEV.low).label} metaTone={(SEV[e.severity] ?? SEV.low).tone} valueTone={e.severity === "high" ? "var(--acc-orange)" : undefined} title={e.label} subtitle={e.detail} value={e.value ?? ""} href={e.href} />)}
+                  {exceptions.slice(0, 6).map((e, i) => <DealCard key={e.key} index={i} variant="white" meta={(SEV[e.severity] ?? SEV.low).label} metaTone={(SEV[e.severity] ?? SEV.low).tone} valueTone={e.severity === "high" ? "var(--acc-orange)" : undefined} title={e.label} subtitle={e.detail} value={e.value ?? ""}
+                    layoutId={recordLayoutId(e.key)} hidden={record?.id === e.key} onOpen={() => setRecord({ id: e.key, variant: "white", kicker: (SEV[e.severity] ?? SEV.low).label, kickerTone: (SEV[e.severity] ?? SEV.low).tone, title: e.label, subtitle: e.detail, figure: e.value, figureTone: e.severity === "high" ? "var(--acc-orange)" : undefined, openHref: e.href, openLabel: "Open the list" })} />)}
                 </div>}
           </div>
         </section>
@@ -226,6 +268,7 @@ export default function Overview() {
               : !enough ? <EmptyState title="No completed production yet" hint="Output is charted from completed production orders. None were completed in this period." />
               : (
                 <>
+                  {planInsight(totals.a, totals.p) && enough && <p className="sr-only">{planInsight(totals.a, totals.p)}</p>}
                   <div className="px-2 flex flex-col flex-1 min-h-0"><GroupedBars buckets={buckets} labels={["Planned", "Actual"]} unit="units" minHeight={210} /></div>
                   {partialWeeks.length > 0 && <p className="px-5 pt-2 pb-4 t-support">Partial weeks: {partialWeeks.map((b) => `${fmtDay(b.from)} to ${fmtDay(b.to)}`).join("; ")}.</p>}
                 </>
@@ -257,6 +300,8 @@ export default function Overview() {
           </div>
         </section>
       </div>
+      <RecordModal record={record} onClose={() => setRecord(null)} />
     </div>
+    </ChartSyncProvider>
   );
 }

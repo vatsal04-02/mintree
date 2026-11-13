@@ -8,8 +8,9 @@ import { CalendarClock, MoreHorizontal, Plus, Search, Target, TrendingUp, Trophy
 import { api, type Page } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDay, fmtNum, fmtRupees, titleCase } from "@/lib/format";
-import { useToast } from "@/components/ui";
+import { useUndoable } from "@/components/ui";
 import { Strip } from "@/components/kpi";
+import { RecordModal, recordLayoutId, type RecordView } from "@/components/RecordModal";
 
 type Opp = { id: number; number: string; name: string; stage: string; probability: number; expected_value: string; expected_close: string | null; owner_id: number | null; version: number; customer_id: number | null; lead_id: number | null };
 
@@ -28,7 +29,7 @@ const monthKey = (d: string | null) => (d ? d.slice(0, 7) : "none");
 
 export default function CrmBoard() {
   const { can } = useAuth();
-  const toast = useToast();
+  const undoable = useUndoable();
   const reduce = useReducedMotion();
   const [rows, setRows] = useState<Opp[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function CrmBoard() {
   const [dragId, setDragId] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
   const [menu, setMenu] = useState<number | null>(null);
+  const [record, setRecord] = useState<RecordView | null>(null);
   const canMove = can("crm.opportunity:update");
 
   const load = useCallback(() => {
@@ -49,12 +51,26 @@ export default function CrmBoard() {
     if (o.stage === stage) return;
     let lost_reason: string | undefined;
     if (stage === "LOST") { lost_reason = window.prompt("Why was this deal lost?") ?? ""; if (!lost_reason) return; }
-    try {
-      await api(`/crm/opportunities/${o.id}/stage`, { method: "POST", body: { expected_version: o.version, stage, lost_reason } });
-      toast?.("success", stage === "WON" ? `${o.name} won · ${fmtRupees(o.expected_value)}` : `${o.name} → ${titleCase(stage)}`);
-      load();
-    } catch (e) { toast?.("error", (e as Error).message); }
+    /* the card moves at once; the server is told after four seconds unless you press Undo. If it refuses (a deal cannot be won without an accepted quotation), the card goes back. */
+    const before = rows;
+    undoable({ message: stage === "WON" ? `${o.name} won · ${fmtRupees(o.expected_value)}` : `${o.name} → ${titleCase(stage)}`,
+      apply: () => setRows((r) => r && r.map((x) => (x.id === o.id ? { ...x, stage } : x))), revert: () => setRows(before),
+      commit: async () => { await api(`/crm/opportunities/${o.id}/stage`, { method: "POST", body: { expected_version: o.version, stage, lost_reason } }); load(); } });
   }
+  /* The record modal for a deal: only what the API returns (number, name, stage, value, probability, expected close). The primary action moves it one stage on. */
+  const VARIANT: Record<string, RecordView["variant"]> = { PROSPECTING: "black", QUALIFIED: "yellow", PROPOSAL: "green", NEGOTIATION: "orange" };
+  const view = (o: Opp): RecordView => {
+    const at = MOVE_TO.indexOf(o.stage as (typeof MOVE_TO)[number]);
+    const next = MOVE_TO[at + 1] && MOVE_TO[at + 1] !== "LOST" ? MOVE_TO[at + 1] : null;
+    return {
+      id: o.id, variant: VARIANT[o.stage] ?? "white", kicker: o.number, title: o.name, subtitle: titleCase(o.stage),
+      figure: fmtRupees(o.expected_value), figureCaption: "Expected value",
+      steps: ["PROSPECTING", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON"].map((st, i) => ({ label: titleCase(st), state: i < at ? "done" : i === at ? "current" : "todo" })),
+      tiles: [{ label: "Expected close", value: o.expected_close ? fmtDay(o.expected_close) : "Not set" }, { label: "Probability", value: `${o.probability}%` }, { label: "Weighted", value: lakhs(Number(o.expected_value) * (o.probability / 100)) }],
+      openHref: "/m/sales/opportunities", openLabel: "Open in Opportunities",
+      primary: canMove && next ? { label: `Move to ${titleCase(next)}`, onClick: () => { setRecord(null); move(o, next); } } : undefined,
+    };
+  };
   const drop = (stage: string) => (e: React.DragEvent) => { e.preventDefault(); const o = rows?.find((r) => r.id === dragId); setOverCol(null); setDragId(null); if (o && canMove) move(o, stage); };
   const over = (stage: string) => (e: React.DragEvent) => { if (dragId !== null) { e.preventDefault(); setOverCol(stage); } };
 
@@ -71,9 +87,9 @@ export default function CrmBoard() {
 
   return (
     <>
-      <div className="flex flex-wrap items-end gap-x-10 gap-y-4 pt-2 mb-5">
-        <h1 className="t-page">Deal<br />pipeline</h1>
-        <Strip className="" label="Pipeline figures" cards={rows ? [
+      <div className="flex flex-col gap-4 pt-2 mb-5">
+        <h1 className="t-page">Deal pipeline</h1>
+        <Strip className="w-full" label="Pipeline figures" cards={rows ? [
           { label: "Open pipeline", value: lakhs(openValue), icon: Trophy },
           { label: "Weighted forecast", value: lakhs(weighted), icon: TrendingUp },
           { label: "Deals closing this month", value: fmtNum(closingNow.length), chip: closingNow.length ? lakhs(closingValue) : undefined, tone: "warning", icon: CalendarClock },
@@ -115,15 +131,17 @@ export default function CrmBoard() {
                       onDragStart={() => setDragId(o.id)} onDragEnd={() => { setDragId(null); setOverCol(null); }}
                       initial={reduce ? false : { opacity: 0, y: 14, filter: "blur(8px)" }} animate={{ opacity: dragId === o.id ? 0.9 : 1, y: 0, filter: "blur(0px)", scale: dragId === o.id ? 1.04 : 1, rotate: dragId === o.id ? -2 : 0 }}
                       transition={{ duration: 0.45, delay: reduce ? 0 : (ci * 3 + i) * 0.03, ease: [0.22, 1, 0.36, 1] }}
-                      className={`relative rounded-[22px] p-3.5 min-h-[135px] flex flex-col ${canMove ? "cursor-grab active:cursor-grabbing" : ""}`}
-                      style={{ background: st.card, color: st.text, boxShadow: dragId === o.id ? "0 30px 50px -18px rgb(21 23 23 / 0.5)" : "0 10px 24px -16px rgb(21 23 23 / 0.35)" }}>
+                      layoutId={recordLayoutId(o.id)} role="button" tabIndex={0} aria-haspopup="dialog" aria-label={`${o.name}, ${fmtRupees(o.expected_value)}, ${o.probability}%. Open details`}
+                      onClick={() => setRecord(view(o))} onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setRecord(view(o)); }}
+                      className={`relative rounded-[22px] p-3.5 min-h-[135px] flex flex-col cursor-pointer ${canMove ? "active:cursor-grabbing" : ""}`}
+                      style={{ visibility: record?.id === o.id ? "hidden" : "visible", zIndex: menu === o.id ? 30 : undefined, borderRadius: 22, background: st.card, color: st.text, boxShadow: dragId === o.id ? "0 30px 50px -18px rgb(21 23 23 / 0.5)" : "0 10px 24px -16px rgb(21 23 23 / 0.35)" }}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[0.75rem] opacity-70">{o.expected_close ? `Closes ${fmtDay(o.expected_close)}` : "No close date"}</span>
                         <div className="relative">
                           <button type="button" className="w-[30px] h-[30px] rounded-full grid place-items-center" style={{ border: `1px solid ${st.text === "#fff" ? "rgb(255 255 255 / 0.3)" : "rgb(21 23 23 / 0.2)"}` }}
-                            aria-label={`Move ${o.name}`} aria-haspopup="menu" aria-expanded={menu === o.id} disabled={!canMove} onClick={() => setMenu(menu === o.id ? null : o.id)}><MoreHorizontal size={14} strokeWidth={1.5} /></button>
+                            aria-label={`Move ${o.name}`} aria-haspopup="menu" aria-expanded={menu === o.id} disabled={!canMove} onClick={(e) => { e.stopPropagation(); setMenu(menu === o.id ? null : o.id); }}><MoreHorizontal size={14} strokeWidth={1.5} /></button>
                           {menu === o.id && (
-                            <ul role="menu" className="pop-in absolute right-0 top-9 z-20 w-48 rounded-2xl p-1 panel !text-[var(--fg)]">
+                            <ul role="menu" onClick={(e) => e.stopPropagation()} className="pop-in absolute right-0 top-9 z-20 w-48 rounded-2xl p-1 panel !text-[var(--fg)]">
                               {MOVE_TO.filter((s) => s !== o.stage).map((s) => <li key={s} role="none"><button role="menuitem" className="w-full text-left px-3 h-9 rounded-xl text-[0.8125rem] hover:bg-[rgb(21_23_23/0.06)]" onClick={() => { setMenu(null); move(o, s); }}>Move to {titleCase(s)}</button></li>)}
                             </ul>
                           )}
@@ -162,6 +180,7 @@ export default function CrmBoard() {
           );
         })}
       </div>
+      <RecordModal record={record} onClose={() => setRecord(null)} />
     </>
   );
 }

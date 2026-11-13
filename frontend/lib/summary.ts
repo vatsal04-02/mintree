@@ -1,7 +1,8 @@
 "use client";
 /** GET /analytics/management-summary: the single source for the Overview and Management dashboards. Every figure either page shows is read from here. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, sharedGet } from "./api";
+import { useLiveRevision } from "./live";
 import { MODULE_BY_ID, toneFor } from "./modules";
 import { fmtNum, titleCase } from "./format";
 import type { Tone } from "@/components/dash";
@@ -30,6 +31,7 @@ export type Summary = {
 export function useSummary(enabled: boolean) {
   const [summary, setSummary] = useState<Summary | null | undefined>(enabled ? undefined : null);
   const [error, setError] = useState<string | null>(null);
+  const rev = useLiveRevision(["overview"]);          // a live event re-reads the figures in place (no loading state, no reload)
   useEffect(() => {
     if (!enabled) { setSummary(null); return; }
     let live = true;
@@ -37,7 +39,7 @@ export function useSummary(enabled: boolean) {
       .then((s) => live && setSummary(s))
       .catch((e) => { if (live) { setSummary(null); setError(e instanceof ApiError ? e.message : "The summary could not be loaded."); } });
     return () => { live = false; };
-  }, [enabled]);
+  }, [enabled, rev]);
   return { summary, error };
 }
 
@@ -66,12 +68,15 @@ export type PeriodData = {
 /** undefined while loading, null when unavailable. Refetches when the range changes. */
 export function usePeriod(enabled: boolean, start: string, end: string) {
   const [data, setData] = useState<PeriodData | null | undefined>(enabled ? undefined : null);
+  const rev = useLiveRevision(["overview"]);
+  const lastKey = useRef("");
   useEffect(() => {
     if (!enabled) { setData(null); return; }
     let live = true;
-    setData(undefined);
+    const key = `${start}|${end}`;
+    if (lastKey.current !== key) { setData(undefined); lastKey.current = key; }      // show the loading state only when the period changes, not on a live refresh
     sharedGet<PeriodData>("/analytics/overview-period", { start, end }).then((d) => live && setData(d)).catch(() => live && setData(null));
     return () => { live = false; };
-  }, [enabled, start, end]);
+  }, [enabled, start, end, rev]);
   return data;
 }

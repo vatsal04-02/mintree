@@ -10,6 +10,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from psycopg import errors as pgerr
 
+from app.core.context import source_var
+from app.core import activity
 from app.accounts import service as acct
 from app.approvals.models import ApprovalRecord
 from app.approvals.service import current_cycle, effective_roles, get_setting, history as approval_history
@@ -51,6 +53,7 @@ def create_pr(db: Session, cu: CurrentUser, *, items: list[dict], required_by: d
     db.add(pr)
     db.flush()
     audit.record(db, user=cu, action="create", entity="purchase_request", entity_id=pr.id, after={"number": pr.number})
+    activity.emit(db, "procurement.pr.created", entity="purchase_request", entity_id=pr.id, number=pr.number, actor_id=cu.id)
     return pr_dict(pr)
 
 
@@ -68,6 +71,8 @@ def pr_transition(db: Session, cu: CurrentUser, pr_id: int, action: str, expecte
         raise BusinessConflict("self_approval_not_allowed", "You cannot approve or reject your own request")
     pr.status, pr.version = to, pr.version + 1
     audit.record(db, user=cu, action=action, entity="purchase_request", entity_id=pr.id, before={"status": frm}, after={"status": to})
+    activity.emit(db, {"submit": "procurement.pr.submitted", "approve": "procurement.pr.approved", "reject": "procurement.pr.rejected"}[action],
+                  entity="purchase_request", entity_id=pr.id, number=pr.number, actor_id=cu.id)
     return pr_dict(pr)
 
 
@@ -100,6 +105,7 @@ def create_po(db: Session, cu: CurrentUser, *, supplier_id: int, items: list[dic
     db.flush()
     audit.record(db, user=cu, action="create", entity="purchase_order", entity_id=po.id,
                  after={"number": po.number, "supplier_id": supplier_id, "total": str(po.total_amount)})
+    activity.emit(db, "procurement.purchase_order.created", entity="purchase_order", entity_id=po.id, number=po.number, actor_id=cu.id, total=po.total_amount)
     return po_dict(po)
 
 
@@ -163,13 +169,16 @@ def po_transition(db: Session, cu: CurrentUser, po_id: int, action: str, expecte
     po.status, po.version = to, po.version + 1
     audit.record(db, user=cu, action=action, entity="purchase_order", entity_id=po.id, before={"status": before}, after={"status": to},
                  reason=reason)
+    if action in ("submit", "reject", "cancel"):
+        activity.emit(db, {"submit": "procurement.purchase_order.submitted", "reject": "procurement.purchase_order.rejected", "cancel": "procurement.purchase_order.cancelled"}[action],
+                      entity="purchase_order", entity_id=po.id, number=po.number, actor_id=cu.id)
     if action == "submit":
         notify(db, kind="po.submitted", title=f"{po.number} awaiting approval", link=f"/procurement/purchase-orders/{po.id}", permission="procurement.po:approve", exclude_user_id=cu.id)
     if action in ("approve", "reject"):
         notify(db, kind=f"po.{action}d", title=f"{po.number} {action}d", body=reason, link=f"/procurement/purchase-orders/{po.id}", user_ids=[po.created_by], exclude_user_id=cu.id)
     if action == "approve":
         outbox.add(db, event_type="procurement.purchase_order.approved", aggregate_type="purchase_order", aggregate_id=po.id,
-                   payload={"po_id": po.id, "number": po.number, "total": str(po.total_amount), "approved_by": cu.id})
+                   payload={"po_id": po.id, "number": po.number, "total": str(po.total_amount), "approved_by": cu.id, "actor_id": cu.id, **({"source": s} if (s := source_var.get()) else {})})
     return po_dict(po)
 
 
@@ -257,5 +266,5 @@ def post_goods_receipt(db: Session, cu: CurrentUser, *, po_id: int, warehouse_id
     body = {"id": gr.id, "number": gr.number, "po_id": po_id, "po_status": po.status, "delivery_note_no": delivery_note_no, "lines": out}
     audit.record(db, user=cu, action="post", entity="goods_receipt", entity_id=gr.id, after={"number": gr.number, "po_id": po_id, "lines": len(out)})
     outbox.add(db, event_type="inventory.goods_receipt.posted", aggregate_type="goods_receipt", aggregate_id=gr.id,
-               payload={"gr_id": gr.id, "number": gr.number, "po_id": po_id, "supplier_id": po.supplier_id, "lines": out})
+               payload={"gr_id": gr.id, "number": gr.number, "po_id": po_id, "supplier_id": po.supplier_id, "lines": out, "actor_id": cu.id, **({"source": s} if (s := source_var.get()) else {})})
     return body

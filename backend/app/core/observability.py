@@ -254,3 +254,52 @@ def stats_scope() -> RequestStats:
     s = RequestStats()
     stats_var.set(s)
     return s
+
+
+# ------------------------------------------------------------------ live panel (Demo controls drawer)
+_prev: dict = {"t": None, "req": 0.0, "err": 0.0, "buckets": {}}
+
+
+def _sample() -> tuple[float, float, dict[float, float]]:
+    req = err = 0.0
+    for m in HTTP_REQUESTS.collect():
+        for s in m.samples:
+            if s.name.endswith("_total"):
+                req += s.value
+                if s.labels.get("status", "").startswith("5"):
+                    err += s.value
+    buckets: dict[float, float] = {}
+    for m in HTTP_LATENCY.collect():
+        for s in m.samples:
+            if s.name.endswith("_bucket"):
+                le = float("inf") if s.labels["le"] == "+Inf" else float(s.labels["le"])
+                buckets[le] = buckets.get(le, 0.0) + s.value
+    return req, err, buckets
+
+
+def live_snapshot() -> dict:
+    """Requests/s, p95 and 5xx rate since the previous call (the drawer polls every few seconds), plus pool and queue gauges. Single-process view."""
+    now = time.monotonic()
+    req, err, b = _sample()
+    p = dict(_prev)
+    _prev.update(t=now, req=req, err=err, buckets=b)
+    out = {"requests_per_s": None, "p95_ms": None, "error_rate": None, "db_connections": int(POOL_CHECKED_OUT._value.get()) if hasattr(POOL_CHECKED_OUT, "_value") else None,
+           "in_flight": int(HTTP_IN_FLIGHT._value.get()) if hasattr(HTTP_IN_FLIGHT, "_value") else None}
+    try:
+        from app.core.db import SessionLocal
+        with SessionLocal() as db:
+            out["queue_depth"] = db.execute(text("SELECT count(*) FROM outbox_events WHERE status IN ('pending','publishing')")).scalar()
+    except Exception:  # noqa: BLE001
+        out["queue_depth"] = None
+    if p["t"] is None or now - p["t"] <= 0:
+        return out
+    dreq, derr, dt = req - p["req"], err - p["err"], now - p["t"]
+    out["requests_per_s"] = round(dreq / dt, 1)
+    out["error_rate"] = round(derr / dreq, 4) if dreq else 0.0
+    if dreq > 0:
+        target = 0.95 * (b.get(float("inf"), 0) - p["buckets"].get(float("inf"), 0))
+        for le in sorted(b):
+            if b[le] - p["buckets"].get(le, 0) >= target:
+                out["p95_ms"] = None if le == float("inf") else round(le * 1000)
+                break
+    return out

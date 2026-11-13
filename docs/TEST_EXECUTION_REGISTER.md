@@ -171,3 +171,27 @@ Per-run artefacts (metadata: commit, machine, PostgreSQL settings, dataset sizes
 6. Earlier in the same milestone, `verify` found that a stock count could add *available* stock to a quarantined batch (fixed in `app/inventory/service.py`, test `test_adjustment_on_unreleased_stock_stays_blocked`).
 
 **Not run:** the full backend suite and the other Playwright suites (Phase 0, modules, workflows, AI, demo). Only the files above.
+
+## 2026-11-13: Real-time activity, Demo Control Centre, invoice drafts
+
+| Run | Command | Result |
+|---|---|---|
+| Full backend suite | `pytest tests -q` | 445 passed, 2 failed (both mine, fixed: a link assertion; `date.today()` / `current_date` banned by the business-clock test) |
+| Re-run of affected files | `test_activity`, `test_business_clock`, `test_demo_live` | 76 passed |
+| Black-box Control Centre | `pytest tests/demo/test_control_centre.py` | 13 passed |
+| Browser | `node tests/demo/ui.mjs` | 9/9 (one earlier unexplained single-step failure, not reproduced) |
+| Demo check | `python -m scripts.demo_check` | GREEN, 39 invariants |
+
+Details, defects and what was not run: `REALTIME_TEST_RESULTS.md`. Not run: soak, 30-minute Live Mode, clean-machine run, Linux two-worker run.
+
+## 2026-11-14: Tier 1 operations (recall, expiry, rework, material return, shop floor, GST e-invoice sandbox)
+
+| Run | Command | Result |
+|---|---|---|
+| New backend tests | `pytest tests/test_tier1.py` | 16 passed |
+| Full backend suite | `pytest tests -q` | 461 passed, 2 failed (`test_opposite_direction_transfers_do_not_deadlock`, `test_concurrent_shipments_of_one_order_are_serialised`); both pass in isolation, twice each. They use real threads and ran while I was building the web app: treat as load-sensitive, not proven fixed |
+| Black-box against the demo stack | `pytest tests/demo/test_control_centre.py` | 17 passed |
+| Browser | `node tests/demo/ui.mjs` | 10/10 |
+| Demo check | `python -m scripts.demo_check` | GREEN, 14 checks |
+
+Details and limits: `TIER1_OPERATIONS.md`.

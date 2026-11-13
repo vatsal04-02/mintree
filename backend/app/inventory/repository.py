@@ -60,7 +60,7 @@ def lock_balances(db: Session, ids: list[int]) -> dict[int, dict]:
     return {r["id"]: dict(r) for r in rows}
 
 
-def fefo_candidates(db: Session, *, item_id: int, warehouse_id: int, batch_id: int | None = None) -> list[dict]:
+def fefo_candidates(db: Session, *, item_id: int, warehouse_id: int, batch_id: int | None = None, min_days: int = 0) -> list[dict]:
     """Lock and return every sellable balance of an item in FEFO order. A row is only *locked* if it still matches the
     predicate after waiting for any concurrent writer (PostgreSQL re-evaluates it), so results are post-lock accurate."""
     rows = db.execute(text("""
@@ -68,8 +68,8 @@ def fefo_candidates(db: Session, *, item_id: int, warehouse_id: int, batch_id: i
           FROM stock_balances sb LEFT JOIN inventory_batches ib ON ib.id = sb.batch_id
          WHERE sb.item_id = :item AND sb.warehouse_id = :wh AND sb.qty_available > 0
            AND (CAST(:batch AS bigint) IS NULL OR sb.batch_id = :batch)
-           AND (sb.batch_id IS NULL OR (ib.qc_status = 'RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > business_today())))
-         ORDER BY """ + FEFO_ORDER + " FOR UPDATE OF sb"), {"item": item_id, "wh": warehouse_id, "batch": batch_id}).mappings().all()
+           AND (sb.batch_id IS NULL OR (ib.qc_status = 'RELEASED' AND (ib.expiry_date IS NULL OR ib.expiry_date > business_today() + CAST(:minl AS int))))
+         ORDER BY """ + FEFO_ORDER + " FOR UPDATE OF sb"), {"item": item_id, "wh": warehouse_id, "batch": batch_id, "minl": min_days}).mappings().all()
     return [dict(r) for r in rows]
 
 

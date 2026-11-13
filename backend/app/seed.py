@@ -49,6 +49,12 @@ def _fiscal_periods(today):
         yield f"{yy}-{mm:02d}", date(yy, mm, 1), date(yy, mm, calendar.monthrange(yy, mm)[1])
 
 
+# Permissions introduced after a database was created, granted additively to the roles that carry them by default (never removed, never re-added once an administrator took them away
+# from a role that already had the rest). Customer invoice drafts: drafting and posting.
+UPGRADE_GRANTS = {"accounts.sales_invoice:draft", "accounts.sales_invoice:post", "accounts.einvoice:read", "accounts.einvoice:submit", "accounts.einvoice:cancel",
+                  "quality.recall:read", "quality.recall:create", "quality.recall:notify", "quality.recall:close", "production.rework:read", "production.rework:create", "production.rework:complete"}
+
+
 def sync_permissions(db: Session) -> dict[str, Permission]:
     existing = {p.code: p for p in db.scalars(select(Permission))}
     for res, actions in RESOURCES.items():
@@ -76,7 +82,7 @@ def seed(db: Session) -> str | None:
     for code, role in roles.items():
         if code in ROLES and role.is_system and code != "system_admin":
             have_codes = {p.code for p in role.permissions}
-            role.permissions = list(role.permissions) + [perms[c] for c in sorted(role_permission_codes(code)) if c.startswith("ai.") and c not in have_codes]
+            role.permissions = list(role.permissions) + [perms[c] for c in sorted(role_permission_codes(code)) if (c.startswith("ai.") or c in UPGRADE_GRANTS) and c not in have_codes]
 
     have = {d.code for d in db.scalars(select(Department))}
     db.add_all(Department(code=c, name=n) for c, n in DEPARTMENTS if c not in have)

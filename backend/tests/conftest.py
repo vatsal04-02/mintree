@@ -4,6 +4,10 @@ import tempfile
 TEST_DB = os.environ.get("MINTREE_TEST_DATABASE_URL", "postgresql+psycopg://mintree:mintree@localhost:5433/mintree_test")
 os.environ["MINTREE_DATABASE_URL"] = TEST_DB
 os.environ["MINTREE_ENVIRONMENT"] = "test"
+# Tests must not depend on a developer's local .env (which may enable the AI layer or hold keys); env vars beat .env in pydantic-settings.
+os.environ["MINTREE_AI_ENABLED"] = "false"
+os.environ["MINTREE_AI_API_KEY"] = ""
+os.environ["MINTREE_AI_PROVIDER"] = "anthropic"
 os.environ["MINTREE_STORAGE_ROOT"] = tempfile.mkdtemp(prefix="mintree-test-storage-")
 
 import pytest  # noqa: E402
@@ -151,7 +155,7 @@ def live_server(_schema):
     env = dict(os.environ, MINTREE_DATABASE_URL=TEST_DB, MINTREE_ENVIRONMENT="test",
                PROMETHEUS_MULTIPROC_DIR=tempfile.mkdtemp(prefix="prom-test-"), PYTHONPATH=str(Path(__file__).resolve().parent.parent))
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(LIVE_PORT), "--workers", "2",
-                             "--no-access-log", "--log-level", "warning"], env=env, start_new_session=True,
+                             "--no-access-log", "--log-level", "warning"], env=env, start_new_session=(os.name != "nt"),
                             stdout=subprocess.DEVNULL, stderr=open(Path(tempfile.gettempdir()) / "mintree-live-server.log", "w"))
     base = f"http://127.0.0.1:{LIVE_PORT}"
     for _ in range(60):
@@ -164,6 +168,9 @@ def live_server(_schema):
         proc.kill()
         raise RuntimeError("live server failed to start")
     yield base
+    if os.name == "nt":                                   # no process groups / killpg on Windows: kill the whole tree (uvicorn --workers spawns children)
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        return
     import os as _os, signal as _sig
     _os.killpg(proc.pid, _sig.SIGTERM)
     try:

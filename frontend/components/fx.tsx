@@ -4,6 +4,8 @@
  *  The components draw; they never fetch. Figures are formatted by lib/format.ts. */
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { fmtDate, fmtDay, fmtDelta, fmtNum, fmtPct, fmtRupees } from "@/lib/format";
+import { useChartSync } from "@/lib/chartSync";
+import type { ProjectedPoint } from "@/lib/forecast";
 
 /* ------------------------------------------------------------------ helpers */
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -24,13 +26,13 @@ export function InView({ children, className = "" }: { children: ReactNode; clas
 }
 
 /* ------------------------------------------------------------------ count-up */
-/** Counts the first number inside an already-formatted string up from zero (₹35,79,067, 97%, 1,418). Anything else is shown as it is. */
-export function CountUp({ text, ms = 900 }: { text: string; ms?: number }) {
+/** Counts the first number inside an already-formatted string up from a fifth of its value (so a figure never starts at a meaningless zero) (₹35,79,067, 97%, 1,418). Anything else is shown as it is. */
+export function CountUp({ text, ms = 900, from: startAt = 0.2 }: { text: string; ms?: number; from?: number }) {
   const m = /(-?\d[\d,]*(?:\.\d+)?)/.exec(text);
   const target = m ? parseFloat(m[1].replace(/,/g, "")) : NaN;
   const decimals = m && m[1].includes(".") ? m[1].split(".")[1].length : 0;
-  const [v, setV] = useState<number>(0);
-  const from = useRef(0);
+  const [v, setV] = useState<number>(() => (Number.isNaN(target) ? 0 : target * startAt));
+  const from = useRef(Number.isNaN(target) ? 0 : target * startAt);
   useEffect(() => {
     if (Number.isNaN(target)) return;
     if (reducedMotion()) { setV(target); from.current = target; return; }
@@ -119,19 +121,25 @@ export function StackBar({ data, label }: { data: Record<string, number>; label:
 /* ------------------------------------------------------------------ area chart */
 export type Point = { label: string; value: number };
 /** The hero chart: a smooth line over a soft fade, the previous period as a dashed line, and a crosshair with the exact figures on hover. */
-export function AreaChart({ points, compare, weekly = false, height = 252, name = "Revenue", color = "var(--chart-actual)", compareColor = "var(--subtle)", summary = true }: { points: Point[]; compare?: Point[]; weekly?: boolean; height?: number; name?: string; color?: string; compareColor?: string; summary?: boolean }) {
+/** A real event pinned to a time-series chart (a breakdown, a failed delivery, a large invoice). */
+export type ChartEvent = { date: string; kind: string; title: string; detail?: string | null };
+
+export function AreaChart({ points, compare, weekly = false, height = 252, name = "Revenue", color = "var(--chart-actual)", compareColor = "var(--subtle)", summary = true, label = "This period", compareLabel = "Previous period", forecast, events }: { points: Point[]; compare?: Point[]; weekly?: boolean; height?: number; name?: string; color?: string; compareColor?: string; summary?: boolean; label?: string; compareLabel?: string; forecast?: ProjectedPoint[]; events?: ChartEvent[] }) {
   const id = useId().replace(/:/g, "");
   const box = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const sync = useChartSync();
   const n = points.length;
+  const fc = forecast ?? [];
+  const L = n + fc.length;
   if (n < 2) return <p className="t-support px-5 pb-5">Not enough days in this period to draw a chart.</p>;
   const prev = compare && compare.length ? compare : null;
-  const max = niceMax(Math.max(...points.map((p) => p.value), ...(prev ? prev.map((p) => p.value) : [0]), 1));
+  const max = niceMax(Math.max(...points.map((p) => p.value), ...(prev ? prev.map((p) => p.value) : [0]), ...fc.map((p) => p.hi), 1));
   const W = 1000, H = 300;
-  const X = (i: number, len = n) => (len === 1 ? W / 2 : (i / (len - 1)) * W);
+  const X = (i: number, len = L) => (len === 1 ? W / 2 : (i / (len - 1)) * W);
   const Y = (v: number) => H - 6 - (v / max) * (H - 24);
   const cur: [number, number][] = points.map((p, i) => [X(i), Y(p.value)]);
-  const prv: [number, number][] | null = prev ? prev.slice(0, n).map((p, i) => [X(i, Math.min(n, prev.length)), Y(p.value)]) : null;
+  const prv: [number, number][] | null = prev ? prev.slice(0, n).map((p, i) => [X(i, fc.length ? L : Math.min(n, prev.length)), Y(p.value)]) : null;
   const line = monotone(cur);
   const total = points.reduce((a, p) => a + p.value, 0);
   const peak = points.reduce((a, p) => (p.value > a.value ? p : a), points[0]);
@@ -139,55 +147,94 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
   const pick = (clientX: number) => {
     const r = box.current?.getBoundingClientRect();
     if (!r) return;
-    setHover(Math.max(0, Math.min(n - 1, Math.round(((clientX - r.left) / r.width) * (n - 1)))));
+    const idx = Math.max(0, Math.min(L - 1, Math.round(((clientX - r.left) / r.width) * (L - 1))));
+    setHover(idx);
+    sync?.set(idx < n ? points[idx].label : fc[idx - n].label);
   };
   const h = hover;
-  const hp = h === null ? null : points[h];
-  const hc = h === null || !prev ? null : prev[Math.min(h, prev.length - 1)];
+  const hp = h === null || h >= n ? null : points[h];
+  const hf = h !== null && h >= n ? fc[h - n] : null;
+  const hc = h === null || h >= n || !prev ? null : prev[Math.min(h, prev.length - 1)];
+  /* the date another chart on the page is pointing at, shown here as a quiet guide */
+  const ext = h === null ? sync?.date ?? null : null;
+  let extIdx = -1;
+  if (ext) for (let i = 0; i < n; i++) if (points[i].label <= ext) extIdx = i;
+  if (ext && extIdx === n - 1 && ext > points[n - 1].label && !weekly) extIdx = -1;
+  const labels = [...points.map((p) => p.label), ...fc.map((p) => p.label)];
+  /* events: pins grouped by the point they fall on */
+  const pins = new Map<number, ChartEvent[]>();
+  for (const ev of events ?? []) { let idx = -1; for (let i = 0; i < n; i++) if (points[i].label <= ev.date) idx = i; if (idx >= 0 && ev.date >= points[0].label) pins.set(idx, [...(pins.get(idx) ?? []), ev]); }
   const delta = hp && hc ? fmtDelta(hp.value, hc.value) : null;
   return (
     <div className="px-5 pb-5">
       {/* a one-line legend only earns its place when there are two series to tell apart */}
-      {(summary || prev) && <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mb-3">
+      {(summary || prev || fc.length > 0) && <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mb-3">
         {summary && <p className="t-support">Total <b className="text-fg font-semibold">{fmtRupees(total)}</b> · Peak <b className="text-fg font-semibold">{fmtRupees(peak.value)}</b> {weekly ? "week of" : "on"} {fmtDay(peak.label)}</p>}
         {prev && <p className="t-support flex items-center gap-4" aria-hidden>
-          <span className="inline-flex items-center gap-1.5"><span className="w-4 h-[3px] rounded-full" style={{ background: color }} />This period</span>
-          <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed" style={{ borderColor: compareColor }} />Previous period</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-4 h-[3px] rounded-full" style={{ background: color }} />{label}</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed" style={{ borderColor: compareColor }} />{compareLabel}</span>
         </p>}
+        {fc.length > 0 && <p className="t-support flex items-center gap-1.5" aria-hidden><span className="tag tag-sim">Projected</span>the recent trend carried forward, with its range; not a forecast of record</p>}
       </div>}
-      <div className="relative pl-12 mt-4" style={{ height }}>
+      <div className="relative pl-12 mt-7" style={{ height }}>
         {ticks.map((t, i) => (
           <div key={i} className="absolute left-0 right-0 flex items-center" style={{ bottom: `${(t / max) * 94 + 2}%` }} aria-hidden>
             <span className="w-11 pr-2 text-right t-support leading-none -translate-y-1/2">{compactRupees(t)}</span>
             <span className="flex-1 h-px" style={{ background: i === 0 ? "var(--line-strong)" : "var(--line)" }} />
           </div>
         ))}
-        <div ref={box} className="absolute inset-y-0 right-0 left-12 touch-pan-y" onPointerMove={(e) => pick(e.clientX)} onPointerDown={(e) => pick(e.clientX)} onPointerLeave={() => setHover(null)}
+        <div ref={box} className="absolute inset-y-0 right-0 left-12 touch-pan-y" onPointerMove={(e) => pick(e.clientX)} onPointerDown={(e) => pick(e.clientX)} onPointerLeave={() => { setHover(null); sync?.set(null); }}
           role="img" aria-label={`${name}: total ${fmtRupees(total)} over ${n} ${weekly ? "weeks" : "days"}, peak ${fmtRupees(peak.value)} on ${fmtDate(peak.label)}`}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible" aria-hidden>
             <defs>
               <linearGradient id={`ag${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.30" /><stop offset="0.7" stopColor={color} stopOpacity="0.05" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient>
             </defs>
             {prv && <path d={monotone(prv)} fill="none" stroke={compareColor} strokeWidth="1.5" strokeDasharray="6 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "350ms" }} />}
-            <path d={`${line} L${W},${H} L0,${H} Z`} fill={`url(#ag${id})`} className="fx-fade" style={{ animationDelay: "450ms" }} />
+            <path d={`${line} L${cur[n - 1][0]},${H} L0,${H} Z`} fill={`url(#ag${id})`} className="fx-fade" style={{ animationDelay: "450ms" }} />
             <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" pathLength={1} className="fx-draw" style={{ animationDuration: "1.3s" }} />
+            {fc.length > 0 && (() => {
+              const hi = fc.map((p, k): [number, number] => [X(n + k), Y(p.hi)]), lo = fc.map((p, k): [number, number] => [X(n + k), Y(p.lo)]).reverse(), mid = fc.map((p, k): [number, number] => [X(n + k), Y(p.value)]);
+              const band = `M${cur[n - 1][0]},${cur[n - 1][1]} ${hi.map(([x, y]) => `L${x},${y}`).join(" ")} ${lo.map(([x, y]) => `L${x},${y}`).join(" ")} Z`;
+              return (<>
+                <path d={band} fill={color} fillOpacity="0.12" className="fx-fade" style={{ animationDelay: "900ms" }} />
+                <path d={monotone([cur[n - 1], ...mid])} fill="none" stroke={color} strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "900ms" }} />
+              </>);
+            })()}
           </svg>
           {h !== null && hp && (
             <>
-              <span className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, background: "var(--line-strong)" }} aria-hidden />
-              {hc && <span className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, top: `${(Y(hc.value) / H) * 100}%`, background: "var(--card)", border: "2px solid var(--subtle)" }} aria-hidden />}
-              <span className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full pointer-events-none" style={{ left: `${(h / (n - 1)) * 100}%`, top: `${(Y(hp.value) / H) * 100}%`, background: color, border: "2.5px solid var(--card)", boxShadow: "0 2px 8px rgb(0 0 0 / 0.25)" }} aria-hidden />
-              <div className="absolute z-10 pointer-events-none panel px-3 py-2 min-w-[150px] anim-fade" style={{ top: 6, ...(h > n * 0.6 ? { right: `${100 - (h / (n - 1)) * 100 + 2}%` } : { left: `${(h / (n - 1)) * 100 + 2}%` }) } as CSSProperties}>
+              <span className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${(h / (L - 1)) * 100}%`, background: "var(--line-strong)" }} aria-hidden />
+              {hc && <span className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full pointer-events-none" style={{ left: `${(h / (L - 1)) * 100}%`, top: `${(Y(hc.value) / H) * 100}%`, background: "var(--card)", border: "2px solid var(--subtle)" }} aria-hidden />}
+              <span className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full pointer-events-none" style={{ left: `${(h / (L - 1)) * 100}%`, top: `${(Y(hp.value) / H) * 100}%`, background: color, border: "2.5px solid var(--card)", boxShadow: "0 2px 8px rgb(0 0 0 / 0.25)" }} aria-hidden />
+              <div className="absolute z-10 pointer-events-none panel px-3 py-2 min-w-[150px] anim-fade" style={{ top: 6, ...(h > L * 0.6 ? { right: `${100 - (h / (L - 1)) * 100 + 2}%` } : { left: `${(h / (L - 1)) * 100 + 2}%` }) } as CSSProperties}>
                 <p className="t-support">{weekly ? "Week of " : ""}{fmtDate(hp.label)}</p>
                 <p className="t-value !font-semibold text-[0.9375rem]">{fmtRupees(hp.value)}</p>
                 {hc && <p className="t-support mt-0.5">Previous {fmtRupees(hc.value)}{delta && <b className={`ml-1.5 font-semibold ${delta.startsWith("+") ? "text-success" : "text-danger"}`}>{delta}</b>}</p>}
               </div>
             </>
           )}
+          {hf && h !== null && (
+            <>
+              <span className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${(h / (L - 1)) * 100}%`, background: "var(--line-strong)" }} aria-hidden />
+              <div className="absolute z-10 pointer-events-none panel px-3 py-2 min-w-[150px] anim-fade" style={{ top: 6, right: `${100 - (h / (L - 1)) * 100 + 2}%` } as CSSProperties}>
+                <p className="t-support"><span className="tag tag-sim mr-1.5">Projected</span>{weekly ? "Week of " : ""}{fmtDate(hf.label)}</p>
+                <p className="t-value !font-semibold text-[0.9375rem]">{fmtRupees(hf.value)}</p>
+                <p className="t-support mt-0.5">Range {fmtRupees(hf.lo)} to {fmtRupees(hf.hi)}</p>
+              </div>
+            </>
+          )}
+          {extIdx >= 0 && <span className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${(extIdx / (L - 1)) * 100}%`, background: "var(--ink-r)", opacity: 0.35 }} aria-hidden />}
+          {[...pins.entries()].map(([idx, list]) => (
+            <button key={idx} type="button" className="absolute z-[5] w-4 h-4 -ml-2 -mt-[26px] rounded-full grid place-items-center" onPointerMove={(e) => e.stopPropagation()}
+              style={{ left: `${(idx / (L - 1)) * 100}%`, top: `${(Y(points[idx].value) / H) * 100}%`, background: "var(--ink-r)", boxShadow: "0 0 0 2px var(--card)" }}
+              title={list.map((e) => `${fmtDate(e.date)} · ${e.kind}: ${e.title}`).join("\n")} aria-label={list.map((e) => `${e.kind}: ${e.title}, ${fmtDate(e.date)}`).join("; ")}>
+              <span className="w-1 h-1 rounded-full" style={{ background: "var(--card)" }} aria-hidden />
+            </button>
+          ))}
         </div>
       </div>
       <div className="flex justify-between pl-12 mt-2 t-support" aria-hidden>
-        <span>{fmtDay(points[0].label)}</span><span>{fmtDay(points[Math.floor(n / 2)].label)}</span><span>{fmtDay(points[n - 1].label)}</span>
+        <span>{fmtDay(labels[0])}</span><span>{fmtDay(labels[Math.floor(L / 2)])}</span><span>{fmtDay(labels[L - 1])}</span>
       </div>
     </div>
   );

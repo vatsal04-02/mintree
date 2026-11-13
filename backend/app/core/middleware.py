@@ -8,7 +8,7 @@ import logging
 
 from app.core import observability as obs
 from app.core.config import get_settings
-from app.core.context import client_ip_var, request_id_var, stats_var, RequestStats
+from app.core.context import client_ip_var, request_id_var, source_var, stats_var, RequestStats
 
 log = logging.getLogger("mintree.perf")
 
@@ -32,6 +32,8 @@ class RequestContextMiddleware:
         rid = (hdrs.get(b"x-request-id", b"").decode("latin1")[:64]) or uuid.uuid4().hex
         request_id_var.set(rid)
         client_ip_var.set(scope["client"][0] if scope.get("client") else None)
+        src = hdrs.get(b"x-mintree-source", b"").decode("latin1")          # honoured only in the demo environment: it labels activity "Demo", it grants nothing
+        source_var.set(src if src in ("demo-live", "demo-control") and get_settings().environment == "demo" else None)
         scope.setdefault("state", {})["request_id"] = rid
         is_api = scope["path"].startswith("/api")
 

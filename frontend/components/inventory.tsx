@@ -3,7 +3,7 @@
  *  latest movements, batches expiring soonest) and three compact breakdowns. Everything comes from /inventory/hub and /inventory/dashboard. */
 import Link from "next/link";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Boxes, ClipboardCheck, IndianRupee, ShieldAlert } from "lucide-react";
-import { fmtDate, fmtDateTime, fmtDay, fmtNum, fmtRupees, titleCase } from "@/lib/format";
+import { businessToday, fmtDate, fmtDateTime, fmtDay, fmtNum, fmtRupees, titleCase } from "@/lib/format";
 import { Strip } from "./kpi";
 import { StageMix } from "./rapport";
 import { TrendCard } from "./ModuleDashboard";
@@ -33,6 +33,57 @@ function Panel({ title, meta, href, linkLabel, children, className = "" }: { tit
   );
 }
 const Empty = ({ text }: { text: string }) => <p className="t-support px-[18px] pb-[18px] pt-1">{text}</p>;
+
+/** Expiry heatmap (phase 4.5): batches that still hold stock, by the month they expire (across) and by item class (down). Past months are orange (already
+ *  expired), the next three yellow (to act on soon), later months ink, darker where more batches expire. Every cell opens the expiring-stock report. */
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function ExpiryHeatmap({ grid, href, today }: { grid: Row[]; href?: string; today: string }) {
+  const months = Array.from(new Set(grid.map((g) => String(g.month)))).sort();
+  const kinds = Array.from(new Set(grid.map((g) => String(g.kind))));
+  const cell = (m: string, k: string) => grid.find((g) => g.month === m && g.kind === k);
+  const peak = Math.max(1, ...grid.map((g) => n(g.batches)));
+  const now = today.slice(0, 7);
+  const soon = (() => { const d = new Date(`${today}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 3); return d.toISOString().slice(0, 7); })();
+  const tone = (m: string) => (m < now ? "var(--acc-orange)" : m <= soon ? "var(--acc-yellow)" : "var(--ink-r)");
+  /* four steps of intensity (more batches = stronger). The colour itself is mixed with the card, never the whole cell faded, so the number keeps its contrast:
+     light steps carry dark text, the two strongest steps carry white text (yellow always dark). */
+  const step = (cnt: number) => (cnt / peak > 0.6 ? 3 : cnt / peak > 0.3 ? 2 : cnt / peak > 0.1 ? 1 : 0);
+  const MIX = [30, 50, 75, 100];
+  const paint = (m: string, cnt: number) => { const st = step(cnt); return { background: `color-mix(in srgb, ${tone(m)} ${MIX[st]}%, transparent)`, color: st === 3 && !(m <= soon && m >= now) ? "#fff" : "#151717" }; };
+  const label = (m: string) => `${MON[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
+  return (
+    <Panel title="When stock expires" meta="Batches still holding stock, by expiry month and item class" href={href} linkLabel="Expiring stock" className="mb-4">
+      <div className="px-[18px] pb-[18px] overflow-x-auto">
+        <table className="w-full border-separate" style={{ borderSpacing: 4 }}>
+          <caption className="sr-only">Batches holding stock by expiry month and item class</caption>
+          <thead><tr><td />{months.map((m) => <th key={m} scope="col" className="text-[0.6875rem] font-normal text-muted pb-1 whitespace-nowrap">{label(m)}</th>)}</tr></thead>
+          <tbody>{kinds.map((k) => (
+            <tr key={k}>
+              <th scope="row" className="text-[0.75rem] font-normal text-muted text-right pr-2 whitespace-nowrap">{KIND[k] ?? k}</th>
+              {months.map((m) => {
+                const c = cell(m, k); const cnt = c ? n(c.batches) : 0;
+                return (
+                  <td key={m} className="p-0">
+                    {cnt > 0
+                      ? <Link href={href ?? "#"} title={`${label(m)} · ${KIND[k] ?? k}: ${cnt} ${cnt === 1 ? "batch" : "batches"}, ${fmtNum(n(c!.qty), 0)} units`} aria-label={`${label(m)}, ${KIND[k] ?? k}: ${cnt} ${cnt === 1 ? "batch" : "batches"}`}
+                          className="grid place-items-center h-9 min-w-[2.25rem] rounded-xl text-[0.75rem] tabular-nums hover:opacity-80" style={paint(m, cnt)}>{cnt}</Link>
+                      : <span className="block h-9 min-w-[2.25rem] rounded-xl" style={{ background: "var(--chart-track)" }} aria-hidden />}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}</tbody>
+        </table>
+        <p className="t-support mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5" aria-hidden>
+          {([["Already expired", "var(--acc-orange)"], ["Within three months", "var(--acc-yellow)"], ["Later", "var(--ink-r)"]] as const).map(([t, c]) => (
+            <span key={t} className="inline-flex items-center gap-1.5">{MIX.map((x, i) => <span key={x} className="w-3 h-3 rounded-[4px]" style={{ background: `color-mix(in srgb, ${c} ${x}%, transparent)`, marginLeft: i ? -2 : 0 }} />)}<span className="ml-1">{t}</span></span>
+          ))}
+          <span>Darker = more batches</span>
+        </p>
+      </div>
+    </Panel>
+  );
+}
 
 export function InventoryScreen({ to }: { to: To }) {
   const hub = useShared<Row>("/inventory/hub");
@@ -83,13 +134,13 @@ export function InventoryScreen({ to }: { to: To }) {
               <div className="px-[18px] pb-[18px] flex-1 flex flex-col">
                 <p className="t-stage tabular-nums">{short(totalValue)}</p>
                 <div className="flex gap-1.5 h-10 mt-3" aria-hidden>
-                  {kinds.map(([k, v]) => <span key={k} className="rounded-[12px] min-w-[14px] bar-grow-x" style={{ flex: v, background: KIND_COLOR[k] ?? "var(--faint)" }} />)}
+                  {kinds.map(([k, v]) => <span key={k} className="rounded-[12px] min-w-[8px] bar-grow-x" style={{ flex: v, background: KIND_COLOR[k] ?? "var(--faint)" }} />)}
                 </div>
                 <ul className="mt-3 divide-y divide-line">
                   {kinds.map(([k, v]) => (
                     <li key={k} className="flex items-center justify-between gap-3 py-2 text-[0.8125rem]">
                       <span className="inline-flex items-center gap-2 min-w-0"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: KIND_COLOR[k] ?? "var(--faint)" }} aria-hidden /><span className="truncate">{KIND[k] ?? k}</span></span>
-                      <span className="tabular-nums shrink-0"><span className="text-muted mr-3">{totalValue ? Math.round((v / totalValue) * 100) : 0}%</span>{short(v)}</span>
+                      <span className="tabular-nums shrink-0"><span className="text-muted mr-3">{totalValue ? (v > 0 && Math.round((v / totalValue) * 100) === 0 ? "<1" : Math.round((v / totalValue) * 100)) : 0}%</span>{short(v)}</span>
                     </li>
                   ))}
                 </ul>
@@ -97,7 +148,7 @@ export function InventoryScreen({ to }: { to: To }) {
             </Panel>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-12 items-start">
+          <div className="grid gap-4 xl:grid-cols-12 items-stretch">
             <Panel title="Reorder watch" meta="Items at or close to their reorder level" href={reorderHref} linkLabel="Reorder report" className="xl:col-span-7">
               {reorder.length === 0 ? <Empty text="Every item is comfortably above its reorder level." /> : (
                 <div className="overflow-x-auto"><table className="dt dt-compact">
@@ -120,6 +171,22 @@ export function InventoryScreen({ to }: { to: To }) {
                   })}</tbody>
                 </table></div>
               )}
+              {reorder.length > 0 && (() => {
+                const total = Math.max(n(dash?.active_items), reorder.length), soonN = reorder.length - below, ok = total - reorder.length;
+                return (
+                  <div className="mt-auto px-[18px] py-4 border-t border-line">
+                    <p className="t-support mb-2">Reorder cover across {fmtNum(total)} active items</p>
+                    <div className="flex gap-1 h-2.5" aria-hidden>
+                      {[[below, "var(--acc-orange)"], [soonN, "var(--acc-yellow)"], [ok, "var(--acc-green)"]].map(([v, c], i) => Number(v) > 0 && <span key={i} className="rounded-full min-w-[6px]" style={{ flex: Number(v), background: String(c) }} />)}
+                    </div>
+                    <p className="t-support mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-orange)" }} />{fmtNum(below)} below</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-yellow)" }} />{fmtNum(soonN)} soon</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-green)" }} />{fmtNum(ok)} comfortable</span>
+                    </p>
+                  </div>
+                );
+              })()}
             </Panel>
 
             <Panel title="Warehouses" meta="Stocked lines, quantity and blocked stock" href={stock} linkLabel="Stock balances" className="xl:col-span-5">
@@ -142,7 +209,7 @@ export function InventoryScreen({ to }: { to: To }) {
             </Panel>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-12 items-start">
+          <div className="grid gap-4 xl:grid-cols-12 items-stretch">
             <Panel title="Latest stock movements" meta={`${fmtNum(n(hub.movements_7d))} postings in the last 7 days`} href={ledger} linkLabel="Stock ledger" className="xl:col-span-7">
               {((hub.movements ?? []) as Row[]).length === 0 ? <Empty text="No stock has moved yet." /> : (
                 <div className="overflow-x-auto"><table className="dt dt-compact">
@@ -184,9 +251,11 @@ export function InventoryScreen({ to }: { to: To }) {
             </Panel>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 items-start">
+          {((hub.expiry_grid ?? []) as Row[]).length > 0 && <ExpiryHeatmap grid={hub.expiry_grid as Row[]} href={expiringHref} today={businessToday()} />}
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 items-stretch">
             <Panel title="Batches by QC status" meta={`${fmtNum(Object.values(qc).reduce((a, b) => a + n(b), 0))} batches`} href={batches} linkLabel="Batches">
-              {Object.keys(qc).length === 0 ? <Empty text="No batches yet." /> : <InView><StageMix items={Object.entries(qc).map(([k, v]) => ({ label: titleCase(k), value: n(v), color: QC_COLOR[k] }))} /></InView>}
+              {Object.keys(qc).length === 0 ? <Empty text="No batches yet." /> : <InView><StageMix items={Object.entries(qc).map(([k, v]) => ({ label: titleCase(k), value: n(v), color: QC_COLOR[k], href: batches ? `${batches}?status=${k}` : undefined }))} /></InView>}
             </Panel>
             <Panel title="Movements by type" meta="Ledger postings, last 30 days" href={ledger} linkLabel="Ledger">
               {Object.keys(moves).length === 0 ? <Empty text="Nothing posted in the last 30 days." /> : (

@@ -40,7 +40,9 @@
     ".next-e2e-demo/types/**/*.ts",
     ".next-e2e-demo/dev/types/**/*.ts",
     ".next-e2e-ai/types/**/*.ts",
-    ".next-e2e-ai/dev/types/**/*.ts"
+    ".next-e2e-ai/dev/types/**/*.ts",
+    ".next-dev2/types/**/*.ts",
+    ".next-dev2/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import (BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func)
+from sqlalchemy import (BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,7 +57,9 @@ class ExternalOrder(Base):
     items: Mapped[list["ExternalOrderItem"]] = relationship(lazy="selectin")
     __table_args__ = (UniqueConstraint("account_id", "external_order_id", name="uq_external_orders_ext"),
                       CheckConstraint("status IN ('RECEIVED','EXCEPTION','SO_CREATED')", name="status_valid"),
-                      Index("ix_external_orders_status", "status", "id"))
+                      Index("ix_external_orders_status", "status", "id"),
+                      Index("ix_external_orders_sales_order", "sales_order_id", postgresql_where=text("sales_order_id IS NOT NULL")),
+                      Index("ix_external_orders_account_received", "account_id", text("received_at DESC")))
 
 
 class ExternalOrderItem(Base):
@@ -67,7 +69,7 @@ class ExternalOrderItem(Base):
     platform_sku: Mapped[str] = mapped_column(String(80))
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 3))
     unit_price: Mapped[Decimal] = mapped_column(MONEY)
-    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"),)
+    __table_args__ = (CheckConstraint("qty > 0", name="qty_positive"), Index("ix_external_order_items_order", "external_order_pk"))
 
 
 class MarketplaceSettlement(Base):

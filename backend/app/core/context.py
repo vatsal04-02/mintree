@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 client_ip_var: ContextVar[str | None] = ContextVar("client_ip", default=None)
+source_var: ContextVar[str | None] = ContextVar("source", default=None)      # "demo-live" / "demo-control" on requests made by the demo engine (demo environment only)
 
 
 @dataclass

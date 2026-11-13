@@ -47,11 +47,16 @@ def valuation(db: Session) -> dict:
 
 
 def slow_moving(db: Session, days: int) -> list[dict]:
+    """Items holding stock whose last outflow is older than `days` (or that never had one). Stock and outflow are aggregated PER ITEM before they are joined: joining the
+    balance rows to the ledger rows first multiplied every quantity by the item's ledger length and, at 50k+ ledger rows, ran past the statement timeout."""
     rows = db.execute(text("""
-        SELECT i.id, i.item_code, i.name, i.kind, sum(sb.qty_physical) AS qty, v.value, max(l.posted_at) FILTER (WHERE l.qty_delta < 0 AND l.movement_type IN ('ISSUE','DISPATCH','PRODUCTION_ISSUE')) AS last_outflow
-          FROM items i JOIN stock_balances sb ON sb.item_id = i.id LEFT JOIN item_valuation v ON v.item_id = i.id LEFT JOIN stock_ledger l ON l.item_id = i.id
-         GROUP BY i.id, v.value HAVING sum(sb.qty_physical) > 0
-            AND COALESCE(max(l.posted_at) FILTER (WHERE l.qty_delta < 0 AND l.movement_type IN ('ISSUE','DISPATCH','PRODUCTION_ISSUE')), '-infinity') < now() - make_interval(days => :d)
+        SELECT i.id, i.item_code, i.name, i.kind, q.qty, v.value, lo.last_outflow
+          FROM items i
+          JOIN (SELECT item_id, sum(qty_physical) AS qty FROM stock_balances GROUP BY item_id HAVING sum(qty_physical) > 0) q ON q.item_id = i.id
+          LEFT JOIN item_valuation v ON v.item_id = i.id
+          LEFT JOIN (SELECT item_id, max(posted_at) AS last_outflow FROM stock_ledger
+                      WHERE qty_delta < 0 AND movement_type IN ('ISSUE','DISPATCH','PRODUCTION_ISSUE') GROUP BY item_id) lo ON lo.item_id = i.id
+         WHERE COALESCE(lo.last_outflow, '-infinity') < now() - make_interval(days => :d)
          ORDER BY v.value DESC NULLS LAST, i.item_code LIMIT 200"""), {"d": days}).mappings().all()
     return [{"item_id": r["id"], "item_code": r["item_code"], "name": r["name"], "kind": r["kind"], "qty": str(r["qty"]), "value": None if r["value"] is None else str(r["value"]),
              "last_outflow": r["last_outflow"], "idle_days": None if r["last_outflow"] is None else (business_today() - business_date(r["last_outflow"])).days} for r in rows]

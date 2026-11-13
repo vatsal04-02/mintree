@@ -8,6 +8,7 @@
  *    "<name>_trend" arrays             -> the hero chart (money as an orange line, counts as bars) and smaller trend cards
  *    { label: number } objects         -> a stage-mix card for the first status breakdown, coloured bar panels for the rest
  *  Whether a figure is money is decided from its name, as everywhere else in the module screens. Nothing here is invented: an empty section is omitted. */
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Activity, Boxes, CalendarClock, FlaskConical, IndianRupee, Megaphone, Package, Percent, ShieldCheck, Users, Wrench } from "lucide-react";
 import { ReportView, isMoneyKey } from "./ModuleKit";
@@ -104,6 +105,7 @@ function Bars({ name, points, height = 168 }: { name: string; points: Point[]; h
       <div className="flex justify-between pl-10 mt-1.5 t-support" aria-hidden>
         <span>{fmtDay(points[0].label)}</span><span>{fmtDay(points[Math.floor(points.length / 2)].label)}</span><span>{fmtDay(points[points.length - 1].label)}</span>
       </div>
+      {last >= 0 && <p className="pl-10 mt-2 t-support inline-flex items-center gap-1.5" aria-hidden><span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-orange)" }} />{/_weekly_trend$/.test(name) ? "Most recent week" : "Most recent day with activity"}</p>}
     </div>
   );
 }
@@ -185,7 +187,7 @@ function ColumnCard({ name, data }: { name: string; data: Record<string, number>
   );
 }
 
-function BarCard({ name, data }: { name: string; data: Record<string, number> }) {
+function BarCard({ name, data, drill }: { name: string; data: Record<string, number>; drill?: Drill }) {
   const semantic = /(status|decision|stage|kind)/i.test(name);
   const entries = sortFlow(name, Object.entries(data));
   const max = Math.max(...entries.map(([, v]) => v), 1);
@@ -196,10 +198,11 @@ function BarCard({ name, data }: { name: string; data: Record<string, number> })
       <ul className="px-[18px] pb-[18px] space-y-3">
         {entries.map(([k, v], i) => (
           <li key={k}>
-            <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
-              <span className="truncate" title={k}>{pretty(k)}</span>
-              <span className="tabular-nums shrink-0">{fmt(name, v)}</span>
-            </div>
+            {(() => { const href = drill?.(name, k); const row = (
+              <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                <span className="truncate" title={k}>{pretty(k)}</span>
+                <span className="tabular-nums shrink-0">{fmt(name, v)}</span>
+              </div>); return href ? <Link href={href} className="block hover:opacity-80" aria-label={`${pretty(k)}: ${fmt(name, v)}. Show these records`}>{row}</Link> : row; })()}
             <div className="mt-1.5 h-2 rounded-full" style={{ background: "var(--chart-track)" }} aria-hidden>
               <div className="h-2 rounded-full bar-grow-x" style={{ width: `${Math.max(v > 0 ? 3 : 0, (v / max) * 100)}%`, background: barColor(semantic, k), animationDelay: `${i * 70}ms` }} />
             </div>
@@ -210,7 +213,10 @@ function BarCard({ name, data }: { name: string; data: Record<string, number> })
   );
 }
 
-export function ModuleDashboard({ data }: { data: Record<string, unknown> }) {
+/** Where a slice of a breakdown lives: (breakdown name, key) -> a list address, or nothing when there is no such list. */
+export type Drill = (name: string, key: string) => string | undefined;
+
+export function ModuleDashboard({ data, drill }: { data: Record<string, unknown>; drill?: Drill }) {
   const entries = Object.entries(data);
   const nums = entries.filter(([, v]) => isNum(v)).map(([k, v]) => [k, Number(v)] as [string, number]);
   const notes = entries.filter(([, v]) => typeof v === "string" && !isNum(v)) as [string, string][];
@@ -345,10 +351,10 @@ export function ModuleDashboard({ data }: { data: Record<string, unknown> }) {
             <section className="panel rise flex flex-col min-w-0" aria-label={label(mix[0])}>
               <CardHead title={label(mix[0])} />
               <div className="px-[18px] pb-1 flex items-baseline gap-2"><span className="t-stage tabular-nums">{fmt(mix[0], Object.values(mix[1]).reduce((a, b) => a + b, 0))}</span><span className="t-support">across {Object.keys(mix[1]).length} {/stage/i.test(mix[0]) ? "stages" : "statuses"}</span></div>
-              <InView><StageMix items={sortFlow(mix[0], Object.entries(mix[1])).map(([k, v], i) => ({ label: pretty(k), value: v, color: mixColor(k, i) }))} /></InView>
+              <InView><StageMix items={sortFlow(mix[0], Object.entries(mix[1])).map(([k, v], i) => ({ label: pretty(k), value: v, color: mixColor(k, i), href: drill?.(mix[0], k) }))} /></InView>
             </section>
           )}
-          {restBars.map(([k, d]) => <InView key={k}>{isTimeKeys(d) ? <ColumnCard name={k} data={d} /> : <BarCard name={k} data={d} />}</InView>)}
+          {restBars.map(([k, d]) => <InView key={k}>{isTimeKeys(d) ? <ColumnCard name={k} data={d} /> : <BarCard name={k} data={d} drill={drill} />}</InView>)}
           {groups.map(([k, d]) => <InView key={k}><GroupCard name={k} data={d} /></InView>)}
         </div>
       )}
