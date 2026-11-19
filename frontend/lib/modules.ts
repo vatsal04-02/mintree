@@ -6,7 +6,7 @@ import {
   Boxes, Briefcase, Calculator, ClipboardCheck, FlaskConical, Factory, Megaphone, PackageCheck, ShoppingCart, ShoppingBag, Wrench, BarChart3, Users, Settings2, type LucideIcon,
 } from "lucide-react";
 
-export type Tone = "success" | "warning" | "danger" | "info" | "neutral" | "sage" | "peach" | "solid";
+export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 export type Kind = "text" | "mono" | "money" | "number" | "badge" | "date" | "datetime" | "bool";
 export type Col = { key: string; label: string; kind?: Kind };
 export type RefKey = "batches" | "items" | "rm" | "fg" | "suppliers" | "customers" | "warehouses" | "brands" | "users" | "equipment" | "leads" | "formulations" | "campaigns" | "ecomAccounts" | "boms" | "pos" | "documents";
@@ -38,11 +38,9 @@ export const defaultParam = (p: Param) => (p.default === "today" ? today() : p.d
 export const toneFor = (v: string): Tone => {
   const s = String(v).toUpperCase();
   /* ordered pipelines (R&D stages, CRM stages) need one look per stage, or neighbouring stages read as the same; everything else falls through to the shared rules below */
-  if (s === "LAUNCHED") return "solid";
+  if (s === "LAUNCHED") return "success";
   if (s === "CONCEPT" || s === "PROSPECTING") return "neutral";
-  if (s === "DEVELOPMENT" || s === "CONTACTED") return "info";
-  if (s === "QUALIFIED") return "sage";
-  if (s === "NEGOTIATION") return "peach";
+  if (s === "DEVELOPMENT" || s === "CONTACTED" || s === "QUALIFIED") return "info";
   if (["APPROVED", "ACTIVE", "RELEASED", "RELEASE", "DONE", "CLOSED", "DELIVERED", "PAID", "PASSED", "POSTED", "RECEIVED", "WON", "OPERATIONAL", "COMPLETED", "VERIFIED", "PUBLISHED", "MATCHED", "SO_CREATED", "DECIDED", "AWARDED", "ACCEPTED", "CONVERTED", "HEALTHY", "OK"].includes(s)) return "success";
   if (["REJECTED", "CANCELLED", "FAILED", "HOLD", "BREAKDOWN", "REJECT", "LOST", "FAILED_DELIVERY", "RTO", "EXCEPTION", "ERROR", "CRITICAL", "LATE", "OBSOLETE"].includes(s)) return "danger";
   if (["DRAFT", "PLANNED", "NEW", "PENDING", "UNMATCHED", "IGNORED", "NONE"].includes(s)) return "neutral";

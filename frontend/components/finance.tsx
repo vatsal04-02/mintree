@@ -179,8 +179,8 @@ export function InvoiceDrawer({ id, onClose, paymentsHref }: { id: number | null
               <p className="text-[0.75rem] opacity-60">{fmtDate(String(doc.date))}{doc.due_date ? ` · due ${fmtDate(String(doc.due_date))}` : ""}</p></div>
           </header>
           <div className="mt-6 grid sm:grid-cols-2 gap-5 text-[0.8125rem]">
-            <div><p className="text-[0.6875rem] opacity-55 mb-1">From</p><p className="font-medium">{doc.seller.name}</p>{doc.seller.gstin && <p className="opacity-65">GSTIN {doc.seller.gstin}</p>}{doc.seller.address && <p className="opacity-65">{doc.seller.address}</p>}</div>
-            <div><p className="text-[0.6875rem] opacity-55 mb-1">Bill to</p><p className="font-medium">{doc.buyer.name}</p><p className="opacity-65">GSTIN {doc.buyer.gstin ?? "Unregistered"}</p>{doc.buyer.address && <p className="opacity-65">{doc.buyer.address}</p>}</div>
+            <div><p className="text-[0.75rem] opacity-55 mb-1">From</p><p className="font-medium">{doc.seller.name}</p>{doc.seller.gstin && <p className="opacity-65">GSTIN {doc.seller.gstin}</p>}{doc.seller.address && <p className="opacity-65">{doc.seller.address}</p>}</div>
+            <div><p className="text-[0.75rem] opacity-55 mb-1">Bill to</p><p className="font-medium">{doc.buyer.name}</p><p className="opacity-65">GSTIN {doc.buyer.gstin ?? "Unregistered"}</p>{doc.buyer.address && <p className="opacity-65">{doc.buyer.address}</p>}</div>
           </div>
           <div className="mt-6 overflow-x-auto"><table className="w-full text-[0.75rem]">
             <thead><tr className="text-left opacity-55 border-b border-current/10"><th className="py-2 font-normal">Item</th><th className="py-2 font-normal text-right">Qty</th><th className="py-2 font-normal text-right">Rate</th><th className="py-2 font-normal text-right">GST</th><th className="py-2 font-normal text-right">Amount</th></tr></thead>
@@ -202,7 +202,7 @@ export function InvoiceDrawer({ id, onClose, paymentsHref }: { id: number | null
             {n(doc.credited) > 0 && <div className="flex justify-between"><dt className="opacity-60">Credit notes</dt><dd className="tabular-nums">− {fmtRupees(n(doc.credited))}</dd></div>}
             {n(doc.outstanding) > 0 && <div className="flex justify-between"><dt className="opacity-60">Balance due</dt><dd className="tabular-nums" style={{ color: "var(--acc-orange)" }}>{fmtRupees(n(doc.outstanding))}</dd></div>}
           </dl>
-          <p className="mt-6 text-[0.6875rem] opacity-45">Computer-generated. E-invoice IRN and e-way bill are not attached (provider integration not configured).</p>
+          <p className="mt-6 text-[0.75rem] opacity-45">Computer-generated. E-invoice IRN and e-way bill are not attached (provider integration not configured).</p>
         </article>
       )}
     </Drawer>

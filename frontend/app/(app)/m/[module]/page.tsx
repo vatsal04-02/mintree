@@ -61,7 +61,8 @@ export default function ModulePage({ params }: { params: Promise<{ module: strin
       {!custom && dash && Object.keys(dash).length > 0 && <ModuleDashboard data={dash} drill={drill} />}
       {mod.id === "quality" && can("quality.inspection:read") && <ControlChart />}
       {custom && <h2 className="label-caps mt-8 mb-3">All {mod.label.toLowerCase()} screens</h2>}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* four across when three would leave a single card on the last row */}
+      <div className={`grid gap-4 sm:grid-cols-2 ${allowed.length % 3 === 1 && allowed.length > 4 ? "lg:grid-cols-3 xl:grid-cols-4" : "lg:grid-cols-3"}`}>
         {allowed.map((s) => (
           <Link key={s.id} href={`/m/${mod.id}/${s.id}`} className="panel panel-link p-4 group">
             <div className="flex items-center justify-between"><span className="font-semibold text-[0.875rem]">{s.label}</span><ArrowRight size={14} className="text-muted group-hover:text-primary" /></div>

@@ -48,15 +48,15 @@ function ExpiryHeatmap({ grid, href, today }: { grid: Row[]; href?: string; toda
   /* four steps of intensity (more batches = stronger). The colour itself is mixed with the card, never the whole cell faded, so the number keeps its contrast:
      light steps carry dark text, the two strongest steps carry white text (yellow always dark). */
   const step = (cnt: number) => (cnt / peak > 0.6 ? 3 : cnt / peak > 0.3 ? 2 : cnt / peak > 0.1 ? 1 : 0);
-  const MIX = [30, 50, 75, 100];
-  const paint = (m: string, cnt: number) => { const st = step(cnt); return { background: `color-mix(in srgb, ${tone(m)} ${MIX[st]}%, transparent)`, color: st === 3 && !(m <= soon && m >= now) ? "#fff" : "#151717" }; };
+  const MIX = [22, 40, 72, 100];
+  const paint = (m: string, cnt: number) => { const st = step(cnt); return { background: `color-mix(in srgb, ${tone(m)} ${MIX[st]}%, transparent)`, color: st >= 2 && !(m <= soon && m >= now) ? "#fff" : "#151717" }; };
   const label = (m: string) => `${MON[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
   return (
     <Panel title="When stock expires" meta="Batches still holding stock, by expiry month and item class" href={href} linkLabel="Expiring stock" className="mb-4">
       <div className="px-[18px] pb-[18px] overflow-x-auto">
         <table className="w-full border-separate" style={{ borderSpacing: 4 }}>
           <caption className="sr-only">Batches holding stock by expiry month and item class</caption>
-          <thead><tr><td />{months.map((m) => <th key={m} scope="col" className="text-[0.6875rem] font-normal text-muted pb-1 whitespace-nowrap">{label(m)}</th>)}</tr></thead>
+          <thead><tr><td />{months.map((m) => <th key={m} scope="col" className="text-[0.75rem] font-normal text-muted pb-1 whitespace-nowrap">{label(m)}</th>)}</tr></thead>
           <tbody>{kinds.map((k) => (
             <tr key={k}>
               <th scope="row" className="text-[0.75rem] font-normal text-muted text-right pr-2 whitespace-nowrap">{KIND[k] ?? k}</th>
@@ -242,7 +242,7 @@ export function InventoryScreen({ to }: { to: To }) {
                       <tr key={b.id}>
                         <td className="min-w-0"><span className="block font-mono text-[0.75rem] font-medium truncate">{batches ? <Link href={`${batches}?open=${b.id}`} className="hover:underline">{b.batch_no}</Link> : b.batch_no}</span><span className="block t-support truncate" title={b.name}>{nm(b.name)}</span></td>
                         <td className="num font-mono whitespace-nowrap">{qty(b.qty, b.uom)}</td>
-                        <td className="whitespace-nowrap"><span className="block text-[0.75rem]">{fmtDate(b.expiry_date)}</span><span className={`block text-[0.6875rem] ${tone}`}>{days < 0 ? `${fmtNum(-days)} days ago` : `in ${fmtNum(days)} days`}</span></td>
+                        <td className="whitespace-nowrap"><span className="block text-[0.75rem]">{fmtDate(b.expiry_date)}</span><span className={`block text-[0.75rem] ${tone}`}>{days < 0 ? `${fmtNum(-days)} days ago` : `in ${fmtNum(days)} days`}</span></td>
                       </tr>
                     );
                   })}</tbody>

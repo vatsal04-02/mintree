@@ -104,7 +104,7 @@ export default function LoginPage() {
           <label htmlFor="password" className="field-label">Password</label>
           <input id="password" className="input mb-6 !h-11 !rounded-xl !px-4 !bg-white !text-[#151717]" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           <button className="btn btn-primary w-full !h-11 !rounded-xl" disabled={busy || !email || !password}>{busy ? "Signing in…" : "Sign in"}</button>
-          <p className="mt-8 text-[0.6875rem] text-[#151717]/45">Factory Plant 01</p>
+          <p className="mt-8 text-[0.75rem] text-[#151717]/45">Factory Plant 01</p>
         </motion.form>
       </main>
     </div>

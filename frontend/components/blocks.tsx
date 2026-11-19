@@ -88,8 +88,8 @@ export function MetricStrip({ items, label }: { items: Metric[]; label: string }
               <div className="mt-2 flex flex-wrap items-center gap-1.5 min-h-[1.5rem]">
                 {m.loading ? <Skeleton className="h-5 w-28" /> : (
                   <>
-                    {m.delta && <span className={`badge tone-${m.delta.tone}`}>{m.delta.text}</span>}
-                    {m.note && (tone ? <span className={`badge tone-${tone} max-w-full`} title={m.note}><span className="truncate">{m.note}</span></span> : <span className="t-support truncate" title={m.note}>{m.note}</span>)}
+                    {m.delta && <span className={`pill pill-${m.delta.tone}`}>{m.delta.text}</span>}
+                    {m.note && (tone ? <span className={`pill pill-${tone} max-w-full`} title={m.note}><span className="truncate">{m.note}</span></span> : <span className="t-support truncate" title={m.note}>{m.note}</span>)}
                   </>
                 )}
               </div>
@@ -150,7 +150,7 @@ export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { bucket
           {ticks.map((t) => (
             <g key={t}>
               <line x1={M.l} x2={W - M.r} y1={y(t)} y2={y(t)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={M.l - 8} y={y(t) + 4} textAnchor="end" fontSize={11} fill="var(--muted)" style={{ fontVariantNumeric: "tabular-nums" }}>{fmtNum(t)}</text>
+              <text x={M.l - 8} y={y(t) + 4} textAnchor="end" fontSize={12} fill="var(--muted)" style={{ fontVariantNumeric: "tabular-nums" }}>{fmtNum(t)}</text>
             </g>
           ))}
           {buckets.map((b, i) => {
@@ -160,7 +160,7 @@ export function GroupedBars({ buckets, labels, unit, minHeight = 240 }: { bucket
                 <rect x={cx - band / 2} y={M.t} width={band} height={ih} fill={hot === i || extHot === i ? "var(--surface-2)" : "transparent"} style={{ transition: "fill 140ms" }} />
                 {b.planned !== null && <rect x={cx - bw - 1.5} y={y(b.planned)} width={bw} height={Math.max(0, M.t + ih - y(b.planned))} rx={4} fill="var(--line-strong)" />}
                 {b.actual !== null && <rect x={cx + 1.5} y={y(b.actual)} width={bw} height={Math.max(0, M.t + ih - y(b.actual))} rx={4} fill="var(--chart-actual)" />}
-                {i % every === 0 && <text x={cx} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)">{fmtDay(b.start)}</text>}
+                {i % every === 0 && <text x={cx} y={height - 8} textAnchor="middle" fontSize={12} fill="var(--muted)">{fmtDay(b.start)}</text>}
               </g>
             );
           })}

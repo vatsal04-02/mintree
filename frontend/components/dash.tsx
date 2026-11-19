@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { fmtNum } from "@/lib/format";
+import { Strip } from "./kpi";
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 const FILL: Record<Tone, string> = { success: "var(--brand)", warning: "var(--gold)", danger: "var(--danger)", info: "var(--c-slate)", neutral: "var(--chart-fill)" };   // chart fills: teal, gold, red, slate, deep teal. Text tones stay on the AA colours below.
@@ -59,20 +60,8 @@ function CellBody({ label, value, hint, tone, loading, size = "lg" }: Cell & { s
 /** One panel holding several KPIs separated by hairlines. Columns never narrow below the width of the longest realistic figure (crore-scale rupees at 28px);
  *  a strip that cannot fit its cells in one row wraps to a second row instead of clipping. Two columns on phones. */
 export function StatStrip({ cells, label }: { cells: Cell[]; label: string }) {
-  const n = cells.length, size = n >= 5 ? "md" : "lg";
-  return (
-    <section aria-label={label} className="panel overflow-hidden">
-      <div className={`grid grid-cols-2 ${n <= 5 ? "lg:grid-cols-[repeat(var(--n),minmax(0,1fr))]" : "sm:grid-cols-[repeat(auto-fit,minmax(224px,1fr))]"}`} style={{ ["--n" as string]: n }}>
-        {cells.map((c, idx) => {
-          const wide = cells.length % 2 === 1 && idx === cells.length - 1 ? "col-span-2 sm:col-span-1" : "";   // an odd last cell fills the row on phones
-          const cls = `${CELL} bg-surface p-4 sm:p-5 shadow-[inset_-1px_0_0_var(--line),inset_0_-1px_0_var(--line)] ${wide} ${idx === 0 && n >= 4 ? "cell-hero" : ""}`;   // hairlines drawn per cell, so a wrapped last row has no grey fill
-          return c.href
-            ? <Link key={c.label} href={c.href} className={`${cls} hover:brightness-105 transition-[filter]`}><CellBody {...c} size={size} /></Link>
-            : <div key={c.label} className={cls}><CellBody {...c} size={size} /></div>;
-        })}
-      </div>
-    </section>
-  );
+  /* the shared KPI component (components/kpi.tsx Strip): one card, icon-less figures with their caption and at most one chip */
+  return <Strip label={label} className="" cards={cells.map((c) => ({ label: c.label, value: typeof c.value === "number" ? fmtNum(c.value) : c.value, foot: c.hint, tone: c.tone, href: c.href }))} />;
 }
 
 /** The same KPI without the dividers, for departmental sections. Two columns so a crore-scale amount has room at 28px. */

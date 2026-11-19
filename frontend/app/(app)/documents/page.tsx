@@ -146,7 +146,7 @@ function DetailDrawer({ doc, onClose, onChanged }: { doc: Doc | null; onClose: (
             <h3 className="text-[0.75rem] font-semibold text-muted mb-2">Linked records</h3>
             {doc.links.length === 0 ? <p className="text-muted">Not linked to any record.</p> : (
               <ul className="flex flex-wrap gap-2">{doc.links.map((l) => (
-                <li key={l.id} className="badge tone-info !h-6 gap-1.5"><Link2 size={11} />{titleCase(l.entity_type)} {l.entity_id}
+                <li key={l.id} className="pill pill-info !h-6 gap-1.5"><Link2 size={11} />{titleCase(l.entity_type)} {l.entity_id}
                   {can("documents.document:update") && <button aria-label="Remove link" onClick={() => run(() => api(`/documents/${doc.id}/links/${l.id}`, { method: "DELETE" }), "Link removed")}><X size={12} /></button>}</li>))}</ul>)}
             {can("documents.document:update") && (
               <div className="flex gap-2 mt-3">

@@ -109,7 +109,7 @@ export default function NotificationsPage() {
                   const high = n.priority === "HIGH";
                   const unread = unreadIds.length > 0;
                   return (
-                    <li key={n.id} className="flex items-center gap-3.5 rounded-[22px] px-4 py-3 transition-colors"
+                    <li key={n.id} className="group flex items-center gap-3.5 rounded-[22px] px-4 py-3 transition-colors"
                       style={{ background: !unread ? "rgb(255 255 255 / 0.38)" : "rgb(255 255 255 / 0.82)", boxShadow: !unread ? "none" : "0 8px 24px -16px rgb(70 45 20 / 0.35)" }}>
                       <span className="relative grid place-items-center w-10 h-10 rounded-full shrink-0" style={{ background: high ? "rgb(198 67 29 / 0.12)" : "rgb(21 23 23 / 0.06)", color: high ? "var(--acc-orange)" : "var(--muted)" }} aria-hidden>
                         <Icon size={17} strokeWidth={1.5} />
@@ -121,11 +121,12 @@ export default function NotificationsPage() {
                           {unread && <span className="sr-only"> ({unreadIds.length} unread)</span>}
                         </p>
                         {n.body && <p className="text-muted text-[0.75rem] mt-0.5 line-clamp-2">{n.body}</p>}
-                        <p className="text-[0.6875rem] text-muted mt-0.5" title={fmtDateTime(n.created_at)}>{count > 1 ? `Latest ${fmtAgo(n.created_at)}` : fmtAgo(n.created_at)}</p>
+                        <p className="text-[0.75rem] text-muted mt-0.5" title={fmtDateTime(n.created_at)}>{count > 1 ? `Latest ${fmtAgo(n.created_at)}` : fmtAgo(n.created_at)}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {where(n.link) && <Link className="btn btn-sm gap-1" href={where(n.link)!} onClick={() => { if (unread) markRead(unreadIds); }}>Open<ArrowUpRight size={13} strokeWidth={1.5} /></Link>}
-                        <div className="relative">
+                        {/* secondary actions (snooze, mark read) appear on hover or keyboard focus on pointer devices; always shown on touch */}
+                        <div className="relative transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                           <button type="button" className="ctl" onClick={() => setSnoozeFor(snoozeFor === n.id ? null : n.id)} aria-haspopup="menu" aria-expanded={snoozeFor === n.id} aria-label={`Snooze "${n.title}"${count > 1 ? ` (${count} alerts)` : ""}`} title="Snooze"><Clock size={15} strokeWidth={1.5} /></button>
                           {snoozeFor === n.id && (
                             <div role="menu" className="anim-fade absolute right-0 mt-1.5 w-44 panel shadow-xl p-1.5 z-30">
@@ -134,7 +135,7 @@ export default function NotificationsPage() {
                             </div>
                           )}
                         </div>
-                        {unread && <button className="ctl" onClick={() => read(unreadIds)} aria-label={`Mark "${n.title}" as read${count > 1 ? ` (${unreadIds.length} alerts)` : ""}`} title="Mark read"><Check size={15} strokeWidth={1.5} /></button>}
+                        {unread && <button className="ctl transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100" onClick={() => read(unreadIds)} aria-label={`Mark "${n.title}" as read${count > 1 ? ` (${unreadIds.length} alerts)` : ""}`} title="Mark read"><Check size={15} strokeWidth={1.5} /></button>}
                       </div>
                     </li>
                   );

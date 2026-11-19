@@ -136,7 +136,7 @@ export default function CrmBoard() {
                       className={`relative rounded-[22px] p-3.5 min-h-[135px] flex flex-col cursor-pointer ${canMove ? "active:cursor-grabbing" : ""}`}
                       style={{ visibility: record?.id === o.id ? "hidden" : "visible", zIndex: menu === o.id ? 30 : undefined, borderRadius: 22, background: st.card, color: st.text, boxShadow: dragId === o.id ? "0 30px 50px -18px rgb(21 23 23 / 0.5)" : "0 10px 24px -16px rgb(21 23 23 / 0.35)" }}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[0.75rem] opacity-70">{o.expected_close ? `Closes ${fmtDay(o.expected_close)}` : "No close date"}</span>
+                        <span className="text-[0.75rem] opacity-95">{o.expected_close ? `Closes ${fmtDay(o.expected_close)}` : "No close date"}</span>
                         <div className="relative">
                           <button type="button" className="w-[30px] h-[30px] rounded-full grid place-items-center" style={{ border: `1px solid ${st.text === "#fff" ? "rgb(255 255 255 / 0.3)" : "rgb(21 23 23 / 0.2)"}` }}
                             aria-label={`Move ${o.name}`} aria-haspopup="menu" aria-expanded={menu === o.id} disabled={!canMove} onClick={(e) => { e.stopPropagation(); setMenu(menu === o.id ? null : o.id); }}><MoreHorizontal size={14} strokeWidth={1.5} /></button>
@@ -148,10 +148,10 @@ export default function CrmBoard() {
                         </div>
                       </div>
                       <h4 className="mt-2 text-[1rem] leading-5 font-medium line-clamp-2" title={o.name}>{o.name}</h4>
-                      <p className="text-[0.75rem] opacity-60 mt-0.5 font-mono">{o.number}</p>
+                      <p className="text-[0.75rem] opacity-95 mt-0.5 font-mono">{o.number}</p>
                       <div className="mt-auto pt-2 flex items-end justify-between gap-2">
                         <span className="text-[1.125rem] font-medium tabular-nums">{fmtRupees(o.expected_value)}</span>
-                        <span className="text-[0.6875rem] opacity-70">{o.probability}%</span>
+                        <span className="text-[0.75rem] opacity-95">{o.probability}%</span>
                       </div>
                     </motion.article>
                   ))}

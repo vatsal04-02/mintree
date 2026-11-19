@@ -40,7 +40,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () =>
               <dl>{g.rows.map(([k, label]) => (
                 <div key={k.join("+") + label} className="flex items-center justify-between gap-4 py-2 border-t border-line">
                   <dt className="text-[0.8125rem]">{label}</dt>
-                  <dd className="flex gap-1 shrink-0">{k.map((x) => <kbd key={x} className="text-[0.6875rem] min-w-[1.5rem] text-center border border-line-strong rounded-md px-1.5 py-0.5 bg-inset">{x}</kbd>)}</dd>
+                  <dd className="flex gap-1 shrink-0">{k.map((x) => <kbd key={x} className="text-[0.75rem] min-w-[1.5rem] text-center border border-line-strong rounded-md px-1.5 py-0.5 bg-inset">{x}</kbd>)}</dd>
                 </div>
               ))}</dl>
             </section>
@@ -66,18 +66,18 @@ export function MobileBar({ onNav }: { onNav: () => void }) {
   useTopLayer(more, () => setMore(false));
   const tab = (href: string, label: string, Icon: typeof Bell) => {
     const on = href === "/" ? path === "/" : path.startsWith(href);
-    return <Link href={href} aria-current={on ? "page" : undefined} className="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[0.625rem]" style={{ color: on ? "var(--fg)" : "var(--muted)" }}><Icon size={20} strokeWidth={1.5} aria-hidden />{label}</Link>;
+    return <Link href={href} aria-current={on ? "page" : undefined} className="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[0.75rem]" style={{ color: on ? "var(--fg)" : "var(--muted)" }}><Icon size={20} strokeWidth={1.5} aria-hidden />{label}</Link>;
   };
   return (
     <>
       <nav aria-label="Main" className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch px-2 pb-[env(safe-area-inset-bottom)]" style={{ background: "rgb(246 244 239 / 0.92)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderTop: "1px solid var(--line)" }}>
         {tab("/", "Overview", LayoutGrid)}
         {tab("/approvals", "Approvals", Inbox)}
-        <button type="button" onClick={() => runShell("scan")} aria-label="Scan a barcode" className="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[0.625rem]" style={{ color: "var(--fg)" }}>
+        <button type="button" onClick={() => runShell("scan")} aria-label="Scan a barcode" className="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[0.75rem]" style={{ color: "var(--fg)" }}>
           <span className="grid place-items-center w-11 h-11 -mt-5 rounded-full" style={{ background: "var(--ink-r)", color: "var(--card)", boxShadow: "0 10px 24px -10px rgb(21 23 23 / 0.6)" }}><ScanLine size={20} strokeWidth={1.5} aria-hidden /></span>Scan
         </button>
         {tab("/notifications", "Alerts", Bell)}
-        <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" className="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[0.625rem]" style={{ color: "var(--muted)" }}><MoreHorizontal size={20} strokeWidth={1.5} aria-hidden />More</button>
+        <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" className="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[0.75rem]" style={{ color: "var(--muted)" }}><MoreHorizontal size={20} strokeWidth={1.5} aria-hidden />More</button>
       </nav>
       <AnimatePresence>
         {more && (

@@ -13,7 +13,7 @@ function Pop({ label, icon, children, active }: { label: string; icon: React.Rea
   useOutsideClick(ref, () => setOpen(false), open);
   return (
     <div className="relative" ref={ref}>
-      <button type="button" className={`btn btn-sm gap-1.5 ${active ? "btn-primary" : ""}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{icon}<span className="max-lg:sr-only">{label}</span></button>
+      <button type="button" className="btn btn-sm gap-1.5" aria-pressed={!!active} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{icon}<span className="max-lg:sr-only">{label}</span></button>
       {open && <div role="dialog" aria-label={label} className="anim-fade absolute right-0 mt-1.5 w-60 panel p-2 shadow-xl z-40">{children}</div>}
     </div>
   );

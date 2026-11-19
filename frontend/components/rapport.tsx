@@ -2,59 +2,61 @@
 /** Rapport building blocks shared by the dashboards: the card header with its "⋯" and "↗" controls, the coloured record card (DealCard),
  *  the progress donut used for plan attainment, and the stage-mix bar. Colours come from the four record variants in globals.css. */
 import Link from "next/link";
-import { ArrowUpRight, MoreHorizontal } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { IconButton } from "./system";
 import { motion, useReducedMotion } from "framer-motion";
 import { CountUp } from "./fx";
 
 export type Variant = "black" | "orange" | "green" | "yellow" | "white";
 
-/** Card header: title left, the two round ghost controls right ("⋯" opens the source list, "↗" the full screen). */
-export function CardHead({ title, meta, href, more, children }: { title: string; meta?: React.ReactNode; href?: string; more?: string; children?: React.ReactNode }) {
+/** Card header: title and subtitle left; at most one icon action right (the "open the full screen" arrow, with a tooltip), or the caller's own controls.
+ *  `more` is accepted for older callers and ignored: a second icon action beside the arrow only repeated it. */
+export function CardHead({ title, meta, href, children }: { title: string; meta?: React.ReactNode; href?: string; more?: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 px-[18px] pt-[18px] pb-2">
       <div className="min-w-0">
-        <h2 className="text-[0.875rem] font-medium leading-5">{title}</h2>
+        <h2 className="text-[0.9375rem] font-medium leading-5">{href ? <Link href={href} className="hover:underline underline-offset-4 decoration-1">{title}</Link> : title}</h2>
         {meta && <p className="t-support mt-0.5">{meta}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {children}
-        {more && <Link href={more} className="ctl" aria-label={`More about ${title}`}><MoreHorizontal size={16} strokeWidth={1.5} /></Link>}
-        {href && <Link href={href} className="ctl" aria-label={`Open ${title}`}><ArrowUpRight size={16} strokeWidth={1.5} /></Link>}
+        {href && <IconButton href={href} label={`Open ${title}`} tooltip={`Open ${title}`}><ArrowUpRight size={16} strokeWidth={1.5} /></IconButton>}
       </div>
     </div>
   );
 }
 
 /** The coloured record card: top row meta + ghost "⋯", title and subtitle, then the figure with its caption at the bottom. */
-export function DealCard({ variant, meta, metaTone, valueTone, title, subtitle, value, caption, href, index = 0, layoutId, onOpen, hidden }: { variant: Variant; meta?: string; metaTone?: "danger" | "warning" | "neutral"; valueTone?: string; title: string; subtitle?: string; value: string; caption?: string; href?: string; index?: number; layoutId?: string; onOpen?: () => void; hidden?: boolean }) {
+export function DealCard({ variant, meta, metaTone, valueTone, title, subtitle, value, caption, href, index = 0, layoutId, onOpen, hidden, cta }: { variant: Variant; meta?: string; metaTone?: "danger" | "warning" | "neutral"; valueTone?: string; title: string; subtitle?: string; value: string; caption?: string; href?: string; index?: number; layoutId?: string; onOpen?: () => void; hidden?: boolean; cta?: string }) {
   const reduce = useReducedMotion();
   const body = (
     <>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 min-h-6">
         {metaTone ? <span className={`pill pill-${metaTone}`}>{meta}</span> : <span className="meta truncate">{meta}</span>}
-        <span className="ghost shrink-0" aria-hidden><MoreHorizontal size={14} strokeWidth={1.5} /></span>
       </div>
       <h3 className="mt-3 text-[1.0625rem] leading-[1.35rem] font-medium line-clamp-2">{title}</h3>
       {subtitle && <p className="meta mt-0.5 truncate">{subtitle}</p>}
-      <div className="mt-auto pt-3">
-        <p className="text-[1.375rem] leading-7 font-medium tabular-nums" style={valueTone ? { color: valueTone } : undefined}><CountUp text={value} /></p>
-        {caption && <p className="text-[0.6875rem] opacity-70 truncate">{caption}</p>}
+      {/* with a call to action the figure follows the title and the action closes the card; otherwise the figure sits at the foot */}
+      <div className={cta ? "pt-4" : "mt-auto pt-3"}>
+        <p className={`${cta ? "text-[1.75rem] leading-8" : "text-[1.375rem] leading-7"} font-medium tabular-nums`} style={valueTone ? { color: valueTone } : undefined}><CountUp text={value} /></p>
+        {caption && <p className="meta truncate">{caption}</p>}
       </div>
+      {cta && <p className="mt-auto pt-3 border-t border-current/15 flex items-center justify-between gap-2 text-[0.8125rem] font-medium"><span>{cta}</span><ArrowUpRight size={16} strokeWidth={1.75} aria-hidden /></p>}
     </>
   );
-  const anim = reduce ? {} : { initial: { opacity: 0, y: 14, filter: "blur(8px)" }, animate: { opacity: 1, y: 0, filter: "blur(0px)" }, transition: { duration: 0.45, delay: index * 0.055, ease: [0.22, 1, 0.36, 1] as const } };
+  const anim = reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.4, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] as const } };
   /* With onOpen the whole card is a button that opens the record modal (RecordModal); `layoutId` lets the modal grow out of this exact rectangle.
      While its modal is open the card is hidden (not removed), so the grid keeps its shape. */
   if (onOpen) {
     return (
       <motion.div {...anim} layoutId={layoutId} role="button" tabIndex={0} aria-haspopup="dialog" aria-label={`${title}: ${value}${caption ? `, ${caption}` : ""}. Open details`}
         onClick={onOpen} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-        className={`deal deal-${variant}`} style={{ borderRadius: 22, visibility: hidden ? "hidden" : "visible" }}>{body}</motion.div>
+        className={`deal deal-${variant} h-full`} style={{ visibility: hidden ? "hidden" : "visible" }}>{body}</motion.div>
     );
   }
   return href
-    ? <motion.div {...anim}><Link href={href} className={`deal deal-${variant}`} aria-label={`${title}: ${value}${caption ? `, ${caption}` : ""}`}>{body}</Link></motion.div>
-    : <motion.div {...anim} className={`deal deal-${variant}`}>{body}</motion.div>;
+    ? <motion.div {...anim} className="h-full"><Link href={href} className={`deal deal-${variant} h-full`} aria-label={`${title}: ${value}${caption ? `, ${caption}` : ""}`}>{body}</Link></motion.div>
+    : <motion.div {...anim} className={`deal deal-${variant} h-full`}>{body}</motion.div>;
 }
 
 /** Progress donut: a yellow arc on a translucent track with the percentage in the middle. */
@@ -73,7 +75,7 @@ export function Donut({ pct, label, size = 150, tone = "dark" }: { pct: number; 
           initial={{ strokeDasharray: `${reduce ? arc : 0} ${c}` }} animate={{ strokeDasharray: `${arc} ${c}` }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
-        <div><p className="text-[1.75rem] leading-none font-medium tabular-nums"><CountUp text={`${Math.round(p)}%`} /></p><p className="text-[0.75rem] font-normal opacity-70 mt-1.5">{label}</p></div>
+        <div><p className="text-[1.375rem] leading-none font-medium tabular-nums"><CountUp text={`${Math.round(p)}%`} /></p><p className="t-support mt-1.5">{label}</p></div>
       </div>
     </div>
   );
@@ -88,7 +90,7 @@ export function StageMix({ items }: { items: { label: string; value: number; hre
   const shown = items.filter((i) => i.value > 0);
   return (
     <div className="px-[18px] pb-[18px]">
-      <div className="flex gap-1.5 h-11" aria-hidden>
+      <div className="flex gap-1.5 h-9" aria-hidden>
         {shown.map((i) => <span key={i.label} className="rounded-[14px] min-w-[8px] bar-grow-x" style={{ flex: i.value, background: col(i, items.indexOf(i)) }} />)}
       </div>
       <ul className="mt-4 divide-y divide-line">

@@ -28,7 +28,7 @@ export function ReturnCard({ r, actions, onAction, onOpen }: { r: Row; actions: 
   return (
     <article className="panel panel-link kpi-card p-4 flex flex-col gap-3" style={{ "--kpi-accent": EDGE.warning } as React.CSSProperties}>
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.number}`}>
-        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5">#{r.number}</span><span className="badge tone-warning shrink-0">{REASON[r.reason_type] ?? titleCase(r.reason_type)}</span></div>
+        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5">#{r.number}</span><span className="pill pill-warning shrink-0">{REASON[r.reason_type] ?? titleCase(r.reason_type)}</span></div>
         <div>
           <p className="label-caps truncate">{r.supplier}{r.supplier_city ? ` · ${r.supplier_city}` : ""}</p>
           <h3 className="font-heading font-bold text-[0.9375rem] leading-5 mt-1">{r.item_name ?? "—"}{r.line_count > 1 && <span className="t-support font-medium"> · +{r.line_count - 1} more</span>}</h3>
@@ -66,7 +66,7 @@ export function ProdCard({ r, actions, onAction, onOpen }: { r: Row; actions: Ac
   return (
     <article className="panel panel-link kpi-card p-4 flex flex-col gap-3" style={{ "--kpi-accent": EDGE[tone] ?? EDGE.neutral } as React.CSSProperties}>
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.number}`}>
-        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5">#{r.number}</span><span className={`badge tone-${toneFor(r.status)} shrink-0`}>{titleCase(r.status)}</span></div>
+        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5">#{r.number}</span><span className={`pill pill-${toneFor(r.status)} shrink-0`}>{titleCase(r.status)}</span></div>
         <div>
           <p className="label-caps truncate">{r.item_code}</p>
           <h3 className="font-heading font-bold text-[0.9375rem] leading-5 mt-1">{r.item_name}</h3>
@@ -88,7 +88,7 @@ export function ProdCard({ r, actions, onAction, onOpen }: { r: Row; actions: Ac
         </div>
         <div className="flex items-center justify-between gap-2 t-support">
           <span>{r.operator ? `Operator: ${r.operator}` : r.completed_at ? `Completed ${fmtDate(r.completed_at)}` : `Raised ${fmtDate(r.created_at)}`}</span>
-          {urgency ? <span className={`badge tone-${urgency.tone}`}>{urgency.text}</span> : null}
+          {urgency ? <span className={`pill pill-${urgency.tone}`}>{urgency.text}</span> : null}
         </div>
       </button>
       {actions.length > 0 && <div className="mt-auto flex flex-wrap gap-1.5"><Buttons actions={actions} onAction={onAction} r={r} /></div>}
@@ -112,7 +112,7 @@ export function WcCard({ r, actions, onAction, onOpen }: { r: Row; actions: Acti
   return (
     <article className="panel panel-link kpi-card p-4 flex flex-col gap-3" style={{ "--kpi-accent": r.is_active ? "var(--brand-bright)" : "var(--line-strong)" } as React.CSSProperties}>
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.code}`}>
-        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5 font-mono">{r.code}</span><span className={`badge tone-${r.is_active ? "success" : "neutral"} shrink-0`}>{r.is_active ? "Active" : "Inactive"}</span></div>
+        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5 font-mono">{r.code}</span><span className={`pill pill-${r.is_active ? "success" : "neutral"} shrink-0`}>{r.is_active ? "Active" : "Inactive"}</span></div>
         <div>
           <p className="label-caps truncate">{KIND[r.kind] ?? titleCase(r.kind)}{r.department ? ` · ${r.department}` : ""}</p>
           <h3 className="font-heading font-bold text-[0.9375rem] leading-5 mt-1">{r.name}</h3>
@@ -149,7 +149,7 @@ export function BomCard({ r, actions, onAction, onOpen }: { r: Row; actions: Act
   return (
     <article className="panel panel-link kpi-card p-4 flex flex-col gap-3" style={{ "--kpi-accent": EDGE[tone] } as React.CSSProperties}>
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open BOM ${r.id}`}>
-        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5">BOM #{r.id} · v{r.version_no}</span><span className={`badge tone-${tone} shrink-0`}>{titleCase(r.status)}</span></div>
+        <div className="flex items-start justify-between gap-2"><span className="font-heading font-bold text-[0.9375rem] leading-5">BOM #{r.id} · v{r.version_no}</span><span className={`pill pill-${tone} shrink-0`}>{titleCase(r.status)}</span></div>
         <div>
           <p className="label-caps truncate">{r.item_code}{r.from_formula ? " · From formula" : " · Manual"}</p>
           <h3 className="font-heading font-bold text-[0.9375rem] leading-5 mt-1">{r.output_item}</h3>
@@ -207,7 +207,7 @@ export function WastageView({ data: d }: { data: Row }) {
                   <td className="max-w-[11rem] truncate" title={o.item_name}>{o.item_name ?? `Item #${o.output_item_id}`}</td>
                   <td className="num font-mono">{fmtNum(o.planned_qty, 3)}</td>
                   <td className="num font-mono">{o.actual_qty != null ? fmtNum(o.actual_qty, 3) : "—"}</td>
-                  <td className="num"><span className={`badge ${o.yield_pct != null && Number(o.yield_pct) < 95 ? "tone-warning" : "tone-success"}`}>{o.yield_pct != null ? fmtPct(Number(o.yield_pct), 1) : "—"}</span></td>
+                  <td className="num"><span className={`pill ${o.yield_pct != null && Number(o.yield_pct) < 95 ? "pill-warning" : "pill-success"}`}>{o.yield_pct != null ? fmtPct(Number(o.yield_pct), 1) : "—"}</span></td>
                 </tr>))}
               </tbody></table></div>
           )}

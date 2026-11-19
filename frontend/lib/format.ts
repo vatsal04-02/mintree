@@ -61,7 +61,12 @@ export const fmtDelta = (now: number, before: number) => (before > 0 ? `${now >=
 
 /** Names that arrive in ALL CAPS ("COCOA BUTTER") are shown in title case; mixed-case names, codes and short acronyms are left alone. */
 export const formatName = (s: string) =>
-  /[a-z]/.test(s) ? s : s.split(/(\s+)/).map((w) => (/\d/.test(w) || /^[A-Z]{1,3}$/.test(w) || /^\s*$/.test(w) ? w : w.charAt(0) + w.slice(1).toLowerCase())).join("");
+  s.split(/(\s+)/).map((w) => {
+    if (/\d/.test(w) || /^\s*$/.test(w) || /[a-z]/.test(w)) return w;            // numbers, spaces and words already in mixed case stay as written
+    const core = w.replace(/[^A-Za-z]/g, "");
+    if (/^(OF|AND|FOR|THE|IN|ON|TO|WITH)$/.test(core)) return w.toLowerCase();      // small joining words
+    return core.length <= 3 ? w : w.toLowerCase().replace(/[a-z]/, (c) => c.toUpperCase());      // short capitals are abbreviations (GST, SKU); longer ones are shouting
+  }).join("");
 
 /** A readable label for a record or report key: "party_id" -> "Party ID", "as_of" -> "As of", "grand_total" -> "Grand total", "cgst" -> "CGST". Sentence case, with known abbreviations kept in capitals. */
 const ABBR: Record<string, string> = { id: "ID", gst: "GST", cgst: "CGST", sgst: "SGST", igst: "IGST", hsn: "HSN", awb: "AWB", sku: "SKU", po: "PO", so: "SO", pr: "PR", qc: "QC", rfq: "RFQ", cogs: "COGS", rto: "RTO", pan: "PAN", ifsc: "IFSC", bom: "BOM", capa: "CAPA", pdf: "PDF", url: "URL", utr: "UTR", mrp: "MRP", ar: "AR", ap: "AP" };

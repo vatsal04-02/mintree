@@ -81,7 +81,7 @@ export function ProductionScreen({ to }: { to: To }) {
               <article key={o.id} className="panel p-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[0.8125rem] font-semibold">{o.number}</span>
-                  <span className={`badge tone-${live ? "success" : o.status === "RELEASED" ? "info" : "neutral"}`}>{live ? "In progress" : o.status === "RELEASED" ? "Released" : "Planned"}</span>
+                  <span className={`pill pill-${live ? "success" : o.status === "RELEASED" ? "info" : "neutral"}`}>{live ? "In progress" : o.status === "RELEASED" ? "Released" : "Planned"}</span>
                 </div>
                 <div>
                   <h3 className="text-[0.9375rem] font-semibold leading-5">{o.item_name}</h3>
@@ -134,7 +134,7 @@ export function ProductionScreen({ to }: { to: To }) {
               <tr key={e.id}>
                 <td><span className="block font-medium">{e.name}</span><span className="block t-support font-mono">{e.asset_id}</span></td>
                 <td className="text-muted">{e.location ?? "—"}</td>
-                <td><span className={`badge tone-${e.status === "OPERATIONAL" ? "success" : e.status === "BREAKDOWN" ? "danger" : "warning"}`}>{titleCase(e.status)}</span></td>
+                <td><span className={`pill pill-${e.status === "OPERATIONAL" ? "success" : e.status === "BREAKDOWN" ? "danger" : "warning"}`}>{titleCase(e.status)}</span></td>
                 <td>{e.next_pm ? fmtDate(e.next_pm) : e.calibration_due ? `Calibration ${fmtDate(e.calibration_due)}` : <span className="text-muted">Not scheduled</span>}</td>
                 <td className="text-muted">{EQUIPMENT_TILES[i % EQUIPMENT_TILES.length].health}</td>
               </tr>))}
@@ -163,11 +163,11 @@ export function ProductionScreen({ to }: { to: To }) {
                   return (
                     <tr key={m.item_code}>
                       <td><span className="block font-medium">{m.name}</span><span className="block t-support font-mono">{m.item_code}</span></td>
-                      <td><span className="block font-mono text-[0.75rem]">{m.lots ?? "Not issued"}</span>{m.lot_qc && <span className={`block text-[0.6875rem] ${m.lot_qc.includes("RELEASED") ? "text-muted" : "text-warning"}`}>{m.lot_qc.includes("RELEASED") ? "CoA released" : titleCase(m.lot_qc)}</span>}</td>
+                      <td><span className="block font-mono text-[0.75rem]">{m.lots ?? "Not issued"}</span>{m.lot_qc && <span className={`block text-[0.75rem] ${m.lot_qc.includes("RELEASED") ? "text-muted" : "text-warning"}`}>{m.lot_qc.includes("RELEASED") ? "CoA released" : titleCase(m.lot_qc)}</span>}</td>
                       <td className="num font-mono">{fmtNum(n(m.required_qty), 2)} {String(m.uom ?? "").toLowerCase()}</td>
                       <td className="num font-mono">{fmtNum(n(m.issued_qty), 2)} {String(m.uom ?? "").toLowerCase()}</td>
                       <td>{m.issued_by ?? <span className="text-muted">Awaiting issue</span>}</td>
-                      <td><span className={`badge tone-${full ? "success" : some ? "warning" : "neutral"}`}>{full ? "Weighed & staged" : some ? "Partly issued" : "Awaiting"}</span></td>
+                      <td><span className={`pill pill-${full ? "success" : some ? "warning" : "neutral"}`}>{full ? "Weighed & staged" : some ? "Partly issued" : "Awaiting"}</span></td>
                     </tr>
                   );
                 })}
@@ -265,9 +265,9 @@ export function PurchaseScreen({ to }: { to: To }) {
                     return (
                       <tr key={p.id}>
                         <td className="max-w-[12rem]"><span className="block font-mono text-[0.75rem] font-semibold">{orders ? <Link href={`${orders}?open=${p.id}`} className="text-brand hover:underline">{p.number}</Link> : p.number}</span><span className="block t-support truncate" title={p.supplier}>{p.supplier}</span></td>
-                        <td className={late ? "text-danger" : ""}>{p.expected_date ? fmtDate(p.expected_date) : "—"}{late && <span className="block text-[0.6875rem]">{fmtNum(n(p.days_late))} days late</span>}</td>
+                        <td className={late ? "text-danger" : ""}>{p.expected_date ? fmtDate(p.expected_date) : "—"}{late && <span className="block text-[0.75rem]">{fmtNum(n(p.days_late))} days late</span>}</td>
                         <td className="num font-mono">{fmtNum(n(p.received), 0)} of {fmtNum(n(p.ordered), 0)}</td>
-                        <td><span className={`badge tone-${p.status === "PARTIALLY_RECEIVED" ? "info" : late ? "danger" : "neutral"}`}>{p.status === "PARTIALLY_RECEIVED" ? "Part received" : late ? "Overdue" : "Awaiting"}</span></td>
+                        <td><span className={`pill pill-${p.status === "PARTIALLY_RECEIVED" ? "info" : late ? "danger" : "neutral"}`}>{p.status === "PARTIALLY_RECEIVED" ? "Part received" : late ? "Overdue" : "Awaiting"}</span></td>
                       </tr>);
                   })}</tbody></table></div>
               )}
@@ -303,7 +303,7 @@ export function PurchaseScreen({ to }: { to: To }) {
                         <td className="num font-mono">{n(m.on_order) ? qty(m.on_order, m.uom) : "—"}</td>
                         <td className="max-w-[12rem]">{m.vendor ? <><span className="block truncate" title={m.vendor}>{m.vendor}</span>{m.vendor_city && <span className="block t-support">{m.vendor_city}</span>}</> : <span className="text-muted">—</span>}</td>
                         <td className="num font-mono">{m.last_price ? `${fmtRupees(n(m.last_price))}/${String(m.uom ?? "").toLowerCase()}` : "—"}</td>
-                        <td><span className={`badge tone-${st.tone}`}>{st.label}</span></td>
+                        <td><span className={`pill pill-${st.tone}`}>{st.label}</span></td>
                       </tr>
                     );
                   })}
@@ -390,11 +390,11 @@ export function OmniScreen({ to }: { to: To }) {
                       return (
                         <tr key={o.id}>
                           <td><input type="checkbox" aria-label={`Select ${o.external_order_id}`} checked={sel.has(o.id)} onChange={(e) => setSel((prev) => { const nx = new Set(prev); if (e.target.checked) nx.add(o.id); else nx.delete(o.id); return nx; })} /></td>
-                          <td><span className="block font-mono text-[0.75rem] font-bold">#{o.external_order_id}</span><span className="badge mt-1" style={{ color: "var(--muted)", ["--tone-dot" as string]: p.color } as React.CSSProperties}>{p.name}</span></td>
+                          <td><span className="block font-mono text-[0.75rem] font-bold">#{o.external_order_id}</span><span className="pill pill-neutral mt-1"><span className="w-1.5 h-1.5 rounded-full" style={{ background: p.color }} aria-hidden />{p.name}</span></td>
                           <td><span className="block font-semibold truncate" title={name}>{name}</span><span className="block t-support truncate">{city ?? ""}{o.order_date ? ` · ${fmtDate(o.order_date)}` : ""}</span></td>
                           <td><span className="block text-[0.8125rem] font-semibold truncate" title={o.items ?? ""}>{o.items ?? "—"}</span><span className="block t-support">{fmtRupees(n(o.total))}</span></td>
                           <td>{o.invoice ? <span className="block font-mono text-[0.75rem] font-semibold text-brand">{o.invoice}</span> : <span className="block t-support">Not invoiced</span>}<span className="block t-support font-mono truncate">{o.awb ? `${o.courier ? titleCase(o.courier) + " · " : ""}${o.awb}` : o.courier ? titleCase(o.courier) : o.so_number ?? "—"}</span></td>
-                          <td><span className={`badge tone-${s.tone} whitespace-nowrap`}>{s.label}</span></td>
+                          <td><span className={`pill pill-${s.tone} whitespace-nowrap`}>{s.label}</span></td>
                         </tr>
                       );
                     })}
@@ -424,7 +424,7 @@ export function OmniScreen({ to }: { to: To }) {
                 </div>
               </section>
               <section className="panel p-4" aria-label="Weigh-scale guard">
-                <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="t-section">Weigh-scale check</h2><span className="flex gap-1.5"><span className="badge tone-danger">{WEIGH_SCALE.length} audits required</span><Sim /></span></header>
+                <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="t-section">Weigh-scale check</h2><span className="flex gap-1.5"><span className="pill pill-danger">{WEIGH_SCALE.length} audits required</span><Sim /></span></header>
                 
                 <p className="t-support">Parcels more than 50 g away from the bill-of-materials weight before courier scanning.</p>
                 <ul className="mt-2">{WEIGH_SCALE.map((w, i) => { const o = (d.queue as Row[])[i]; return (

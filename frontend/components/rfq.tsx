@@ -41,7 +41,7 @@ export function RfqCard({ r, actions, onAction, onOpen, poHref }: { r: Row; acti
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.number}`}>
         <div className="flex items-start justify-between gap-2">
           <span className="font-heading font-bold text-[0.9375rem] leading-5">#{r.number}</span>
-          <span className={`badge tone-${tone} shrink-0`}>{r.status === "AWARDED" && <CheckCircle2 size={12} aria-hidden />}{pill}</span>
+          <span className={`pill pill-${tone} shrink-0`}>{r.status === "AWARDED" && <CheckCircle2 size={12} aria-hidden />}{pill}</span>
         </div>
         <div>
           <p className="label-caps">{it ? `${KIND[it.kind] ?? it.kind}${it.category ? ` · ${it.category}` : ` · ${it.item_code}`}` : "No items"}</p>

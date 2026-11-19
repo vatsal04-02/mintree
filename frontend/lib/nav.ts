@@ -10,7 +10,7 @@ const MODULE_GROUPS: [string, string[]][] = [
 ];
 const moduleItem = (m: Module): NavItem => ({
   href: `/m/${m.id}`, label: m.label, icon: m.icon, anyPerm: m.screens.map((s) => s.perm), keywords: `${m.description} ${m.screens.map((s) => s.label).join(" ")}`,
-  children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...(m.id === "sales" ? [{ href: "/crm/board", label: "Pipeline board", perm: "crm.opportunity:read" }, { href: "/crm/customers", label: "Customers", perm: "masters.customer:read" }] : []), ...(m.id === "inventory" ? [{ href: "/inventory/batches", label: "Batch traceability", perm: "inventory.batch:read" }, { href: "/inventory/products", label: "Product 360", perm: "inventory.batch:read" }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
+  children: [...(m.dashboard ? [{ href: `/m/${m.id}`, label: "Dashboard", perm: m.dashboard.perm }] : []), ...(m.id === "sales" ? [{ href: "/crm/board", label: "Deal pipeline", perm: "crm.opportunity:read" }, { href: "/crm/customers", label: "Customers", perm: "masters.customer:read" }] : []), ...(m.id === "inventory" ? [{ href: "/inventory/batches", label: "Batch traceability", perm: "inventory.batch:read" }, { href: "/inventory/products", label: "Product 360", perm: "inventory.batch:read" }] : []), ...m.screens.map((s) => ({ href: `/m/${m.id}/${s.id}`, label: s.label, perm: s.perm }))],
 });
 
 export type NavChild = { href: string; label: string; perm?: string };

@@ -165,7 +165,7 @@ export function Genealogy({ data, onOpenBatch }: { data: GraphData; onOpenBatch?
                   return (
                     <g key={i} opacity={query && !(match(data.nodes.find((n) => n.id === e.source)!) || match(data.nodes.find((n) => n.id === e.target)!)) ? 0.15 : 1}>
                       <path d={p.d} fill="none" stroke={on ? "var(--brand)" : "var(--faint)"} strokeWidth={on ? 2 : 1.25} />
-                      {e.qty && <text x={p.lx} y={p.ly - 5} textAnchor="middle" fontSize="11" fontWeight="600" fill={on ? "var(--brand)" : "var(--muted)"} stroke="var(--inset)" strokeWidth="3" paintOrder="stroke">{Number(e.qty).toLocaleString("en-IN", { maximumFractionDigits: 3 })}{e.unit ? ` ${e.unit}` : ""}</text>}
+                      {e.qty && <text x={p.lx} y={p.ly - 5} textAnchor="middle" fontSize="12" fontWeight="600" fill={on ? "var(--brand)" : "var(--muted)"} stroke="var(--inset)" strokeWidth="3" paintOrder="stroke">{Number(e.qty).toLocaleString("en-IN", { maximumFractionDigits: 3 })}{e.unit ? ` ${e.unit}` : ""}</text>}
                     </g>
                   );
                 })}
@@ -178,7 +178,7 @@ export function Genealogy({ data, onOpenBatch }: { data: GraphData; onOpenBatch?
                       aria-label={`${nodeTitle(n)} ${n.ref}${n.status ? `, ${titleCase(n.status)}` : ""}`}
                       className="h-full w-full text-left rounded-[12px] border bg-[var(--card)] text-[var(--fg)] px-3 py-2 overflow-hidden transition-[transform,opacity] duration-150 hover:-translate-y-0.5"
                       style={{ borderColor: selected === n.id ? "var(--brand)" : "var(--line)", borderLeft: `4px solid ${f.accent}`, boxShadow: selected === n.id ? "0 0 0 2px rgb(1 135 122 / 0.25)" : n.id === data.focus ? "0 6px 16px -10px rgb(1 70 62 / 0.5)" : "var(--shadow-sm)", background: n.id === data.focus ? `color-mix(in srgb, ${f.accent} 16%, var(--card))` : "var(--card)" }}>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[0.7188rem] font-medium" style={{ color: f.accent }}>{nodeTitle(n)}</span>{n.status && <span className="text-[0.6875rem] text-muted truncate">{titleCase(n.status)}</span>}</div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[0.7188rem] font-medium" style={{ color: f.accent }}>{nodeTitle(n)}</span>{n.status && <span className="text-[0.75rem] text-muted truncate">{titleCase(n.status)}</span>}</div>
                       <div className="text-[0.75rem] font-semibold truncate leading-5 mt-0.5">{n.ref}</div>
                       <div className="text-[0.75rem] text-muted truncate leading-4">{n.label ?? ""}{n.date ? ` · ${fmtDate(n.date)}` : ""}</div>
                     </button>
@@ -224,7 +224,7 @@ function NodePanel({ node, data, onClose, onSelect }: { node: GNode; data: Graph
         <div className="min-w-0"><div className="text-[0.75rem] font-medium" style={{ color: f.accent }}>{nodeTitle(node)}</div><h3 className="font-heading text-[1rem] leading-6 font-medium break-words">{node.ref}</h3>{node.label && <p className="t-support">{node.label}</p>}</div>
         <button type="button" className="icon-btn icon-btn-sm shrink-0" aria-label="Close details" onClick={onClose}><X size={15} /></button>
       </div>
-      <div className="flex flex-wrap gap-1.5">{node.status && <Badge tone={toneFor(node.status)}>{titleCase(node.status)}</Badge>}{node.date && <span className="badge tone-neutral">{fmtDate(node.date)}</span>}</div>
+      <div className="flex flex-wrap gap-1.5">{node.status && <Badge tone={toneFor(node.status)}>{titleCase(node.status)}</Badge>}{node.date && <span className="pill pill-neutral">{fmtDate(node.date)}</span>}</div>
       {node.detail && Object.keys(node.detail).length > 0 && (
         <dl className="text-[0.75rem] grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
           {Object.entries(node.detail).filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => <div key={k} className="contents"><dt className="text-muted">{fieldLabel(k)}</dt><dd className="font-medium text-right">{typeof v === "boolean" ? (v ? "Yes" : "No") : typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) ? fmtDateTime(v) : String(v)}</dd></div>)}

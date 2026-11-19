@@ -65,7 +65,7 @@ export function ProductionLines({ href }: { href?: string }) {
     <section className="panel p-5 flex-1" aria-label="Production lines">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2"><h2 className="t-section">Live Compounding & Packing Lines</h2><span className="badge tone-success">{running} of {live.length} running</span></div>
+          <div className="flex items-center gap-2"><h2 className="t-section">Live Compounding & Packing Lines</h2><span className="pill pill-success">{running} of {live.length} running</span></div>
           <p className="t-support mt-0.5">Production orders on the floor, with their stage checklist and progress.</p>
         </div>
         {href && <Link href={href} className="btn btn-sm btn-outline">All production orders</Link>}
@@ -88,8 +88,8 @@ export function ProductionLines({ href }: { href?: string }) {
                     <p className="font-heading font-bold text-[0.875rem] leading-5 truncate">Line {String(idx + 1).padStart(2, "0")}: {names.get(o.output_item_id) ?? `Item #${o.output_item_id}`}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="tag tag-mono bg-white">#{o.number}</span>
-                      {current && <span className={`badge tone-${tone}`}>{titleCase(current.name)}</span>}
-                      <span className={`badge tone-${tone}`}>{titleCase(o.status)}</span>
+                      {current && <span className={`pill pill-${tone}`}>{titleCase(current.name)}</span>}
+                      <span className={`pill pill-${tone}`}>{titleCase(o.status)}</span>
                     </div>
                     <p className="t-support mt-1.5">Batch size {fmtNum(Number(o.planned_qty))} units · stage {done} of {stages.length || "—"}{o.yield_pct ? ` · yield ${fmtPct(Number(o.yield_pct))}` : ""}</p>
                   </div>
@@ -215,7 +215,7 @@ export function AlertCards({ lowStock, batchesHref, requestHref }: { lowStock?: 
     <div className="grid gap-4 md:grid-cols-2">
       {b && (
         <section className="panel kpi-card p-5 flex flex-col" style={{ "--kpi-accent": "var(--danger)" } as React.CSSProperties} aria-label="Quality lab hold">
-          <div className="flex items-center justify-between gap-2"><span className="badge tone-danger"><ClipboardCheck size={12} aria-hidden />Quality lab hold</span><span className="tag tag-mono">Lot #{b.batch_no}</span></div>
+          <div className="flex items-center justify-between gap-2"><span className="pill pill-danger"><ClipboardCheck size={12} aria-hidden />Quality lab hold</span><span className="tag tag-mono">Lot #{b.batch_no}</span></div>
           <h3 className="font-heading font-bold text-[0.9375rem] mt-3">{b.item_code}</h3>
           <p className="t-support mt-1">In quarantine awaiting the QC decision. Made or received {fmtDate(b.mfg_date ?? b.created_at)}{b.expiry_date ? `, expires ${fmtDate(b.expiry_date)}` : ""}.</p>
           <div className="mt-auto pt-4"><div className="tile flex items-center justify-between gap-3"><span className="t-support">Released stock is blocked until a decision is recorded.</span><Link href={`/inventory/batches/${b.id}/traceability`} className="btn btn-sm btn-outline shrink-0">Open batch</Link></div></div>
@@ -223,7 +223,7 @@ export function AlertCards({ lowStock, batchesHref, requestHref }: { lowStock?: 
       )}
       {lowStock && (
         <section className="panel kpi-card p-5 flex flex-col" style={{ "--kpi-accent": "var(--amber)" } as React.CSSProperties} aria-label="Stock alert">
-          <div className="flex items-center justify-between gap-2"><span className="badge tone-warning"><PackageSearch size={12} aria-hidden />Stock alert</span><span className="tag tag-mono">{lowStock.item_code}</span></div>
+          <div className="flex items-center justify-between gap-2"><span className="pill pill-warning"><PackageSearch size={12} aria-hidden />Stock alert</span><span className="tag tag-mono">{lowStock.item_code}</span></div>
           <h3 className="font-heading font-bold text-[0.9375rem] mt-3">{lowStock.name}</h3>
           <p className="t-support mt-1">Below its reorder level: {fmtNum(Number(lowStock.available), 1)} available against a reorder point of {fmtNum(Number(lowStock.reorder_level), 1)}.</p>
           <div className="mt-auto pt-4"><div className="tile flex items-center justify-between gap-3"><span className="t-support">Raise a purchase request to cover the shortfall.</span>{requestHref && <Link href={requestHref} className="btn btn-sm btn-primary shrink-0">Raise request</Link>}</div></div>
@@ -265,7 +265,7 @@ export function BusinessHealth({ s, crmEnabled, hrefs }: { s: Summary; crmEnable
         {cards.map((c) => {
           const body = (
             <div className={`panel h-full p-3.5 flex flex-col ${c.href ? "panel-link" : ""}`}>
-              <span className="label-caps !text-[0.625rem]">{c.label}</span>
+              <span className="label-caps !text-[0.75rem]">{c.label}</span>
               <span className="font-heading font-extrabold text-[1.125rem] leading-6 mt-1 tabular-nums truncate" title={c.value}>{c.value}</span>
               <span className="t-support mt-0.5 line-clamp-2">{c.sub}</span>
               {c.bar !== undefined && <div className="progress mt-auto pt-0 translate-y-1.5"><span className="bar-grow-x" style={{ width: `${Math.max(2, Math.min(100, c.bar))}%`, background: c.tone }} /></div>}

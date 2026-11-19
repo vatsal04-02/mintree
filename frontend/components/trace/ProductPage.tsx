@@ -36,8 +36,8 @@ export function ProductPage({ id }: { id: number }) {
         </div>} />
       <div className="flex flex-wrap items-center gap-2 -mt-2">
         <Badge tone={it.is_active ? "success" : "neutral"}>{it.is_active ? "Active" : "Inactive"}</Badge>
-        {p.recipe ? <span className="badge tone-neutral">{p.recipe.formulation_code ? `${p.recipe.formulation_code} v${p.recipe.fv_version} · ` : ""}BOM v{p.recipe.version_no}</span> : <span className="badge tone-warning">No approved BOM</span>}
-        {Number(m.batches_not_released) > 0 && <span className="badge tone-warning">{m.batches_not_released} batch{Number(m.batches_not_released) === 1 ? "" : "es"} not released</span>}
+        {p.recipe ? <span className="pill pill-neutral">{p.recipe.formulation_code ? `${p.recipe.formulation_code} v${p.recipe.fv_version} · ` : ""}BOM v{p.recipe.version_no}</span> : <span className="pill pill-warning">No approved BOM</span>}
+        {Number(m.batches_not_released) > 0 && <span className="pill pill-warning">{m.batches_not_released} batch{Number(m.batches_not_released) === 1 ? "" : "es"} not released</span>}
       </div>
 
       <section aria-label="Key figures" className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">

@@ -34,7 +34,7 @@ export function OrderCard({ r, actions, onAction, onOpen }: { r: Row; actions: A
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.external_order_id}`}>
         <div className="flex items-start justify-between gap-2">
           <span className="font-heading font-bold text-[0.9375rem] leading-5 font-mono">#{r.external_order_id}</span>
-          <span className={`badge tone-${tone} shrink-0`}>{r.status === "SO_CREATED" ? "Sales order created" : titleCase(r.status)}</span>
+          <span className={`pill pill-${tone} shrink-0`}>{r.status === "SO_CREATED" ? "Sales order created" : titleCase(r.status)}</span>
         </div>
         <div>
           <p className="label-caps inline-flex items-center gap-1.5 max-w-full"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} aria-hidden /><span className="truncate" title={r.account_name}>{p.name}</span></p>
@@ -44,7 +44,7 @@ export function OrderCard({ r, actions, onAction, onOpen }: { r: Row; actions: A
         <div className="tile !p-2.5 space-y-1 text-[0.8125rem]">
           {shown.length === 0 ? <p className="t-support">No lines on this order.</p> : shown.map((l, i) => (
             <div key={`${l.sku}-${i}`} className="flex items-center justify-between gap-3 px-2 py-0.5">
-              <span className="min-w-0 truncate" title={l.item_name ?? l.sku}>{l.item_name ?? <span className="font-mono text-[0.75rem]">{l.sku}</span>}{!l.item_name && <span className="ml-2 badge tone-danger">Unmapped</span>}</span>
+              <span className="min-w-0 truncate" title={l.item_name ?? l.sku}>{l.item_name ?? <span className="font-mono text-[0.75rem]">{l.sku}</span>}{!l.item_name && <span className="ml-2 pill pill-danger">Unmapped</span>}</span>
               <span className="shrink-0 font-mono"><b className="font-bold">{fmtNum(l.qty, 3)}</b> × {fmtMoney(l.unit_price)}</span>
             </div>
           ))}

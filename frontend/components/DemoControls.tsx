@@ -16,24 +16,37 @@ const TRIGGERS: { kind: string; label: string }[] = [
 ];
 const LABELS: Record<string, string> = { order: "Orders", payment: "Payments", receipt: "Receipts", production: "Production steps", quality_alert: "Quality alerts", trigger: "Triggered" };
 
-/** Small "Demo mode" pill for the top bar. Renders nothing unless Live Mode is available in this environment and switched on.
- *  For the demo administrator it opens the Demo controls drawer. Everything the mode creates goes through the real API and is tagged source="demo-live". */
-export function DemoPill() {
+/** The top bar's one status indicator: the live-connection state and, when Live Mode is on, "Demo mode" in the same chip.
+ *  For the demo administrator the chip opens the Demo controls drawer; otherwise it opens the live activity timeline.
+ *  Everything Live Mode creates goes through the real API and is tagged source="demo-live". */
+export function HeaderStatus() {
+  const state = useLiveState();
   const [st, setSt] = useState<Status | null>(null);
   const [open, setOpen] = useState(false);
   const load = useCallback(() => api<Status>("/demo/status").then(setSt).catch(() => setSt(null)), []);
   useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [load]);
-  if (!st?.available || !(st.active || st.paused)) return null;
-  const label = st.paused ? "Demo mode · paused" : "Demo mode";
-  const dot = <span className={`inline-block w-1.5 h-1.5 rounded-full ${st.paused ? "bg-[var(--acc-yellow)]" : "bg-[var(--acc-green)]"}`} aria-hidden />;
-  const cls = "hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-line bg-surface text-[0.75rem] text-muted whitespace-nowrap";
-  return <>
-    {st.controls
-      ? <button type="button" className={`${cls} hover:border-line-strong`} onClick={() => setOpen(true)} aria-label="Open demo controls" data-testid="demo-pill">{dot}{label}</button>
-      : <span className={cls} data-testid="demo-pill">{dot}{label}</span>}
-    {st.controls && <ControlsDrawer open={open} onClose={() => setOpen(false)} status={st} reload={load} />}
+  const demo = !!st?.available && !!(st.active || st.paused);
+  const live = state === "live" ? "Live" : state === "polling" ? "Reconnecting" : "Connecting";
+  const hint = state === "live" ? "Connected: new activity appears as it happens" : state === "polling" ? "Live connection unavailable: refreshing every 20 seconds, reconnecting" : "Connecting to live updates";
+  const dot = state === "live" ? "var(--acc-green)" : state === "polling" ? "var(--acc-yellow)" : "var(--faint)";
+  const demoText = st?.paused ? "Demo mode · paused" : "Demo mode";
+  const inner = (
+    <>
+      <span className="inline-flex items-center gap-1.5" data-testid="live-indicator" data-state={state}><span className="w-2 h-2 rounded-full" style={{ background: dot }} aria-hidden />{live}</span>
+      {demo && <><span className="sep" aria-hidden /><span className="inline-flex items-center gap-1.5">{st?.paused && <span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-yellow)" }} aria-hidden />}<span className="hidden xl:inline">{demoText}</span><span className="xl:hidden">{st?.paused ? "Demo · paused" : "Demo"}</span></span></>}
+    </>
+  );
+  const title = demo ? `${hint}. ${demoText}: simulated activity runs through the real API${st?.controls ? ". Click for demo controls" : ""}` : `${hint}. Click for live activity`;
+  if (demo && st?.controls) return <>
+    <button type="button" className="status-chip hidden sm:inline-flex" onClick={() => setOpen(true)} title={title} aria-label={`${live}. ${demoText}. Open demo controls`} data-testid="demo-pill">{inner}</button>
+    <ControlsDrawer open={open} onClose={() => setOpen(false)} status={st} reload={load} />
   </>;
+  if (demo) return <span className="status-chip hidden sm:inline-flex" title={title} data-testid="demo-pill">{inner}</span>;
+  return <Link href="/activity" className="status-chip hidden sm:inline-flex" title={title} aria-label={`${live}. ${hint}. Open live activity`}>{inner}</Link>;
 }
+
+/** Kept for any older import: the same indicator. */
+export const DemoPill = HeaderStatus;
 
 function ControlsDrawer({ open, onClose, status, reload }: { open: boolean; onClose: () => void; status: Status; reload: () => void }) {
   const toast = useToast();

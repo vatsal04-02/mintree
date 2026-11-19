@@ -124,7 +124,7 @@ export type Point = { label: string; value: number };
 /** A real event pinned to a time-series chart (a breakdown, a failed delivery, a large invoice). */
 export type ChartEvent = { date: string; kind: string; title: string; detail?: string | null };
 
-export function AreaChart({ points, compare, weekly = false, height = 252, name = "Revenue", color = "var(--chart-actual)", compareColor = "var(--subtle)", summary = true, label = "This period", compareLabel = "Previous period", forecast, events }: { points: Point[]; compare?: Point[]; weekly?: boolean; height?: number; name?: string; color?: string; compareColor?: string; summary?: boolean; label?: string; compareLabel?: string; forecast?: ProjectedPoint[]; events?: ChartEvent[] }) {
+export function AreaChart({ points, compare, weekly = false, height = 252, name = "Revenue", color = "var(--chart-actual)", compareColor = "var(--chart-prev)", summary = true, label = "This period", compareLabel = "Previous period", forecast, events }: { points: Point[]; compare?: Point[]; weekly?: boolean; height?: number; name?: string; color?: string; compareColor?: string; summary?: boolean; label?: string; compareLabel?: string; forecast?: ProjectedPoint[]; events?: ChartEvent[] }) {
   const id = useId().replace(/:/g, "");
   const box = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -135,15 +135,20 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
   if (n < 2) return <p className="t-support px-5 pb-5">Not enough days in this period to draw a chart.</p>;
   const prev = compare && compare.length ? compare : null;
   const max = niceMax(Math.max(...points.map((p) => p.value), ...(prev ? prev.map((p) => p.value) : [0]), ...fc.map((p) => p.hi), 1));
+  const lowest = Math.min(0, ...points.map((p) => p.value), ...(prev ? prev.map((p) => p.value) : [0]), ...fc.map((p) => p.lo));
+  const min = lowest < 0 ? -niceMax(-lowest) / 4 * Math.ceil((-lowest) / (niceMax(-lowest) / 4)) : 0;   // whole steps below zero only when the data goes there
+  const span = max - min;
   const W = 1000, H = 300;
   const X = (i: number, len = L) => (len === 1 ? W / 2 : (i / (len - 1)) * W);
-  const Y = (v: number) => H - 6 - (v / max) * (H - 24);
+  /* the plot uses the band from 2% to 94% of the height; gridlines are placed with the same mapping (gy below), so a value sits on its line */
+  const Y = (v: number) => H - 6 - ((v - min) / span) * (H - 24);
+  const gy = (v: number) => ((v - min) / span) * 92 + 2;
   const cur: [number, number][] = points.map((p, i) => [X(i), Y(p.value)]);
   const prv: [number, number][] | null = prev ? prev.slice(0, n).map((p, i) => [X(i, fc.length ? L : Math.min(n, prev.length)), Y(p.value)]) : null;
   const line = monotone(cur);
   const total = points.reduce((a, p) => a + p.value, 0);
   const peak = points.reduce((a, p) => (p.value > a.value ? p : a), points[0]);
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
+  const ticks = min < 0 ? [min, 0, max / 2, max] : [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
   const pick = (clientX: number) => {
     const r = box.current?.getBoundingClientRect();
     if (!r) return;
@@ -170,17 +175,18 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
       {/* a one-line legend only earns its place when there are two series to tell apart */}
       {(summary || prev || fc.length > 0) && <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mb-3">
         {summary && <p className="t-support">Total <b className="text-fg font-semibold">{fmtRupees(total)}</b> · Peak <b className="text-fg font-semibold">{fmtRupees(peak.value)}</b> {weekly ? "week of" : "on"} {fmtDay(peak.label)}</p>}
-        {prev && <p className="t-support flex items-center gap-4" aria-hidden>
+        {(prev || fc.length > 0 || pins.size > 0) && <p className="t-support flex flex-wrap items-center gap-x-4 gap-y-1" aria-hidden>
           <span className="inline-flex items-center gap-1.5"><span className="w-4 h-[3px] rounded-full" style={{ background: color }} />{label}</span>
-          <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed" style={{ borderColor: compareColor }} />{compareLabel}</span>
+          {prev && <span className="inline-flex items-center gap-1.5"><span className="w-4 h-[2px] rounded-full" style={{ background: compareColor }} />{compareLabel}</span>}
+          {fc.length > 0 && <span className="inline-flex items-center gap-1.5" title="The recent trend carried forward, with its range; not a forecast of record"><span className="w-4 border-t-2 border-dashed" style={{ borderColor: "var(--chart-proj)" }} /><span className="w-3 h-2.5 rounded-[3px]" style={{ background: color, opacity: 0.14 }} />Projected, with range</span>}
+          {pins.size > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--ink-r)", boxShadow: "0 0 0 2px var(--card)" }} />Event (point at it for details)</span>}
         </p>}
-        {fc.length > 0 && <p className="t-support flex items-center gap-1.5" aria-hidden><span className="tag tag-sim">Projected</span>the recent trend carried forward, with its range; not a forecast of record</p>}
       </div>}
       <div className="relative pl-12 mt-7" style={{ height }}>
         {ticks.map((t, i) => (
-          <div key={i} className="absolute left-0 right-0 flex items-center" style={{ bottom: `${(t / max) * 94 + 2}%` }} aria-hidden>
-            <span className="w-11 pr-2 text-right t-support leading-none -translate-y-1/2">{compactRupees(t)}</span>
-            <span className="flex-1 h-px" style={{ background: i === 0 ? "var(--line-strong)" : "var(--line)" }} />
+          <div key={i} className="absolute left-0 right-0 h-0 flex items-center" style={{ bottom: `${gy(t)}%` }} aria-hidden>
+            <span className="w-11 pr-2 text-right t-support leading-none">{t < 0 ? `−${compactRupees(-t)}` : compactRupees(t)}</span>
+            <span className="flex-1 h-px" style={{ background: t === 0 ? "var(--line-strong)" : "var(--line)" }} />
           </div>
         ))}
         <div ref={box} className="absolute inset-y-0 right-0 left-12 touch-pan-y" onPointerMove={(e) => pick(e.clientX)} onPointerDown={(e) => pick(e.clientX)} onPointerLeave={() => { setHover(null); sync?.set(null); }}
@@ -189,15 +195,15 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
             <defs>
               <linearGradient id={`ag${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.30" /><stop offset="0.7" stopColor={color} stopOpacity="0.05" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient>
             </defs>
-            {prv && <path d={monotone(prv)} fill="none" stroke={compareColor} strokeWidth="1.5" strokeDasharray="6 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "350ms" }} />}
-            <path d={`${line} L${cur[n - 1][0]},${H} L0,${H} Z`} fill={`url(#ag${id})`} className="fx-fade" style={{ animationDelay: "450ms" }} />
+            {prv && <path d={monotone(prv)} fill="none" stroke={compareColor} strokeWidth="1.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "350ms" }} />}
+            <path d={`${line} L${cur[n - 1][0]},${Y(Math.max(0, min))} L0,${Y(Math.max(0, min))} Z`} fill={`url(#ag${id})`} className="fx-fade" style={{ animationDelay: "450ms" }} />
             <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" pathLength={1} className="fx-draw" style={{ animationDuration: "1.3s" }} />
             {fc.length > 0 && (() => {
               const hi = fc.map((p, k): [number, number] => [X(n + k), Y(p.hi)]), lo = fc.map((p, k): [number, number] => [X(n + k), Y(p.lo)]).reverse(), mid = fc.map((p, k): [number, number] => [X(n + k), Y(p.value)]);
               const band = `M${cur[n - 1][0]},${cur[n - 1][1]} ${hi.map(([x, y]) => `L${x},${y}`).join(" ")} ${lo.map(([x, y]) => `L${x},${y}`).join(" ")} Z`;
               return (<>
-                <path d={band} fill={color} fillOpacity="0.12" className="fx-fade" style={{ animationDelay: "900ms" }} />
-                <path d={monotone([cur[n - 1], ...mid])} fill="none" stroke={color} strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "900ms" }} />
+                <path d={band} fill={color} fillOpacity="0.1" className="fx-fade" style={{ animationDelay: "900ms" }} />
+                <path d={monotone([cur[n - 1], ...mid])} fill="none" stroke="var(--chart-proj)" strokeWidth="2" strokeDasharray="7 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" className="fx-fade" style={{ animationDelay: "900ms" }} />
               </>);
             })()}
           </svg>
@@ -225,10 +231,14 @@ export function AreaChart({ points, compare, weekly = false, height = 252, name 
           )}
           {extIdx >= 0 && <span className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${(extIdx / (L - 1)) * 100}%`, background: "var(--ink-r)", opacity: 0.35 }} aria-hidden />}
           {[...pins.entries()].map(([idx, list]) => (
-            <button key={idx} type="button" className="absolute z-[5] w-4 h-4 -ml-2 -mt-[26px] rounded-full grid place-items-center" onPointerMove={(e) => e.stopPropagation()}
+            <button key={idx} type="button" className="group absolute z-[5] w-4 h-4 -ml-2 -mt-[26px] rounded-full grid place-items-center" onPointerMove={(e) => e.stopPropagation()}
               style={{ left: `${(idx / (L - 1)) * 100}%`, top: `${(Y(points[idx].value) / H) * 100}%`, background: "var(--ink-r)", boxShadow: "0 0 0 2px var(--card)" }}
-              title={list.map((e) => `${fmtDate(e.date)} · ${e.kind}: ${e.title}`).join("\n")} aria-label={list.map((e) => `${e.kind}: ${e.title}, ${fmtDate(e.date)}`).join("; ")}>
+              aria-label={list.map((e) => `${e.kind}: ${e.title}, ${fmtDate(e.date)}`).join("; ")}>
               <span className="w-1 h-1 rounded-full" style={{ background: "var(--card)" }} aria-hidden />
+              <span role="tooltip" className={`panel pointer-events-none absolute bottom-6 ${idx > L * 0.6 ? "right-0" : "left-0"} w-max max-w-[240px] px-3 py-2 text-left opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0 transition-[opacity,transform] duration-150`}>
+                {list.slice(0, 3).map((e, k) => <span key={k} className="block text-[0.8125rem] leading-5"><span className="t-support">{fmtDate(e.date)} · {e.kind}</span><span className="block">{e.title}</span></span>)}
+                {list.length > 3 && <span className="block t-support">and {list.length - 3} more</span>}
+              </span>
             </button>
           ))}
         </div>

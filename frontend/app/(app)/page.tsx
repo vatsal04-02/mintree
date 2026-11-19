@@ -13,12 +13,13 @@ import { EmptyState, GroupedBars, Legend, Segmented, Skeleton, TransactionTable,
 import { Strip, type StripCard } from "@/components/kpi";
 import { AreaChart, InView, type Point } from "@/components/fx";
 import { CardHead, DealCard, Donut, StageMix } from "@/components/rapport";
+import { SectionHead } from "@/components/system";
 import { RecordModal, recordLayoutId, type RecordView } from "@/components/RecordModal";
 import { ChartSyncProvider } from "@/lib/chartSync";
 import { projectSeries } from "@/lib/forecast";
 import { attentionInsight, planInsight, revenueInsight } from "@/lib/insights";
 import type { ChartEvent } from "@/components/fx";
-import { ArrowUpRight, Factory, Package, Receipt, TrendingUp } from "lucide-react";
+import { Factory, Package, Receipt, TrendingUp, TriangleAlert } from "lucide-react";
 
 type Approval = { type: string; id: number; number: string; since: string; amount?: string | null };
 type PeriodKey = "30d" | "90d" | "fy" | "custom";
@@ -36,6 +37,11 @@ const RECORD_SCREEN: Record<string, [string, string]> = {
 const KIND_LABEL: Record<string, string> = { purchase_order: "Purchase order", production_order: "Production order", sales_order: "Sales order", shipment: "Shipment", sales_invoice: "Sales invoice" };
 
 const p0 = (s: { production: { delayed_work_orders: number } }) => s.production.delayed_work_orders;
+/** How long an approval has waited, always in the same words: "waiting 5 h", "waiting 1 day", "waiting 38 days". */
+const waited = (since: string) => {
+  const h = Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 3600e3));
+  return h < 24 ? `waiting ${h} h` : `waiting ${Math.floor(h / 24)} ${Math.floor(h / 24) === 1 ? "day" : "days"}`;
+};
 
 export default function Overview() {
   const { me, can } = useAuth();
@@ -158,10 +164,10 @@ export default function Overview() {
   const biggest = (approvals ?? []).reduce((m, a) => Math.max(m, Number(a.amount ?? 0) || 0), 0);
   const topAct = exceptions.find((e) => e.severity === "high");
   const brief: { key: string; variant: "yellow" | "orange" | "white"; meta: string; title: string; subtitle?: string; value: string; caption?: string; href?: string }[] = [
-    ...(mine > 0 ? [{ key: "appr", variant: "yellow" as const, meta: "Waiting for you", title: "Approvals", subtitle: oldest[0] ? `Oldest has waited ${plural(daysBetween(String(oldest[0].since).slice(0, 10), today), "day", "days")}` : undefined, value: fmtNum(mine), caption: biggest ? `Largest ${fmtRupees(biggest)}` : undefined, href: "/approvals" }] : []),
     ...(topAct ? [{ key: "act", variant: "orange" as const, meta: "Most urgent", title: topAct.label, subtitle: topAct.detail, value: topAct.value ?? "", caption: `${plural(exceptions.filter((e) => e.severity === "high").length, "item needs", "items need")} action now`, href: topAct.href }] : []),
-    ...(period?.overdue_invoices && period.overdue_invoices.count > 0 ? [{ key: "od", variant: "white" as const, meta: "Money owed", title: "Overdue invoices", subtitle: period.overdue_invoices.oldest_days ? `Oldest ${plural(period.overdue_invoices.oldest_days, "day", "days")} past due` : undefined, value: fmtRupees(num(period.overdue_invoices.amount)), caption: `${plural(period.overdue_invoices.count, "invoice", "invoices")}`, href: to("accounts", "ageing") }] : []),
+    ...(period?.overdue_invoices && period.overdue_invoices.count > 0 && topAct?.key !== "od" ? [{ key: "od", variant: "white" as const, meta: "Money owed", title: "Overdue invoices", subtitle: period.overdue_invoices.oldest_days ? `Oldest ${plural(period.overdue_invoices.oldest_days, "day", "days")} past due` : undefined, value: fmtRupees(num(period.overdue_invoices.amount)), caption: `${plural(period.overdue_invoices.count, "invoice", "invoices")}`, href: to("accounts", "ageing") }] : []),
   ];
+  const rest = exceptions.filter((e) => e.key !== topAct?.key);   // the most urgent item is already the card above, so it is not repeated
   const partialWeeks = (period?.production.buckets ?? []).filter((b) => b.partial);
 
   const attainment = totals.p > 0 ? (totals.a / totals.p) * 100 : 0;
@@ -174,7 +180,7 @@ export default function Overview() {
         <div className="min-w-0">
           {/* greeting by the viewer's clock; it waits for the signed-in user, which only exists in the browser, so server and client agree */}
           {me && <p className="t-label">{greeting()}, {greetName(me)}</p>}
-          <h1 className="t-page whitespace-nowrap mt-0.5">Factory overview</h1>
+          <h1 className="t-page whitespace-nowrap mt-0.5">Overview</h1>
           {/* one plain statement of the period; the as-of date is only added when it differs from the period's last day */}
           <p className="t-support mt-1.5">{s ? <>Showing {fmtDay(range.start)} – {fmtDate(range.end)}{String(s.as_of).slice(0, 10) !== String(range.end).slice(0, 10) && <span className="ml-3">Figures as of {fmtDate(s.as_of)}</span>}</> : rangeError ?? "Loading the plant position…"}</p>
         </div>
@@ -188,7 +194,6 @@ export default function Overview() {
               </div>
             )}
             <Segmented<PeriodKey> label="Reporting period" value={key} onChange={setKey} options={[{ value: "30d", label: "30 days" }, { value: "90d", label: "90 days" }, { value: "fy", label: "This FY" }, { value: "custom", label: "Custom" }]} />
-            <Link href="/approvals" className="btn btn-primary gap-2">Approvals{mine > 0 && <span className="pill pill-warning">{mine}</span>}</Link>
           </div>
         )}
       </header>
@@ -200,16 +205,33 @@ export default function Overview() {
       {canSummary && <Strip cards={kpis} className="py-1" label="Key indicators" />}
 
       {canSummary && insights.length > 0 && (
-        <div className="space-y-1.5 -mt-1" aria-label="What the figures say">
-          {insights.map((t) => <p key={t} className="t-label flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full mt-[7px] shrink-0" style={{ background: "var(--ink-r)", opacity: 0.55 }} aria-hidden />{t}</p>)}
-        </div>
+        <ul className="grid gap-3 md:grid-cols-2 items-stretch" aria-label="What the figures say">
+          {insights.map((t, i) => {
+            const Icon = i === 0 ? TrendingUp : TriangleAlert;
+            return (
+              <li key={t} className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3.5" style={{ background: "color-mix(in srgb, var(--card) 60%, transparent)" }}>
+                <span className="grid place-items-center w-8 h-8 rounded-full shrink-0 border border-line bg-card" aria-hidden><Icon size={15} strokeWidth={1.75} /></span>
+                <p className="text-[0.875rem] leading-[1.35rem] text-fg min-w-0 pt-[3px]">{t}</p>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {canSummary && brief.length > 0 && (
-        <section className={card} aria-label="Needs you today">
-          <CardHead title="Needs you today" meta="From the approvals waiting for you and the most urgent items" />
-          <div className="px-[18px] pb-[18px] grid gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
-            {brief.map((b, i) => <DealCard key={b.key} index={i} variant={b.variant} meta={b.meta} title={b.title} subtitle={b.subtitle} value={b.value} caption={b.caption} href={b.href} />)}
+      {/* a group of cards on the page ground under a plain heading: the section itself is not a card */}
+      {canSummary && (
+        <section aria-labelledby="needs-today" className="pt-2">
+          <SectionHead id="needs-today" title="Needs you today" subtitle="The most urgent item and the approvals waiting for you"
+            action={<Link href="/approvals" className="btn gap-2">Approvals{mine > 0 && <span className="pill pill-warning">{fmtNum(mine)}</span>}</Link>} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+            {brief.map((b, i) => <DealCard key={b.key} index={i} variant={b.variant} meta={b.meta} title={b.title} subtitle={b.subtitle} value={b.value} caption={b.caption} href={b.href} cta={b.href ? "Open the list" : undefined} />)}
+            <section className={`${card} ${brief.length === 0 ? "sm:col-span-2 lg:col-span-3" : brief.length === 1 ? "lg:col-span-2" : ""}`} aria-label="Pending approvals">
+              <CardHead title="Pending approvals" meta={approvals === null ? "Checking approvals…" : mine ? `${fmtNum(mine)} waiting for your decision, oldest first${biggest ? ` · largest ${fmtRupees(biggest)}` : ""}` : "Nothing is waiting for your decision"} href="/approvals" />
+              <div className="px-[18px] pb-[14px]">
+                {oldest.slice(0, 4).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-2 border-t border-line first:border-t-0 text-[0.8125rem] hover:opacity-80"><span className="truncate"><span className="tabular-nums">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0 tabular-nums">{waited(a.since)}</span></Link>)}
+                {mine > 4 && <p className="t-support pt-2 border-t border-line">and {fmtNum(mine - 4)} more waiting</p>}
+              </div>
+            </section>
           </div>
         </section>
       )}
@@ -217,40 +239,58 @@ export default function Overview() {
       {canSummary && (
         <div className="grid gap-4 xl:grid-cols-12 items-stretch">
           <section className={`${card} xl:col-span-8`} aria-label="Revenue">
-            <CardHead title="Revenue" href={to("accounts", "pnl")} more={to("dispatch", "invoices")} />
+            <CardHead title="Revenue" href={to("accounts", "pnl")} />
             <div className="px-[18px] -mt-1 flex flex-wrap items-baseline gap-x-2">
               <span className="t-stage tabular-nums">{trends ? fmtRupees(revenueTotal) : "…"}</span>
               <span className="t-support">invoiced, ex-tax · {plural(daysBetween(range.start, range.end) + 1, "day", "days")}</span>
             </div>
             {trends === undefined ? <div className="px-5 pb-5 pt-3"><Skeleton className="h-[220px]" /></div>
               : !trends ? <p className="t-support px-5 pb-5">Revenue could not be loaded.</p>
-              : <div className="pt-1"><AreaChart points={trends.revenue_trend} compare={trends.revenue_prev_trend} weekly={trends.granularity === "week"} height={150} name="Invoiced revenue" color="#c6431d" compareColor="var(--fg)" summary={false} forecast={forecast} events={events} /></div>}
+              : <div className="pt-1"><AreaChart points={trends.revenue_trend} compare={trends.revenue_prev_trend} weekly={trends.granularity === "week"} height={150} name="Invoiced revenue" color="#c6431d" summary={false} forecast={forecast} events={events} /></div>}
           </section>
-          <section className="panel rise xl:col-span-4 flex flex-col p-4 min-w-0" aria-label="Plan attainment">
-            <div className="flex items-start justify-between gap-3">
-              <div><h2 className="text-[0.875rem] font-medium">Plan attainment</h2><p className="t-support mt-0.5">Completed orders in the period</p></div>
-              {to("production", "orders") && <Link href={to("production", "orders")!} className="ctl shrink-0" aria-label="Open production orders"><ArrowUpRight size={16} strokeWidth={1.5} /></Link>}
+          <section className={`${card} xl:col-span-4`} aria-label="Plan attainment">
+            <CardHead title="Plan attainment" meta="Completed production against plan" href={to("production", "orders")} />
+            <div className="px-[18px] pb-[18px] flex flex-col flex-1 gap-4">
+              <div className="flex items-center gap-5">
+                {period === undefined ? <Skeleton className="w-[104px] h-[104px] !rounded-full" /> : <Donut pct={attainment} label="of plan" size={104} tone="light" />}
+                {enough ? (
+                  <dl className="flex-1 space-y-2 text-[0.8125rem]">
+                    <div className="flex items-baseline justify-between gap-3"><dt className="t-support">Made</dt><dd className="tabular-nums font-medium">{fmtNum(totals.a)} <span className="t-support">units</span></dd></div>
+                    <div className="flex items-baseline justify-between gap-3"><dt className="t-support">Planned</dt><dd className="tabular-nums font-medium">{fmtNum(totals.p)} <span className="t-support">units</span></dd></div>
+                    <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2"><dt className="t-support">Short</dt><dd className="tabular-nums font-medium" style={totals.p - totals.a > 0 ? { color: "var(--acc-orange)" } : undefined}>{fmtNum(Math.max(0, totals.p - totals.a))} <span className="t-support">units</span></dd></div>
+                  </dl>
+                ) : <p className="t-support flex-1">No completed production in this period</p>}
+              </div>
+              {enough && buckets.length > 0 && (
+                <div className="mt-auto">
+                  <p className="t-support mb-2">Attainment by week</p>
+                  <ul className="flex items-end gap-1.5 h-[76px]" aria-label="Attainment by week">
+                    {buckets.slice(-8).map((b) => {
+                      const pct = b.planned ? Math.round(((b.actual ?? 0) / b.planned) * 100) : null;
+                      return (
+                        <li key={b.start} className="flex-1 h-full flex flex-col justify-end items-center gap-1" title={`Week of ${fmtDay(b.start)}: ${pct === null ? "nothing planned" : `${pct}% of plan`} (${fmtNum(b.actual ?? 0)} of ${fmtNum(b.planned ?? 0)} units)`}>
+                          <span className="w-full max-w-[22px] rounded-t-[6px] rounded-b-[2px]" style={{ height: `${Math.max(4, Math.min(100, pct ?? 0) * 0.56)}px`, background: pct !== null && pct < 95 ? "var(--acc-orange)" : "var(--acc-green)" }} />
+                          <span className="text-[0.75rem] tabular-nums text-muted leading-none">{pct === null ? "\u2014" : `${pct}%`}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="t-support mt-2 flex gap-4"><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-green)" }} />95% or more</span><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: "var(--acc-orange)" }} />under 95%</span></p>
+                </div>
+              )}
             </div>
-            <div className="flex-1 grid place-items-center py-3">{period === undefined ? <Skeleton className="w-[128px] h-[128px] !rounded-full" /> : <Donut pct={attainment} label="of plan" size={128} tone="light" />}</div>
-            {enough ? (
-              <dl className="grid grid-cols-3 text-center border-t border-line pt-3">
-                <div><dt className="t-support">Made</dt><dd className="text-[0.9375rem] font-medium tabular-nums mt-0.5">{fmtNum(totals.a)}</dd></div>
-                <div className="border-x border-line"><dt className="t-support">Planned</dt><dd className="text-[0.9375rem] font-medium tabular-nums mt-0.5">{fmtNum(totals.p)}</dd></div>
-                <div><dt className="t-support">Short</dt><dd className="text-[0.9375rem] font-medium tabular-nums mt-0.5" style={totals.p - totals.a > 0 ? { color: "var(--acc-orange)" } : undefined}>{fmtNum(Math.max(0, totals.p - totals.a))}</dd></div>
-              </dl>
-            ) : <p className="t-support text-center">No completed production in this period</p>}
           </section>
         </div>
       )}
 
       {canSummary && (
-        <section className={card} aria-label="Needs attention">
-          <CardHead title="Needs attention" meta={loading ? undefined : exceptions.length ? `${plural(exceptions.length, "item", "items")}, most severe first` : undefined} href="/approvals" />
-          <div className="px-[18px] pb-[18px]">
-            {loading ? <div className="grid gap-[11px] sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[165px] !rounded-[22px]" />)}</div>
-              : exceptions.length === 0 ? <p className="t-support py-4">Nothing needs attention right now.</p>
-              : <div className="grid gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
-                  {exceptions.slice(0, 6).map((e, i) => <DealCard key={e.key} index={i} variant="white" meta={(SEV[e.severity] ?? SEV.low).label} metaTone={(SEV[e.severity] ?? SEV.low).tone} valueTone={e.severity === "high" ? "var(--acc-orange)" : undefined} title={e.label} subtitle={e.detail} value={e.value ?? ""}
+        <section aria-labelledby="needs-attention" className="pt-2">
+          <SectionHead id="needs-attention" title="Needs attention" subtitle={loading ? undefined : rest.length ? `${plural(rest.length, "more item", "more items")}, most severe first` : undefined} />
+          <div>
+            {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[150px] !rounded-[24px]" />)}</div>
+              : rest.length === 0 ? <p className="t-support py-2">Nothing else needs attention right now.</p>
+              : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {rest.slice(0, 6).map((e, i) => <DealCard key={e.key} index={i} variant="white" meta={(SEV[e.severity] ?? SEV.low).label} metaTone={(SEV[e.severity] ?? SEV.low).tone} valueTone={e.severity === "high" ? "var(--acc-orange)" : undefined} title={e.label} subtitle={e.detail} value={e.value ?? ""}
                     layoutId={recordLayoutId(e.key)} hidden={record?.id === e.key} onOpen={() => setRecord({ id: e.key, variant: "white", kicker: (SEV[e.severity] ?? SEV.low).label, kickerTone: (SEV[e.severity] ?? SEV.low).tone, title: e.label, subtitle: e.detail, figure: e.value, figureTone: e.severity === "high" ? "var(--acc-orange)" : undefined, openHref: e.href, openLabel: "Open the list" })} />)}
                 </div>}
           </div>
@@ -284,7 +324,7 @@ export default function Overview() {
 
       <div className="grid xl:grid-cols-12 gap-4 items-start">
         {canSummary && (
-          <section className={`${card} xl:col-span-8`} aria-label="Recent transactions">
+          <section className={`${card} xl:col-span-12`} aria-label="Recent transactions">
             <CardHead title="Recent transactions" href={to("dispatch", "invoices")} />
             <div className="px-[18px] pb-3">
               {period === undefined ? <div className="pt-3 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4" />)}</div>
@@ -292,13 +332,14 @@ export default function Overview() {
             </div>
           </section>
         )}
-        <section className={`${card} ${canSummary ? "xl:col-span-4" : "xl:col-span-12"}`} aria-label="Pending approvals">
-          <CardHead title="Pending approvals" meta={approvals === null ? "Checking approvals…" : mine ? `${fmtNum(mine)} waiting for your decision, oldest first` : "Nothing is waiting for your decision"} href="/approvals" />
-          <div className="px-[18px] pb-[18px]">
-            {oldest.slice(0, 6).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-2.5 border-t border-line first:border-t-0 text-[0.8125rem] hover:opacity-80"><span className="truncate"><span className="tabular-nums">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0 tabular-nums">{fmtAgo(a.since)}</span></Link>)}
-            {mine > 6 && <p className="t-support pt-2.5 border-t border-line">and {fmtNum(mine - 6)} more waiting</p>}
-          </div>
-        </section>
+        {!canSummary && (
+          <section className={`${card} xl:col-span-12`} aria-label="Pending approvals">
+            <CardHead title="Pending approvals" meta={approvals === null ? "Checking approvals…" : mine ? `${fmtNum(mine)} waiting for your decision, oldest first` : "Nothing is waiting for your decision"} href="/approvals" />
+            <div className="px-[18px] pb-[18px]">
+              {oldest.slice(0, 6).map((a) => <Link key={`${a.type}-${a.id}`} href="/approvals" className="flex items-baseline justify-between gap-3 py-2.5 border-t border-line first:border-t-0 text-[0.8125rem] hover:opacity-80"><span className="truncate"><span className="tabular-nums">{a.number}</span> <span className="text-muted">{titleCase(a.type)}</span></span><span className="t-support shrink-0 tabular-nums">{fmtAgo(a.since)}</span></Link>)}
+            </div>
+          </section>
+        )}
       </div>
       <RecordModal record={record} onClose={() => setRecord(null)} />
     </div>

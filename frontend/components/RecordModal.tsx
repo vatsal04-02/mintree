@@ -80,7 +80,7 @@ export function RecordModal({ record, onClose }: { record: RecordView | null; on
                       <li key={s.label} className="flex items-center flex-1 last:flex-none" aria-current={s.state === "current" ? "step" : undefined}>
                         <span className="flex flex-col items-center gap-1.5">
                           <span className="w-3 h-3 rounded-full" style={{ background: s.state === "todo" ? "transparent" : "currentColor", border: "1.5px solid currentColor", opacity: s.state === "todo" ? 0.4 : 1, boxShadow: s.state === "current" ? "0 0 0 4px color-mix(in srgb, currentColor 25%, transparent)" : "none" }} />
-                          <span className={`text-[0.625rem] leading-3 ${s.state === "current" ? "" : "opacity-65"}`}>{s.label}</span>
+                          <span className={`text-[0.75rem] leading-3 ${s.state === "current" ? "" : "opacity-65"}`}>{s.label}</span>
                         </span>
                         {i < record.steps!.length - 1 && <span className="flex-1 h-px mx-1.5 mb-4" style={{ background: "currentColor", opacity: s.state === "done" ? 0.7 : 0.25 }} />}
                       </li>
@@ -92,7 +92,7 @@ export function RecordModal({ record, onClose }: { record: RecordView | null; on
                   <dl className="mt-6 grid gap-px rounded-2xl overflow-hidden" style={{ gridTemplateColumns: `repeat(${record.tiles.length}, minmax(0, 1fr))`, background: "color-mix(in srgb, currentColor 16%, transparent)" }}>
                     {record.tiles.map((t) => (
                       <div key={t.label} className="px-3 py-3" style={{ background: "color-mix(in srgb, currentColor 8%, transparent)" }}>
-                        <dt className="text-[0.6875rem] opacity-65">{t.label}</dt>
+                        <dt className="text-[0.75rem] opacity-65">{t.label}</dt>
                         <dd className="text-[0.9375rem] font-medium tabular-nums mt-0.5">{t.value}</dd>
                       </div>
                     ))}
@@ -101,7 +101,7 @@ export function RecordModal({ record, onClose }: { record: RecordView | null; on
 
                 {record.people && record.people.length > 0 && (
                   <div className="mt-5 flex -space-x-2" aria-label={record.people.map((p) => p.name).join(", ")}>
-                    {record.people.map((p) => <span key={p.name} title={p.name} className="w-8 h-8 rounded-full grid place-items-center text-[0.6875rem] ring-2" style={{ background: "rgb(255 255 255 / 0.85)", color: "#151717", ["--tw-ring-color" as string]: "rgb(21 23 23 / 0.1)" }}>{initials(p.name)}</span>)}
+                    {record.people.map((p) => <span key={p.name} title={p.name} className="w-8 h-8 rounded-full grid place-items-center text-[0.75rem] ring-2" style={{ background: "rgb(255 255 255 / 0.85)", color: "#151717", ["--tw-ring-color" as string]: "rgb(21 23 23 / 0.1)" }}>{initials(p.name)}</span>)}
                   </div>
                 )}
                 {record.note && <p className="mt-5 text-[0.8125rem] leading-5 opacity-80">{record.note}</p>}

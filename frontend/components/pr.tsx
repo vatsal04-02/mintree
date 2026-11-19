@@ -34,7 +34,7 @@ export function PrCard({ r, actions, onAction, onOpen }: { r: Row; actions: Acti
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.number}`}>
         <div className="flex items-center justify-between gap-2">
           <span className="font-mono text-[0.8125rem] font-semibold">{r.number}</span>
-          <span className={`badge tone-${toneFor(r.status)}`}>{titleCase(r.status)}</span>
+          <span className={`pill pill-${toneFor(r.status)}`}>{titleCase(r.status)}</span>
         </div>
         <div>
           <h3 className="text-[0.875rem] font-semibold leading-5 truncate" title={first?.name}>{first?.name ?? "No items"}{r.line_count > 1 && <span className="text-muted font-normal"> +{r.line_count - 1} more</span>}</h3>

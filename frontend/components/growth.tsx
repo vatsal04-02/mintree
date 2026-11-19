@@ -72,7 +72,7 @@ export function GrowthSection() {
                     const t = r.collected + r.open + r.overdue;
                     return (
                       <div key={r.month} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1" title={`${label(r.month)}: ${short(t)} (collected ${short(r.collected)}, not yet due ${short(r.open)}, overdue ${short(r.overdue)})`}>
-                        <span className="text-[0.6875rem] tabular-nums text-muted">{t ? short(t) : ""}</span>
+                        <span className="text-[0.75rem] tabular-nums text-muted">{t ? short(t) : ""}</span>
                         <div className="w-full max-w-[44px] flex flex-col-reverse gap-px rounded-[14px] overflow-hidden bar-grow" style={{ height: `${(t / max) * 80}%`, animationDelay: `${i * 50}ms` }}>
                           {PARTS.map((p) => r[p.key] > 0 && <span key={p.key} style={{ flex: r[p.key], background: p.color, minHeight: 3 }} />)}
                         </div>
@@ -80,7 +80,7 @@ export function GrowthSection() {
                     );
                   })}
                 </div>
-                <div className="flex gap-2 mt-1.5 border-t border-line pt-1.5" aria-hidden>{rows.map((r) => <span key={r.month} className="flex-1 min-w-0 text-center text-[0.6875rem] text-muted truncate">{label(r.month)}</span>)}</div>
+                <div className="flex gap-2 mt-1.5 border-t border-line pt-1.5" aria-hidden>{rows.map((r) => <span key={r.month} className="flex-1 min-w-0 text-center text-[0.75rem] text-muted truncate">{label(r.month)}</span>)}</div>
               </div>
             </InView>
           </section>
@@ -118,12 +118,12 @@ export function GrowthSection() {
                 <div className="flex items-end gap-2 h-[110px]" role="img" aria-label={`Invoices per month: ${rows.map((r) => `${label(r.month)} ${r.invoices}`).join(", ")}`}>
                   {rows.map((r, i) => (
                     <div key={r.month} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1" title={`${label(r.month)}: ${r.invoices} invoices`}>
-                      <span className="text-[0.6875rem] tabular-nums text-muted">{r.invoices || ""}</span>
+                      <span className="text-[0.75rem] tabular-nums text-muted">{r.invoices || ""}</span>
                       <div className="w-full max-w-[44px] rounded-t-[10px] rounded-b-[3px] bar-grow" style={{ height: `${Math.max(r.invoices > 0 ? 4 : 0, (r.invoices / countMax) * 78)}%`, background: i === lastCount ? "var(--acc-orange)" : "var(--ink-r)", opacity: i === lastCount ? 1 : 0.78, animationDelay: `${i * 50}ms` }} />
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-2 mt-1.5 border-t border-line pt-1.5" aria-hidden>{rows.map((r) => <span key={r.month} className="flex-1 min-w-0 text-center text-[0.6875rem] text-muted truncate">{label(r.month)}</span>)}</div>
+                <div className="flex gap-2 mt-1.5 border-t border-line pt-1.5" aria-hidden>{rows.map((r) => <span key={r.month} className="flex-1 min-w-0 text-center text-[0.75rem] text-muted truncate">{label(r.month)}</span>)}</div>
               </div>
             </InView>
           </section>

@@ -2,9 +2,10 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 
-type Tone = "success" | "warning" | "danger" | "info" | "neutral" | "sage" | "peach" | "solid";
-export function Badge({ tone = "neutral", children, live }: { tone?: Tone; children: React.ReactNode; live?: boolean }) {
-  return <span className={`badge tone-${tone} ${live ? "badge-live" : ""}`}>{children}</span>;
+type Tone = "success" | "warning" | "danger" | "info" | "neutral";
+/** Status badge: the shared Pill (components/system.tsx). `live` is kept for callers; a running status reads from its wording, not an animation. */
+export function Badge({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode; live?: boolean }) {
+  return <span className={`pill pill-${tone}`}>{children}</span>;
 }
 
 export function PageHeader({ title, description, actions, eyebrow, tag, aside }: { title: string; description?: string; actions?: React.ReactNode; eyebrow?: string; tag?: React.ReactNode; aside?: React.ReactNode }) {

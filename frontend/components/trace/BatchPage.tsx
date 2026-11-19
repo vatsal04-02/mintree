@@ -51,8 +51,8 @@ export function BatchPage({ id }: { id: number }) {
       <PageHeader title={b.batch_no} description={`${b.item_name} · ${b.item_code} · ${b.kind_label}`}
         actions={<div className="flex flex-wrap gap-2"><Link className="btn" href={`/inventory/products/${b.item_id}/overview`}>Product 360</Link><Link className="btn" href="/inventory/batches">All batches</Link></div>} />
       <div className="flex flex-wrap items-center gap-2 -mt-2">
-        <Badge tone={toneFor(b.qc_status)}>{titleCase(b.qc_status)}</Badge><span className="badge tone-neutral">{b.business_status}</span>
-        {b.expiry_date && <span className="badge tone-neutral">Expires {fmtDate(b.expiry_date)}</span>}
+        <Badge tone={toneFor(b.qc_status)}>{titleCase(b.qc_status)}</Badge><span className="pill pill-neutral">{b.business_status}</span>
+        {b.expiry_date && <span className="pill pill-neutral">Expires {fmtDate(b.expiry_date)}</span>}
       </div>
 
       {!r.balanced && (
@@ -130,7 +130,7 @@ function Inspections({ list }: { list: Insp[] }) {
           {list.map((i) => (
             <article key={i.id} className="inset p-3">
               <div className="flex flex-wrap items-center gap-2"><Link href={`/m/quality/inspections?open=${i.id}`} className="font-semibold hover:underline">{i.number}</Link><span className="t-support">{titleCase(i.stage)}</span>
-                <Badge tone={toneFor(i.decision ?? i.status)}>{titleCase(i.decision ?? i.status)}</Badge>{i.retested && <span className="badge tone-warning">Retested</span>}{i.failed_results > 0 && <span className="badge tone-danger">{i.failed_results} failed result{i.failed_results > 1 ? "s" : ""}</span>}
+                <Badge tone={toneFor(i.decision ?? i.status)}>{titleCase(i.decision ?? i.status)}</Badge>{i.retested && <span className="pill pill-warning">Retested</span>}{i.failed_results > 0 && <span className="pill pill-danger">{i.failed_results} failed result{i.failed_results > 1 ? "s" : ""}</span>}
                 <span className="t-support ml-auto">{i.decided_at ? `${fmtDateTime(i.decided_at)} · ${i.decided_by ?? ""}` : `Raised ${fmtDate(i.created_at)}`}</span></div>
               {i.decision_reason && <p className="t-support mt-1">Reason: {i.decision_reason}</p>}
               <table className="dt mt-2"><thead><tr><th>Test</th><th>Value</th><th>Result</th><th>Recorded</th><th>By</th></tr></thead>

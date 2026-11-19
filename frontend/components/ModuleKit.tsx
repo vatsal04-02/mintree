@@ -434,7 +434,7 @@ function RecordFields({ obj, n, depth }: { obj: Row; n: Namer; depth: number }) 
       )}
       {nested.map(([k, v]) => (
         <section key={k}>
-          <h3 className="text-[0.75rem] font-semibold mb-2 flex items-center gap-2">{plainLabel(k)}{Array.isArray(v) && <span className="badge tone-neutral">{v.length}</span>}</h3>
+          <h3 className="text-[0.75rem] font-semibold mb-2 flex items-center gap-2">{plainLabel(k)}{Array.isArray(v) && <span className="pill pill-neutral">{v.length}</span>}</h3>
           {Array.isArray(v) ? <RecordTable rows={v} n={n} /> : <RecordFields obj={v as Row} n={n} depth={depth + 1} />}
         </section>
       ))}
@@ -796,15 +796,15 @@ export function ListScreen({ screen }: { screen: Screen }) {
         <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input className={`input !pl-8 ${def.layout ? "w-44" : "w-64"}`} placeholder="Search this list…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" /></div>
         {def.status && (
           <div className="flex flex-wrap gap-1" role="group" aria-label="Filter by status">
-            <button className={`btn btn-sm ${status === "" ? "btn-primary" : ""}`} onClick={() => setStatus("")}>All{meta?.counts?.ALL != null && <span className="ml-1.5 tnum opacity-80">{meta.counts.ALL}</span>}</button>
-            {def.status.options.map((o) => <button key={o} className={`btn btn-sm ${status === o ? "btn-primary" : ""}`} onClick={() => setStatus(o)}>{titleCase(o)}{meta?.counts && <span className="ml-1.5 tnum opacity-80">{meta.counts[o] ?? 0}</span>}</button>)}
+            <button className="btn btn-sm" aria-pressed={status === ""} onClick={() => setStatus("")}>All{meta?.counts?.ALL != null && <span className="ml-1.5 tnum opacity-80">{meta.counts.ALL}</span>}</button>
+            {def.status.options.map((o) => <button key={o} className="btn btn-sm" aria-pressed={status === o} onClick={() => setStatus(o)}>{titleCase(o)}{meta?.counts && <span className="ml-1.5 tnum opacity-80">{meta.counts[o] ?? 0}</span>}</button>)}
           </div>
         )}
         <div className="flex-1" />
-        <div className="flex rounded-md border border-line overflow-hidden" role="group" aria-label="View">
+        <div className="seg inline-flex" role="group" aria-label="View">
           {VIEWS.filter((v) => v.mode !== "board" || def.status).map(({ mode, Icon, label }) => (
             <button key={mode} type="button" aria-pressed={view_ === mode} title={label} onClick={() => setViewMode(mode)}
-              className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-[0.75rem] ${view_ === mode ? "bg-fg text-bg" : "hover:bg-surface-2"}`}><Icon size={14} />{def.layout ? <span className="sr-only">{label}</span> : label}</button>
+              className="h-8 px-2.5 inline-flex items-center gap-1.5 text-[0.75rem]"><Icon size={14} />{def.layout ? <span className="sr-only">{label}</span> : label}</button>
           ))}
         </div>
         {view_ === "table" && <TableTools dense={dense} onDense={setDense} cols={def.cols.map((c) => ({ key: c.key, label: c.label }))} hidden={hidden} onHidden={setHidden} views={views} onViews={setViews} current={currentView} onApply={applyView}

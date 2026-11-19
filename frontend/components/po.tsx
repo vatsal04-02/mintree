@@ -34,7 +34,7 @@ export function PoCard({ r, actions, onAction, onOpen }: { r: Row; actions: Acti
       <button type="button" className="text-left flex flex-col gap-2.5 rounded-lg" onClick={() => onOpen(r)} aria-label={`Open ${r.number}`}>
         <div className="flex items-start justify-between gap-2">
           <span className="font-heading font-bold text-[0.9375rem] leading-5">#{r.number}</span>
-          <span className={`badge tone-${toneFor(r.status)} shrink-0`}>{pill}</span>
+          <span className={`pill pill-${toneFor(r.status)} shrink-0`}>{pill}</span>
         </div>
         <div>
           <p className="label-caps truncate">{r.supplier}{r.supplier_city ? ` · ${r.supplier_city}` : ""}</p>
@@ -62,7 +62,7 @@ export function PoCard({ r, actions, onAction, onOpen }: { r: Row; actions: Acti
         {r.status === "CANCELLED" && r.rejection_reason && <p className="t-support line-clamp-2">Reason: {r.rejection_reason}</p>}
         <div className="flex items-center justify-between gap-2 t-support">
           <span>Order total: <b className="text-fg font-semibold font-mono">{fmtMoney(r.total_amount)}</b></span>
-          {urgency ? <span className={`badge tone-${urgency.tone}`}>{urgency.text}</span> : r.expected_date ? <span>Expected {fmtDate(r.expected_date)}</span> : <span>No date set</span>}
+          {urgency ? <span className={`pill pill-${urgency.tone}`}>{urgency.text}</span> : r.expected_date ? <span>Expected {fmtDate(r.expected_date)}</span> : <span>No date set</span>}
         </div>
       </button>
       <div className="mt-auto flex flex-wrap gap-1.5">

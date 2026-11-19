@@ -118,7 +118,7 @@ export function CustomerDirectory() {
                       <td className="max-w-[12rem]"><span className="block truncate">{r.contact_name ?? "—"}</span><span className="block t-support truncate">{r.state ?? ""}</span></td>
                       <td className="num font-mono">{short(n(r.revenue))}</td>
                       <td className={`num font-mono ${ex.pct >= 60 ? "text-danger" : ""}`}>{n(r.outstanding) ? short(n(r.outstanding)) : "—"}</td>
-                      <td className="min-w-[7rem]"><span className="block text-[0.6875rem] text-muted tabular-nums mb-1">{fmtNum(ex.pct, 0)}% {ex.of}</span><Bar pct={ex.pct} /></td>
+                      <td className="min-w-[7rem]"><span className="block text-[0.75rem] text-muted tabular-nums mb-1">{fmtNum(ex.pct, 0)}% {ex.of}</span><Bar pct={ex.pct} /></td>
                       <td className="t-support whitespace-nowrap">{r.last_order ? fmtDate(String(r.last_order).slice(0, 10)) : "—"}</td>
                     </tr>
                   );
@@ -140,10 +140,10 @@ export function CustomerDirectory() {
                           <span className="tag shrink-0">{TYPE[r.customer_type] ?? r.customer_type}</span>
                         </div>
                         <dl className="rounded-2xl grid grid-cols-2 gap-px overflow-hidden" style={{ background: "rgb(21 23 23 / 0.06)" }}>
-                          <div className="px-3 py-2.5" style={{ background: "rgb(255 255 255 / 0.55)" }}><dt className="text-[0.6875rem] text-muted">{n(r.open_pipeline) ? "Open pipeline" : "Invoiced"}</dt><dd className="text-[0.9375rem] font-medium tabular-nums">{short(n(r.open_pipeline) || n(r.revenue))}</dd></div>
-                          <div className="px-3 py-2.5" style={{ background: "rgb(255 255 255 / 0.55)" }}><dt className="text-[0.6875rem] text-muted">Last order</dt><dd className="text-[0.9375rem] font-medium">{r.last_order ? fmtDay(String(r.last_order).slice(0, 10)) : "—"}</dd></div>
+                          <div className="px-3 py-2.5" style={{ background: "rgb(255 255 255 / 0.55)" }}><dt className="text-[0.75rem] text-muted">{n(r.open_pipeline) ? "Open pipeline" : "Invoiced"}</dt><dd className="text-[0.9375rem] font-medium tabular-nums">{short(n(r.open_pipeline) || n(r.revenue))}</dd></div>
+                          <div className="px-3 py-2.5" style={{ background: "rgb(255 255 255 / 0.55)" }}><dt className="text-[0.75rem] text-muted">Last order</dt><dd className="text-[0.9375rem] font-medium">{r.last_order ? fmtDay(String(r.last_order).slice(0, 10)) : "—"}</dd></div>
                         </dl>
-                        <div><span className="flex justify-between text-[0.6875rem] text-muted mb-1"><span>{fmtNum(ex.pct, 0)}% {ex.of}</span><span className="tabular-nums">{n(r.outstanding) ? `${short(n(r.outstanding))} due` : "Nothing due"}</span></span><Bar pct={ex.pct} /></div>
+                        <div><span className="flex justify-between text-[0.75rem] text-muted mb-1"><span>{fmtNum(ex.pct, 0)}% {ex.of}</span><span className="tabular-nums">{n(r.outstanding) ? `${short(n(r.outstanding))} due` : "Nothing due"}</span></span><Bar pct={ex.pct} /></div>
                         <div className="flex items-center justify-end gap-2 mt-auto">
                           <Round href={r.email ? `mailto:${r.email}` : undefined} label={`Email ${r.name}`}><Mail size={15} strokeWidth={1.5} /></Round>
                           <Round href={r.phone ? `tel:${r.phone}` : undefined} label={`Call ${r.name}`}><Phone size={15} strokeWidth={1.5} /></Round>

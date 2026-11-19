@@ -16,8 +16,7 @@ import { MobileBar, ShortcutSheet } from "./ShellExtras";
 import { resolveCode } from "./Scanner";
 import { ScanDialog, useGlobalScan, useWedgeScanner } from "./Scanner";
 import { AssistantPanel, useAssistantStatus } from "./AssistantPanel";
-import { DemoPill } from "./DemoControls";
-import { LiveIndicator } from "./LiveIndicator";
+import { HeaderStatus } from "./DemoControls";
 import { useLiveEvent } from "@/lib/live";
 
 /** Appearance follows the system (and its changes) until the person picks one in the menu; only an explicit pick is stored. "Match system" removes it again. */
@@ -72,6 +71,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [favs, setFavs] = usePref<string[]>("favs", []);
   const [, setRecent] = usePref<string[]>("recent", []);   // still recorded: the command palette lists recent pages
   const [scrolledTitle, setScrolledTitle] = useState<string | null>(null);
+  /* sidebar: a shadow at its foot only while more items are below (no fade over the last item) */
+  const navRef = useRef<HTMLElement>(null);
+  const [navMore, setNavMore] = useState(false);
+  const measureNav = useCallback(() => { const n = navRef.current; if (n) setNavMore(n.scrollHeight - n.scrollTop - n.clientHeight > 4); }, []);
+  useEffect(() => { measureNav(); const n = navRef.current; if (!n) return; const ro = new ResizeObserver(measureNav); ro.observe(n); Array.from(n.children).forEach((c) => ro.observe(c)); return () => ro.disconnect(); }, [measureNav, collapsed]);
+  useEffect(() => { const id = requestAnimationFrame(measureNav); return () => cancelAnimationFrame(id); }, [measureNav, expanded, closedGroups, pathname]);
   useEffect(() => {
     /* "?" opens the shortcut sheet; "g" then o, a or n jumps to Overview, Approvals or Notifications. Ignored while typing. */
     let g = 0;
@@ -118,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {collapsed ? <Logo mark height={22} color="#ffffff" /> : <><Logo height={20} color="#ffffff" /><span className="text-[0.75rem] font-medium tracking-wide text-white/80 border-l border-white/20 pl-2.5 leading-none py-0.5">Factory OS</span></>}
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 pb-8 sidebar-scroll [mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent)]" aria-label="Main">
+        <nav ref={navRef} onScroll={measureNav} className="flex-1 overflow-y-auto px-2 pb-4 sidebar-scroll" aria-label="Main">
           {favItems.length > 0 && (
             <div className="mt-1 mb-1" aria-label="Pinned pages">
               {([["Pinned", favItems]] as const).map(([title, list]) => list.length > 0 && (
@@ -138,7 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {!collapsed
                 ? <button type="button" aria-expanded={!closedGroups[g.label]} onClick={() => setClosedGroups((c) => ({ ...c, [g.label]: !c[g.label] }))}
                     style={{ color: "var(--sidebar-label)" }} className="group/label flex items-center w-full px-2.5 mb-1 min-h-7 text-[0.75rem] font-medium hover:text-white transition-colors duration-150">
-                    <span className="flex-1 text-left">{g.label}</span><ChevronDown size={12} aria-hidden className={`opacity-0 group-hover/label:opacity-100 group-focus-visible/label:opacity-100 transition-[opacity,transform] duration-150 ${closedGroups[g.label] ? "-rotate-90" : ""}`} />
+                    <span className="flex-1 text-left">{g.label}</span><ChevronDown size={12} aria-hidden className={`opacity-75 group-hover/label:opacity-100 group-focus-visible/label:opacity-100 transition-[opacity,transform] duration-150 ${closedGroups[g.label] ? "-rotate-90" : ""}`} />
                   </button>
                 : <div className="mx-2.5 mb-1.5 border-t border-white/10" aria-hidden />}
               {(collapsed || !closedGroups[g.label]) && g.items.map((i) => {
@@ -153,7 +158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         onClick={() => (collapsed ? router.push(kids[0]?.href ?? i.href) : toggleGroup(i.href, open))}
                         className={`flex items-center gap-2.5 h-10 px-3 rounded-full text-[0.8125rem] w-full text-left transition-colors duration-150 ${active ? "text-white font-medium bg-white/[0.06]" : "hover:bg-white/[0.06]"}`}>
                         <Icon size={18} strokeWidth={1.75} className="shrink-0" />
-                        {!collapsed && <><span className="truncate flex-1">{i.label}</span><ChevronRight size={13} aria-hidden className={`shrink-0 opacity-35 transition-transform duration-150 ${open ? "rotate-90 opacity-60" : ""}`} /></>}
+                        {!collapsed && <><span className="truncate flex-1">{i.label}</span><ChevronRight size={13} aria-hidden className={`shrink-0 opacity-75 transition-transform duration-150 ${open ? "rotate-90 opacity-90" : ""}`} /></>}
                       </button>
                       {open && (
                         <div className="ml-[19px] pl-3 border-l border-white/[0.10] my-0.5">
@@ -180,6 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               })}
             </div>
           ))}
+          <div className="nav-shadow" style={{ opacity: navMore ? 1 : 0 }} aria-hidden />
         </nav>
         <div className="p-3 shrink-0">
           <div className={`flex items-center ${collapsed ? "justify-center p-1.5 rounded-full" : "gap-2.5 px-2.5 py-2.5 rounded-2xl"}`} style={{ background: "var(--ink-2)" }}>
@@ -253,9 +259,9 @@ function Header({ current, parentLabel, siblings, here, isFav, onFav, theme, tog
   return (
     <header className="h-16 shrink-0"><div className="h-full max-w-[1440px] mx-auto flex items-center gap-2.5 sm:gap-3 px-4 sm:px-7">
       <button type="button" className="icon-btn md:hidden" onClick={onMenu} aria-label="Open navigation" aria-controls="primary-nav" aria-expanded={menuOpen}><Menu size={17} /></button>
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[0.75rem] text-muted min-w-0">
-        <span className="hidden sm:inline">Mintree</span><ChevronRight size={13} className="hidden sm:block" />
-        {showParent && <><span className="hidden sm:inline truncate">{parentLabel}</span><ChevronRight size={13} className="hidden sm:block shrink-0" /></>}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[0.8125rem] text-muted min-w-0 overflow-hidden">
+        <span className="hidden min-[1600px]:inline">Mintree</span><ChevronRight size={13} className="hidden min-[1600px]:block" />
+        {showParent && <><span className="hidden lg:inline whitespace-nowrap">{parentLabel}</span><ChevronRight size={13} className="hidden lg:block shrink-0" /></>}
         <span key={label} className="text-fg font-medium truncate anim-fade">{label}</span>
         {siblings.length > 1 && (
           <span className="relative" ref={sibRef}>
@@ -268,12 +274,12 @@ function Header({ current, parentLabel, siblings, here, isFav, onFav, theme, tog
         {here && here !== "/" && <button type="button" className="icon-btn !w-7 !h-7 shrink-0" onClick={onFav} aria-pressed={isFav} aria-label={isFav ? "Remove from pinned pages" : "Pin this page"} title={isFav ? "Unpin" : "Pin this page"}><Star size={14} strokeWidth={1.5} fill={isFav ? "currentColor" : "none"} style={isFav ? { color: "var(--acc-yellow)" } : undefined} /></button>}
       </nav>
       <div className="flex-1" />
-      <button onClick={() => setScan(true)} className="btn" aria-label="Scan a barcode" title="Scan a barcode (Alt+S)"><ScanLine size={15} /><span className="hidden min-[1600px]:inline">Scan</span></button>
-      {aiStatus?.can_assist && <button onClick={onAssist} className="btn" aria-label="Open the assistant" title="Assistant (Ctrl+J)" data-testid="ai-open"><MessageSquareText size={15} /><span className="hidden min-[1600px]:inline">Assistant</span></button>}
-      <LiveIndicator />
-      <DemoPill />
+      <button onClick={() => setScan(true)} className="icon-btn min-[1600px]:!w-auto min-[1600px]:px-3.5 min-[1600px]:gap-2 min-[1600px]:!flex min-[1600px]:items-center" aria-label="Scan a barcode" title="Scan a barcode (Alt+S)"><ScanLine size={16} strokeWidth={1.75} /><span className="hidden min-[1600px]:inline text-[0.8125rem]">Scan</span></button>
+      {aiStatus?.can_assist && <button onClick={onAssist} className="icon-btn min-[1600px]:!w-auto min-[1600px]:px-3.5 min-[1600px]:gap-2 min-[1600px]:!flex min-[1600px]:items-center" aria-label="Open the assistant" title="Assistant (Ctrl+J)" data-testid="ai-open"><MessageSquareText size={16} strokeWidth={1.75} /><span className="hidden min-[1600px]:inline text-[0.8125rem]">Assistant</span></button>}
+      <HeaderStatus />
       <NotificationBell />
-      <button onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 h-10 w-56 min-[1600px]:w-72 shrink-0 whitespace-nowrap px-4 rounded-full border border-line bg-surface text-muted text-[0.8125rem] hover:border-line-strong transition-colors">
+      <button type="button" onClick={() => setPalette(true)} className="icon-btn xl:!hidden" aria-label="Search or jump to (Ctrl K)" title="Search or jump to (Ctrl K)"><Search size={16} strokeWidth={1.75} /></button>
+      <button onClick={() => setPalette(true)} className="hidden xl:flex items-center gap-2 h-10 w-56 min-[1600px]:w-72 shrink-0 whitespace-nowrap px-4 rounded-full border border-line bg-surface text-muted text-[0.8125rem] hover:border-line-strong transition-colors">
         <Search size={14} />Search or jump to…<kbd className="ml-auto text-[0.75rem] whitespace-nowrap border border-line rounded-md px-1.5 py-0.5 bg-inset">Ctrl K</kbd>
       </button>
       {quick.length > 0 && (
@@ -397,13 +403,13 @@ function Palette({ onClose }: { onClose: () => void }) {
               else if (e.key === "ArrowUp") { e.preventDefault(); setSel((x) => Math.max(x - 1, 0)); }
               else if (e.key === "Enter" && flat[sel]) go(flat[sel]);
             }} />
-          <kbd className="text-[0.6875rem] border border-line rounded-md px-1.5 py-0.5 bg-inset text-muted">Esc</kbd>
+          <kbd className="text-[0.75rem] border border-line rounded-md px-1.5 py-0.5 bg-inset text-muted">Esc</kbd>
         </div>
         <div id="palette-list" role="listbox" className="max-h-[22rem] overflow-y-auto p-1.5">
           {flat.length === 0 && <p className="px-3 py-8 text-center text-muted text-[0.8125rem]">Nothing matches &ldquo;{q}&rdquo;</p>}
           {sections.map((g) => (
             <div key={g.name} role="group" aria-label={g.name}>
-              <p className="px-2.5 pt-2 pb-1 text-[0.6875rem] text-muted">{g.name}</p>
+              <p className="px-2.5 pt-2 pb-1 text-[0.75rem] text-muted">{g.name}</p>
               {g.items.map((h) => {
                 const i = flat.indexOf(h); const Ic = h.icon;
                 return (
@@ -412,7 +418,7 @@ function Palette({ onClose }: { onClose: () => void }) {
                     {Ic ? <Ic size={15} strokeWidth={1.5} className="shrink-0 text-muted" aria-hidden /> : <span className="w-[15px]" aria-hidden />}
                     <span className="truncate flex-1">{h.label}</span>
                     {h.sub && <span className="text-muted text-[0.75rem] shrink-0 truncate max-w-[10rem]">{h.sub}</span>}
-                    {h.hint && <kbd className="text-[0.6875rem] border border-line rounded-md px-1.5 py-0.5 bg-inset text-muted shrink-0">{h.hint}</kbd>}
+                    {h.hint && <kbd className="text-[0.75rem] border border-line rounded-md px-1.5 py-0.5 bg-inset text-muted shrink-0">{h.hint}</kbd>}
                     {i === sel && <CornerDownLeft size={13} className="text-muted shrink-0" aria-hidden />}
                   </button>
                 );
@@ -420,7 +426,7 @@ function Palette({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-4 px-4 h-9 border-t border-line text-[0.6875rem] text-muted"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span className="ml-auto">? for all shortcuts</span></div>
+        <div className="flex items-center gap-4 px-4 h-9 border-t border-line text-[0.75rem] text-muted"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span className="ml-auto">? for all shortcuts</span></div>
       </div>
     </div>
   );
